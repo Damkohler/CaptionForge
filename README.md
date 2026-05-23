@@ -1,10 +1,27 @@
 # CaptionForge
 
-**CaptionForge** is a model-agnostic captioning framework for ComfyUI, designed to help generate cleaner, more consistent, human-reviewable captions for LoRA dataset preparation and image dataset analysis.
+**CaptionForge** is a model-agnostic captioning framework for ComfyUI, designed to generate cleaner, more consistent, auditable captions for LoRA dataset preparation and image dataset analysis.
 
-Rather than treating any single captioning model as the final authority, CaptionForge is built around the idea that caption quality can be improved through structured comparison, repeated observation, audit trails, statistical agreement, LLM-assisted reasoning, and consensus-based refinement.
+Rather than treating any single captioning model as the final authority, CaptionForge is built around the idea that caption quality can be improved through structured comparison, repeated observation, audit trails, claim extraction, statistical agreement, LLM-assisted reasoning, and consensus-based refinement.
 
 The long-term goal is to approximate human-quality descriptive captions by using existing vision and language models inside a more deliberate captioning infrastructure.
+
+## Current Status
+
+CaptionForge now includes its first working ComfyUI implementation.
+
+The current codebase provides:
+
+- Qwen-family captioning through a full ComfyUI node
+- JoyCaption/LLaVA-family captioning through a full ComfyUI node
+- Lite daily-use caption nodes for Qwen and Joy
+- Shared model cache management
+- Pass A JSONL caption audit records
+- Pass B text-only claim extraction
+- LLM-ready Pass B scaffolding for future local text-model integration
+- Frontend icon branding for CaptionForge nodes
+
+This is still early development, but the repository now contains working code rather than only a project placeholder.
 
 ## Vision
 
@@ -22,71 +39,163 @@ CaptionForge aims to reduce these problems by treating captions as evidence, not
 
 Multiple engines can describe the same image. Their outputs can then be audited, decomposed into visual claims, compared, normalized, scored, and recombined into cleaner final captions.
 
-## Current focus
+## Current Nodes
 
-CaptionForge is currently focused on ComfyUI nodes and shared captioning engines for local dataset preparation.
+CaptionForge currently registers the following ComfyUI nodes:
 
-Initial capabilities include:
+### JLC Qwen Caption
 
-- Folder-based image captioning
-- Optional direct ComfyUI `IMAGE` input support
-- `.txt` sidecar caption writing
-- JSONL audit output
-- Run configuration logging for reproducibility
-- Lightweight daily-use node variants
-- Model cache management to reduce unnecessary reloads and VRAM pressure
-- Support for multiple captioning engines within one framework
+Full Qwen-family vision-language captioning node.
 
-The first repository seed is expected to include early ComfyUI caption nodes, shared engine code, and audit-oriented output utilities.
+Supports direct ComfyUI `IMAGE` input, file/folder captioning, prompt presets, custom prompts, prompt files, TXT sidecars, JSONL audit output, run configuration logging, model download probing, and optional bitsandbytes 8-bit loading.
 
-## Model-agnostic direction
+### JLC Joy Caption
+
+Full JoyCaption/LLaVA-family captioning node.
+
+Supports direct ComfyUI `IMAGE` input, file/folder captioning, CaptionForge prompt presets, JoyCaption-native template controls, TXT sidecars, JSONL audit output, run configuration logging, model download probing, and memory-efficient 8-bit loading.
+
+### JLC Qwen Caption (Lite)
+
+Minimal direct-image Qwen captioning node for daily interactive use.
+
+This Lite node exposes only the core controls needed for quick captioning inside ComfyUI.
+
+### JLC Joy Caption (Lite)
+
+Minimal direct-image JoyCaption node for daily interactive use.
+
+This Lite node exposes only the core controls needed for quick captioning inside ComfyUI.
+
+### JLC CaptionForge Claim Extractor
+
+Text-only Pass B node.
+
+Consumes shared Pass A caption JSONL, groups records by `image_key`, extracts atomic visual claims, normalizes rough equivalents, preserves source references, flags simple conflicts, and writes one Pass B claim JSONL record per image.
+
+## Current Files
+
+The first code seed includes:
+
+```text
+__init__.py
+captionforge_model_cache.py
+captionforge_claim_engine.py
+jlc_qwen_caption_engine.py
+jlc_joy_caption_engine.py
+jlc_qwen_caption_CUI_node.py
+jlc_joy_caption_CUI_node.py
+jlc_qwen_caption_lite_CUI_node.py
+jlc_joy_caption_lite_CUI_node.py
+jlc_captionforge_claim_extractor_CUI_node.py
+web/jlc_captionforge_icons.js
+web/assets/icons/jlc-comfyui-nodes_Logo-Dark-0128.png
+
+## Pipeline Direction
+
+CaptionForge is being designed around a multi-pass strategy.
+
+### Pass A — Caption Generation
+
+Generate one or more captions from one or more engines.
+
+Current Pass A engines include:
+
+- Qwen-family VLM captioning
+- JoyCaption/LLaVA-family captioning
+
+Pass A records are written as JSONL audit entries containing model metadata, prompt settings, generation parameters, raw captions, cleaned captions, and image keys.
+
+### Pass B — Claim Extraction
+
+Convert caption text into atomic visual claims.
+
+Current Pass B status:
+
+- deterministic heuristic backend
+- manual JSON backend for parser testing
+- LLM-ready prompt and response schema
+- parser warnings
+- rejected claim records
+- optional raw response preservation
+- future-LLM prompt bundle export
+
+Live LLM extraction is not yet integrated.
+
+### Future Passes
+
+Planned future stages may include:
+
+- normalizing equivalent claims
+- comparing claims across engines and repeated runs
+- detecting contradictions
+- scoring claims by support and usefulness
+- validating captions against claim evidence
+- text-only LLM cleanup/refinement
+- producing final LoRA-ready captions
+- preserving all intermediate evidence in auditable records
+
+The final caption should be less like a single model guess and more like a consensus summary of supported visual evidence.
+
+## Model-Agnostic Direction
 
 CaptionForge is intended to remain engine-democratic.
 
-The framework should be able to incorporate different kinds of captioning or vision-language systems, such as:
+The framework should be able to incorporate different kinds of captioning, tagging, or visual reasoning systems, such as:
 
 - local VLM captioners
 - specialized aesthetic or tagging models
 - general-purpose multimodal models
 - LLM-based text cleanup passes
+- validator models
 - future visual reasoning systems
 - additional robustness engines as they become useful
 
-No single model is assumed to be canonical. The infrastructure is designed so different engines can contribute observations to a broader captioning and refinement process.
+No single model is assumed to be canonical.
 
-## Planned multi-pass pipeline
+Qwen and Joy are the first working engines, not the final boundary of the project.
 
-CaptionForge is being designed around a multi-pass strategy:
+## Installation
 
-- **Pass A:** Generate one or more captions from one or more engines
-- **Pass B:** Extract atomic visual claims from caption text
-- **Pass C:** Normalize equivalent claims  
-  Example: `blonde hair`, `light blond hair`, and `golden hair` may refer to the same visual attribute
-- **Pass D:** Compare claims across engines, prompts, and repeated runs
-- **Pass E:** Score claims by agreement, confidence, and usefulness
-- **Pass F:** Produce cleaner LoRA-ready captions
-- **Pass G:** Preserve all intermediate evidence in auditable JSONL records
+Clone or copy this repository into your ComfyUI `custom_nodes` folder:
 
-The final caption should be less like a single model guess and more like a consensus summary of supported visual evidence.
+`ComfyUI/custom_nodes/CaptionForge`
 
-## Philosophy
+Restart ComfyUI after installation.
 
-CaptionForge favors:
+Model files are not included in this repository. CaptionForge nodes use local model folders under ComfyUI’s `models/LLM/` directory and may offer download-probe behavior through the node UI.
 
-- local-first workflows
-- reproducible outputs
-- auditable intermediate data
-- model-agnostic design
-- practical LoRA dataset preparation
-- human-reviewable decisions
-- clear separation between engines, node wrappers, and refinement logic
-- consensus over single-model authority
+## Model Locations
 
-## Status
+Current model roots:
 
-CaptionForge is in early development.
+`ComfyUI/models/LLM/JLC_QwenCaption/`
 
-The current repository is a preliminary project home. Code, APIs, node names, and folder structure may change before the first stable release.
+`ComfyUI/models/LLM/JLC_JoyCaption/`
+
+Qwen and Joy models are Hugging Face model directories, not single checkpoint files.
+
+Large model weights are intentionally not stored in this repository.
+
+## Notes
+
+CaptionForge is designed for local workflows and practical dataset preparation.
+
+The current implementation favors:
+
+- reproducible settings
+- auditable intermediate records
+- explicit JSONL outputs
+- separation between ComfyUI node wrappers and reusable engines
+- local model execution
+- careful VRAM/cache management
+- incremental development toward consensus-based caption refinement
+
+## Development Status
+
+This repository is in early active development.
+
+APIs, node names, file layout, prompt presets, model registries, and output schemas may evolve before a stable public release.
 
 ## Attribution & License
 
