@@ -39,7 +39,7 @@ CaptionForge Claim Extraction Engine
             • Exports future-LLM prompt bundles for backend development
 
 - Current Backend Strategy
-    - v0.4.0 is a deterministic, LLM-ready scaffold.
+    - v0.5.0 is a deterministic, LLM-ready scaffold.
 
     - Supported backends:
             • heuristic
@@ -78,7 +78,7 @@ CaptionForge Claim Extraction Engine
     - Pass B records preserve the evidence chain from final normalized claims
       back to the originating Pass A captions.
 
-    - v0.4.0 adds parser-audit fields for LLM-readiness:
+    - v0.5.0 adds parser-audit fields for LLM-readiness:
             • llm_parse_result
             • parser_warnings
             • rejected_claims
@@ -99,7 +99,7 @@ CaptionForge Claim Extraction Engine
       produce captions that are closer to human-quality descriptive summaries.
 
 - ⚠️ Development Status
-    - This is Pass B v0.4.0 infrastructure.
+    - This is Pass B v0.5.0 infrastructure.
     - The default backend is deterministic and heuristic.
     - Live LLM claim extraction is not yet integrated.
     - The prompt and response schema are intentionally present so future LLM
@@ -118,7 +118,7 @@ from __future__ import annotations
 
 MANIFEST = {
     "name": "CaptionForge Claim Extraction Engine",
-    "version": (0, 4, 0),
+    "version": (0, 5, 0),
     "author": "J. L. Córdova",
     "description": (
         "CaptionForge Pass B text-only claim extraction engine for converting Pass A "
@@ -135,6 +135,9 @@ import argparse
 import hashlib
 import json
 import re
+import urllib.error
+import urllib.request
+import time
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
@@ -149,11 +152,11 @@ from typing import Any, Iterable, Optional
 @dataclass
 class ClaimExtractionConfig:
     engine_name: str = "CaptionForge Claim Engine"
-    engine_version: str = "0.4.0"
+    engine_version: str = "0.5.0"
 
     # Extraction behavior.
     min_claim_chars: int = 3
-    max_claim_chars: int = 120
+    max_claim_chars: int = 180
     max_claims_per_caption: int = 80
     include_low_confidence: bool = True
     dedupe_within_caption: bool = True
@@ -161,17 +164,24 @@ class ClaimExtractionConfig:
     detect_conflicts: bool = True
 
     # LLM-ready backend contract.
-    # v0.3 implements "heuristic" and "manual_json".
+    # v0.5 implements "heuristic", "manual_json", and "ollama".
     text_llm_backend: str = "heuristic"
     text_llm_model: str = ""
     text_llm_prompt: str = (
-        "Extract atomic visible visual claims from the provided image captions. "
-        "Return strict JSON only. Preserve source references. Do not add facts "
-        "that are not supported by the captions."
+        "Extract clean, atomic, visible visual claims from the provided image captions. "
+        "Treat the captions as imperfect evidence: preserve the visual meaning, but correct "
+        "obvious grammar errors and typos in the claim text. Return strict JSON only. "
+        "Preserve source references. Do not add facts that are not supported by the captions."
     )
-    prompt_schema_version: str = "captionforge-pass-b-prompt-v0.4"
-    response_schema_version: str = "captionforge-pass-b-claims-v0.4"
+    prompt_schema_version: str = "captionforge-pass-b-prompt-v0.5"
+    response_schema_version: str = "captionforge-pass-b-claims-v0.5"
     preserve_raw_llm_response: bool = False
+
+    # Ollama backend behavior.
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    auto_pull_ollama_model: bool = False
+    ollama_timeout_sec: int = 600
+    ollama_keep_alive: str = "5m"
 
 
 @dataclass
@@ -464,6 +474,24 @@ def write_jsonl(path: str | Path, records: Iterable[Any], overwrite: bool = True
             f.write(json.dumps(record_to_json(record), ensure_ascii=False) + "\n")
 
 
+def append_jsonl_record(path: str | Path, record: Any, dry_run: bool = False) -> None:
+    """
+    Append one JSONL record immediately and flush it.
+
+    Used for long-running LLM batches so completed image records survive even if
+    a later image stalls, times out, or the user aborts.
+    """
+    if dry_run:
+        return
+
+    p = Path(path)
+    safe_mkdir(p.parent)
+
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record_to_json(record), ensure_ascii=False) + "\n")
+        f.flush()            
+
+
 def default_output_path(input_jsonl: str | Path) -> Path:
     p = Path(input_jsonl)
     if p.is_dir():
@@ -546,34 +574,60 @@ def build_llm_prompt_bundle(
 ) -> dict[str, Any]:
     captions = [
         {
+            "local_source_index": idx,
             "source_record_index": src.source_record_index,
             "model_family": src.model_family,
             "model_name": src.model_name,
             "ensemble_run_index": src.ensemble_run_index,
             "caption": src.caption or src.raw_caption,
         }
-        for src in source_refs
+        for idx, src in enumerate(source_refs)
     ]
 
     instructions = config.text_llm_prompt.strip() or ClaimExtractionConfig().text_llm_prompt
+
     response_contract = {
         "claims": [
             {
-                "claim_type": "hair_color | eye_color | clothing | pose_action | expression | style_medium | background_color | background_object | composition | visible_text | general",
-                "original_claim": "short atomic visible claim copied or minimally rewritten from captions",
-                "normalized_claim": "canonical comparison form; preserve useful specificity when uncertain",
+                "claim_type": (
+                    "hair_color | hair_style | eye_color | clothing | pose_action | "
+                    "expression | style_medium | background_color | background_object | "
+                    "composition | visible_text | general"
+                ),
+                "evidence_text": "raw supporting phrase from one source caption; may contain typos",
+                "original_claim": "clean grammatical atomic visual claim, e.g. 'the woman has blonde hair'",
+                "normalized_claim": "short canonical comparison form with noun, e.g. 'blonde hair'",
                 "specificity": "generic | specific | specific_normalized",
                 "certainty": "visible | inferred_from_caption | uncertain",
-                "source_record_indexes": [0]
+                "source_record_indexes": [13]
             }
         ]
     }
 
     prompt_text = (
         f"{instructions}\n\n"
-        "Return strict JSON only, with no markdown fences and no explanatory prose.\n"
-        "Do not add any visual fact that is not supported by the captions.\n"
-        "Keep claims atomic: one visible attribute/action/style/background fact per claim.\n\n"
+        "You are extracting visual claims from caption text only. You do not see the image.\n"
+        "Return strict JSON only, with no markdown fences and no explanatory prose.\n\n"
+
+        "Important rules:\n"
+        "1. Do not add visual facts that are not supported by the captions.\n"
+        "2. Keep claims atomic: one visible attribute/action/style/background/text fact per claim.\n"
+        "3. Use the exact source_record_index values provided in Source captions.\n"
+        "4. Do not invent local source indexes such as 0, 1, 2 unless those are also the actual source_record_index values.\n"
+        "5. You may correct grammar and obvious caption typos in original_claim.\n"
+        "6. Keep evidence_text close to the raw caption phrase that supports the claim.\n"
+        "7. Keep visible quoted text exactly as written unless the caption itself is clearly malformed.\n"
+        "8. Do not merge unrelated facts into one claim.\n"
+        "9. Prefer useful dataset-caption claims over tiny fragments such as 'to the right', 'textures', or 'has a slim'.\n"
+        "10. normalized_claim must include the attribute noun when useful for comparison.\n"
+        "    Good: 'blonde hair', 'green eye makeup', 'black crop top', 'pink electric guitar', 'wooden table', 'blue sky'.\n"
+        "    Bad: 'blonde', 'green', 'black', 'guitar', 'table', 'sky'.\n"
+        "11. For visible_text claims, normalized_claim should preserve the readable text and include context when appropriate.\n"
+        "    Good: 'shirt text reading <quoted text>', 'poster text reading <quoted text>', 'sign text reading <quoted text>'.\n"
+        "    Bad: 'text', 'words', 'letters'.\n"
+        "12. For pose claims, normalized_claim should preserve the body relationship.\n"
+        "    Good: 'hands behind head', 'arms behind back', 'elbows out', 'looking over shoulder'.\n\n"
+
         f"Expected JSON response shape:\n{json.dumps(response_contract, ensure_ascii=False, indent=2)}\n\n"
         f"Image key: {image_key}\n"
         f"Source captions:\n{json.dumps(captions, ensure_ascii=False, indent=2)}\n"
@@ -673,6 +727,188 @@ def manual_claims_for_image(image_key: str, manual_by_key: dict[str, Any]) -> Op
     if "__single__" in manual_by_key and len(manual_by_key) == 1:
         return normalize_manual_response(manual_by_key["__single__"])
     return None
+
+
+# -------------------------------------------------------------------------
+# Ollama backend
+# -------------------------------------------------------------------------
+
+def normalize_ollama_base_url(url: str) -> str:
+    url = (url or "http://127.0.0.1:11434").strip()
+    return url.rstrip("/")
+
+
+def ollama_request_json(
+    *,
+    base_url: str,
+    endpoint: str,
+    payload: Optional[dict[str, Any]] = None,
+    timeout_sec: int = 600,
+) -> Any:
+    """
+    Minimal stdlib Ollama JSON helper.
+
+    Uses urllib instead of requests so CaptionForge does not add another
+    dependency to the ComfyUI environment.
+    """
+    base_url = normalize_ollama_base_url(base_url)
+    url = f"{base_url}{endpoint}"
+
+    data = None
+    headers = {"Content-Type": "application/json"}
+
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+
+    req = urllib.request.Request(
+        url=url,
+        data=data,
+        headers=headers,
+        method="POST" if payload is not None else "GET",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=int(timeout_sec)) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            "Could not reach Ollama.\n"
+            f"Base URL: {base_url}\n"
+            "Make sure Ollama is installed and running, then test with:\n"
+            "  ollama list"
+        ) from exc
+
+    if not text.strip():
+        return None
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Ollama returned invalid JSON from {endpoint}: {exc}") from exc
+
+
+def ollama_model_names(base_url: str, timeout_sec: int = 30) -> set[str]:
+    obj = ollama_request_json(
+        base_url=base_url,
+        endpoint="/api/tags",
+        payload=None,
+        timeout_sec=timeout_sec,
+    )
+
+    names: set[str] = set()
+    for item in obj.get("models", []) if isinstance(obj, dict) else []:
+        name = str(item.get("name") or "").strip()
+        if name:
+            names.add(name)
+
+    return names
+
+
+def ollama_model_is_available(
+    model_name: str,
+    base_url: str,
+    timeout_sec: int = 30,
+) -> bool:
+    model_name = (model_name or "").strip()
+    if not model_name:
+        return False
+
+    names = ollama_model_names(base_url, timeout_sec=timeout_sec)
+
+    if model_name in names:
+        return True
+
+    # Accept untagged family name only if Ollama has a tagged local match.
+    # Example: user enters "llama3.1" and local model is "llama3.1:8b".
+    if ":" not in model_name:
+        prefix = f"{model_name}:"
+        return any(name.startswith(prefix) for name in names)
+
+    return False
+
+
+def ensure_ollama_model_available(config: ClaimExtractionConfig) -> None:
+    model_name = (config.text_llm_model or "").strip()
+    if not model_name:
+        raise ValueError(
+            "text_llm_model is required when text_llm_backend='ollama'. "
+            "Example: gpt-oss:20b, llama3.1:8b, qwen2.5:7b"
+        )
+
+    if ollama_model_is_available(
+        model_name=model_name,
+        base_url=config.ollama_base_url,
+        timeout_sec=min(int(config.ollama_timeout_sec), 60),
+    ):
+        return
+
+    raise RuntimeError(
+        f"Ollama model is not installed: {model_name}\n\n"
+        "Install it manually, then rerun CaptionForge:\n"
+        f"  ollama pull {model_name}"
+    )
+
+
+def ollama_generate_claim_response(
+    prompt_bundle: dict[str, Any],
+    config: ClaimExtractionConfig,
+) -> str:
+    """
+    Send one Pass B prompt bundle to Ollama and return raw response text.
+
+    Ollama is asked for JSON mode, but the normal parser still validates the
+    returned object. Bad or non-schema output is captured by existing parser
+    audit/error handling.
+    """
+    ensure_ollama_model_available(config)
+
+    model_name = (config.text_llm_model or "").strip()
+    prompt = str(prompt_bundle.get("prompt") or "")
+
+    payload: dict[str, Any] = {
+        "model": model_name,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json",
+        "options": {
+            "temperature": 0,
+        },
+    }
+
+    keep_alive = (config.ollama_keep_alive or "").strip()
+    if keep_alive:
+        payload["keep_alive"] = keep_alive
+
+    print(
+        f"[CaptionForge Claim Engine] Sending prompt to Ollama model: {model_name}",
+        flush=True,
+    )
+    t0 = time.perf_counter()
+
+    obj = ollama_request_json(
+        base_url=config.ollama_base_url,
+        endpoint="/api/generate",
+        payload=payload,
+        timeout_sec=int(config.ollama_timeout_sec),
+    )
+
+    elapsed = time.perf_counter() - t0
+    print(
+        f"[CaptionForge Claim Engine] Ollama response received in {elapsed:.1f}s.",
+        flush=True,
+    )
+
+    if not isinstance(obj, dict):
+        raise RuntimeError("Ollama returned a non-object response.")
+
+    if obj.get("error"):
+        raise RuntimeError(f"Ollama generation failed: {obj.get('error')}")
+
+    response_text = str(obj.get("response") or "").strip()
+    if not response_text:
+        raise RuntimeError("Ollama returned an empty response.")
+
+    return response_text
 
 
 # -------------------------------------------------------------------------
@@ -926,11 +1162,150 @@ def extract_claims_from_caption(caption: str, source: SourceCaptionRef, config: 
     return claims
 
 
+def choose_llm_claim_text(item: dict[str, Any], config: ClaimExtractionConfig) -> tuple[str, str]:
+    """
+    Return (original_claim, evidence_text) from an LLM/manual claim item.
+
+    Prefer a clean, atomic original_claim. If the LLM bloats original_claim with
+    a whole sentence or caption fragment, use evidence_text when it is shorter
+    and usable.
+    """
+    evidence_text = clean_claim_text(str(item.get("evidence_text") or ""))
+
+    original_raw = clean_claim_text(str(item.get("original_claim") or ""))
+    claim_raw = clean_claim_text(str(item.get("claim") or ""))
+    text_raw = clean_claim_text(str(item.get("text") or ""))
+
+    candidates = [original_raw, claim_raw, text_raw, evidence_text]
+
+    cleaned: list[str] = []
+    for value in candidates:
+        text = clean_claim_text(value)
+        if text and text not in cleaned:
+            cleaned.append(text)
+
+    if not cleaned:
+        return "", evidence_text
+
+    def is_usable(text: str) -> bool:
+        return config.min_claim_chars <= len(text) <= config.max_claim_chars
+
+    # If evidence_text is clean and much shorter than original_claim, prefer it.
+    # This prevents storing whole caption clauses as original_claim.
+    if evidence_text and is_usable(evidence_text):
+        if not original_raw:
+            return evidence_text, evidence_text
+
+        original_too_long = len(original_raw) > config.max_claim_chars
+        evidence_much_shorter = len(evidence_text) <= max(60, int(len(original_raw) * 0.55))
+        original_sentence_like = (
+            original_raw.count(".") >= 1
+            or len(re.split(r"\s+(?:and|with|while|that|which)\s+", original_raw, flags=re.IGNORECASE)) >= 3
+        )
+
+        if original_too_long or evidence_much_shorter or original_sentence_like:
+            return evidence_text, evidence_text
+
+    for text in cleaned:
+        if is_usable(text):
+            return text, evidence_text
+
+    return min(cleaned, key=len), evidence_text
+
+
+CANONICAL_CLAIM_TYPES = {
+    "hair_color",
+    "hair_style",
+    "eye_color",
+    "clothing",
+    "pose_action",
+    "expression",
+    "style_medium",
+    "background_color",
+    "background_object",
+    "composition",
+    "visible_text",
+    "general",
+}
+
+
+CLAIM_TYPE_ALIASES = {
+    "eye_makeup": "eye_color",
+    "makeup": "expression",
+    "clothing_style": "clothing",
+    "text_color": "visible_text",
+    "style_realism": "style_medium",
+    "lighting": "style_medium",
+    "background": "background_object",
+    "object": "background_object",
+    "pose": "pose_action",
+    "action": "pose_action",
+    "hair": "hair_style",
+    "text": "visible_text",
+}
+
+
+def canonicalize_claim_type(value: str, normalized_claim: str = "", original_claim: str = "") -> str:
+    """
+    Convert LLM claim_type output into one canonical CaptionForge category.
+
+    Models sometimes return compound labels like:
+        "eye_color | eye_makeup"
+        "visible_text | text_color"
+
+    We keep the first valid canonical type, then fall back to aliases and simple
+    content heuristics.
+    """
+    raw = (value or "").strip().lower()
+    normalized = (normalized_claim or "").lower()
+    original = (original_claim or "").lower()
+
+    if not raw:
+        raw = ""
+
+    parts = [
+        p.strip()
+        for p in re.split(r"[|,/;]+", raw)
+        if p.strip()
+    ]
+
+    for part in parts:
+        if part in CANONICAL_CLAIM_TYPES:
+            return part
+
+    for part in parts:
+        if part in CLAIM_TYPE_ALIASES:
+            return CLAIM_TYPE_ALIASES[part]
+
+    combined = f"{normalized} {original}"
+
+    if '"' in original_claim or " text" in combined or "reading " in combined or "reads " in combined:
+        return "visible_text"
+    if "hair" in combined or "bun" in combined or "pigtail" in combined or "braid" in combined:
+        if any(color in combined for color in HAIR_COLORS):
+            return "hair_color"
+        return "hair_style"
+    if "eye" in combined or "makeup" in combined:
+        return "eye_color"
+    if any(hint in combined for hint in CLOTHING_HINTS):
+        return "clothing"
+    if any(hint in combined for hint in POSE_HINTS):
+        return "pose_action"
+    if "background" in combined or "wall" in combined or "poster" in combined or "graffiti" in combined:
+        return "background_object"
+    if "lighting" in combined or "style" in combined or "artwork" in combined or "render" in combined:
+        return "style_medium"
+
+    return "general"
+
+
 def claims_from_manual_response(
     image_key: str,
     response: dict[str, Any],
     source_refs: list[SourceCaptionRef],
     config: ClaimExtractionConfig,
+    *,
+    backend: str = "manual_json",
 ) -> tuple[list[AtomicClaim], LLMParseResult, list[RejectedClaim], str]:
     """
     Parse a manual/future-LLM JSON response into AtomicClaim objects.
@@ -949,7 +1324,8 @@ def claims_from_manual_response(
     else:
         raw_response = str(raw_response)
 
-    source_by_index = {src.source_record_index: src for src in source_refs}
+    source_by_record_index = {src.source_record_index: src for src in source_refs}
+    source_by_local_index = {idx: src for idx, src in enumerate(source_refs)}
     default_source = source_refs[0] if source_refs else SourceCaptionRef(0, image_key, image_key, "", "", 0, "ok", "", "", "")
 
     claims: list[AtomicClaim] = []
@@ -961,16 +1337,23 @@ def claims_from_manual_response(
             rejected.append(RejectedClaim(idx, "claim item is not an object", item))
             continue
 
-        original = clean_claim_text(str(item.get("original_claim") or item.get("claim") or item.get("text") or ""))
+        original, evidence_text = choose_llm_claim_text(item, config)
+
         if not original:
-            rejected.append(RejectedClaim(idx, "missing original_claim/claim/text", item))
+            rejected.append(RejectedClaim(idx, "missing original_claim/claim/text/evidence_text", item))
             continue
 
         if len(original) < config.min_claim_chars:
             rejected.append(RejectedClaim(idx, f"claim shorter than min_claim_chars={config.min_claim_chars}", item))
             continue
         if len(original) > config.max_claim_chars:
-            rejected.append(RejectedClaim(idx, f"claim longer than max_claim_chars={config.max_claim_chars}", item))
+            rejected.append(
+                RejectedClaim(
+                    idx,
+                    f"all claim text candidates longer than max_claim_chars={config.max_claim_chars}",
+                    item,
+                )
+            )
             continue
 
         normalized_raw = str(item.get("normalized_claim") or item.get("normalized") or "").strip()
@@ -980,18 +1363,20 @@ def claims_from_manual_response(
         if normalized_raw:
             normalized = clean_claim_text(normalized_raw).lower()
             if not normalized:
-                normalized, claim_type, norm_specificity = normalize_claim_text(original, config)
+                normalized, inferred_claim_type, norm_specificity = normalize_claim_text(original, config)
+                claim_type = claim_type_raw or inferred_claim_type
                 if not item.get("specificity"):
                     specificity = norm_specificity
             else:
-                claim_type = claim_type_raw or normalize_claim_text(original, config)[1]
+                inferred_claim_type = normalize_claim_text(original, config)[1]
+                claim_type = claim_type_raw or inferred_claim_type
         else:
-            normalized, claim_type, norm_specificity = normalize_claim_text(original, config)
+            normalized, inferred_claim_type, norm_specificity = normalize_claim_text(original, config)
+            claim_type = claim_type_raw or inferred_claim_type
             if not item.get("specificity"):
                 specificity = norm_specificity
 
-        if not claim_type:
-            claim_type = "general"
+        claim_type = canonicalize_claim_type(claim_type, normalized, original)
 
         # Accept source_record_indexes, source_record_index, or no source.
         src_indexes = item.get("source_record_indexes")
@@ -1020,9 +1405,19 @@ def claims_from_manual_response(
                 warnings.append(f"claims[{idx}] has non-integer source index {src_index_value!r}; defaulted.")
                 src_index = default_source.source_record_index
 
-            source = source_by_index.get(src_index)
+            source = source_by_record_index.get(src_index)
+
+            if source is None and src_index in source_by_local_index:
+                source = source_by_local_index[src_index]
+                warnings.append(
+                    f"claims[{idx}] used local source index {src_index!r}; "
+                    f"mapped to source_record_index={source.source_record_index}."
+                )
+
             if source is None:
-                warnings.append(f"claims[{idx}] source index {src_index!r} not found in Pass A records; defaulted.")
+                warnings.append(
+                    f"claims[{idx}] source index {src_index!r} not found in Pass A records; defaulted."
+                )
                 source = default_source
 
             claims.append(
@@ -1044,7 +1439,7 @@ def claims_from_manual_response(
 
     status = "ok" if not rejected else "ok_with_rejected_claims"
     parse_result = LLMParseResult(
-        backend="manual_json",
+        backend=backend,
         status=status,
         response_schema_version=config.response_schema_version,
         parsed_claim_count=len(claims),
@@ -1200,9 +1595,33 @@ def build_image_claim_record(
                 error=f"No manual JSON response found for image_key={image_key!r}.",
             )
         else:
-            all_claims, llm_parse_result, rejected_claims, raw_llm_response = claims_from_manual_response(image_key, manual_response, source_refs, config)
+            all_claims, llm_parse_result, rejected_claims, raw_llm_response = claims_from_manual_response(
+                image_key,
+                manual_response,
+                source_refs,
+                config,
+                backend="manual_json",
+            )
             llm_parse_result.prompt_sha1 = prompt_sha1
             llm_parse_result.prompt_schema_version = config.prompt_schema_version
+
+    elif config.text_llm_backend == "ollama":
+        raw_llm_response = ollama_generate_claim_response(prompt_bundle, config)
+        ollama_response = extract_json_object(raw_llm_response)
+
+        all_claims, llm_parse_result, rejected_claims, raw_llm_response = claims_from_manual_response(
+            image_key,
+            {
+                **ollama_response,
+                "raw_llm_response": raw_llm_response,
+            },
+            source_refs,
+            config,
+            backend="ollama",
+        )
+        llm_parse_result.prompt_sha1 = prompt_sha1
+        llm_parse_result.prompt_schema_version = config.prompt_schema_version
+
     else:
         all_claims: list[AtomicClaim] = []
         for source in source_refs:
@@ -1266,10 +1685,10 @@ def extract_claims_batch(
     config = config or ClaimExtractionConfig()
     config.text_llm_backend = (config.text_llm_backend or "heuristic").strip().lower()
 
-    if config.text_llm_backend not in {"heuristic", "manual_json"}:
+    if config.text_llm_backend not in {"heuristic", "manual_json", "ollama"}:
         raise ValueError(
             f"Unsupported text_llm_backend={config.text_llm_backend!r}. "
-            "v0.4 supports: heuristic, manual_json."
+            "v0.5 supports: heuristic, manual_json, ollama."
         )
 
     result = BatchClaimResult()
@@ -1299,42 +1718,84 @@ def extract_claims_batch(
         prompt_path = Path(batch.llm_prompt_jsonl) if batch.llm_prompt_jsonl.strip() else default_prompt_output_path(batch.input_jsonl)
         write_jsonl(prompt_path, prompt_bundles, overwrite=True, dry_run=batch.dry_run)
 
-    for image_key, grouped_records in items:
-        try:
-            manual_response = manual_claims_for_image(image_key, manual_by_key) if config.text_llm_backend == "manual_json" else None
-            result.records.append(build_image_claim_record(image_key, grouped_records, config, manual_response=manual_response))
-        except Exception as exc:
-            result.failed += 1
-            result.records.append(
-                ImageClaimRecord(
-                    captionforge_pass="B",
-                    image_key=image_key,
-                    image=str(grouped_records[0].get("image") or image_key) if grouped_records else image_key,
-                    status="error",
-                    source_caption_count=len(grouped_records),
-                    source_caption_records=[],
-                    atomic_claims=[],
-                    normalized_claims=[],
-                    conflicts=[],
-                    uncertainty_flags=[f"error: {exc}"],
-                    params={
-                        "engine": config.engine_name,
-                        "engine_version": config.engine_version,
-                        "text_llm_backend": config.text_llm_backend,
-                        "config": record_to_json(config),
-                    },
-                    timestamp=iso_timestamp(),
-                    llm_parse_result=LLMParseResult(
-                        backend=config.text_llm_backend,
-                        status="error",
-                        error=str(exc),
-                    ),
-                )
-            )
-
+    out: Optional[Path] = None
     if batch.write_jsonl:
         out = Path(batch.output_jsonl) if batch.output_jsonl.strip() else default_output_path(batch.input_jsonl)
-        write_jsonl(out, result.records, overwrite=batch.overwrite, dry_run=batch.dry_run)
+
+        # Preserve old overwrite semantics, but switch actual batch writing to
+        # per-record append so long LLM runs produce visible progress.
+        if batch.overwrite and not batch.dry_run:
+            safe_mkdir(out.parent)
+            out.write_text("", encoding="utf-8")
+
+    total_items = len(items)
+
+    for item_index, (image_key, grouped_records) in enumerate(items, start=1):
+        print(
+            f"[CaptionForge Claim Engine] [{item_index}/{total_items}] Processing image_key: {image_key}",
+            flush=True,
+        )
+        item_t0 = time.perf_counter()
+
+        try:
+            manual_response = manual_claims_for_image(image_key, manual_by_key) if config.text_llm_backend == "manual_json" else None
+            record = build_image_claim_record(
+                image_key,
+                grouped_records,
+                config,
+                manual_response=manual_response,
+            )
+            result.records.append(record)
+
+        except KeyboardInterrupt:
+            print(
+                f"[CaptionForge Claim Engine] Interrupted while processing image_key: {image_key}",
+                flush=True,
+            )
+            raise
+
+        except Exception as exc:
+            result.failed += 1
+            record = ImageClaimRecord(
+                captionforge_pass="B",
+                image_key=image_key,
+                image=str(grouped_records[0].get("image") or image_key) if grouped_records else image_key,
+                status="error",
+                source_caption_count=len(grouped_records),
+                source_caption_records=[],
+                atomic_claims=[],
+                normalized_claims=[],
+                conflicts=[],
+                uncertainty_flags=[f"error: {exc}"],
+                params={
+                    "engine": config.engine_name,
+                    "engine_version": config.engine_version,
+                    "text_llm_backend": config.text_llm_backend,
+                    "text_llm_model": config.text_llm_model,
+                    "config": record_to_json(config),
+                },
+                timestamp=iso_timestamp(),
+                llm_parse_result=LLMParseResult(
+                    backend=config.text_llm_backend,
+                    status="error",
+                    error=str(exc),
+                ),
+            )
+            result.records.append(record)
+
+        item_elapsed = time.perf_counter() - item_t0
+        print(
+            f"[CaptionForge Claim Engine] [{item_index}/{total_items}] Finished image_key: {image_key} "
+            f"in {item_elapsed:.1f}s | status={record.status}",
+            flush=True,
+        )
+
+        if out is not None:
+            append_jsonl_record(out, record, dry_run=batch.dry_run)
+            print(
+                f"[CaptionForge Claim Engine] [{item_index}/{total_items}] Wrote record to: {out}",
+                flush=True,
+            )
 
     return result
 
@@ -1353,7 +1814,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--include-error-pass-a-records", action="store_true", help="Include Pass A records with status != ok.")
     parser.add_argument("--no-conflicts", action="store_true", help="Disable simple conflict detection.")
     parser.add_argument("--no-low-confidence", action="store_true", help="Drop lower-confidence heuristic claims.")
-    parser.add_argument("--text-llm-backend", default="heuristic", choices=["heuristic", "manual_json"])
+    parser.add_argument("--text-llm-backend", default="heuristic", choices=["heuristic", "manual_json", "ollama"])
+    parser.add_argument("--text-llm-model", default="", help="Text LLM model identifier. For Ollama, e.g. gpt-oss:20b or llama3.1:8b.")
+    parser.add_argument("--ollama-base-url", default="http://127.0.0.1:11434", help="Ollama server URL.")
+    parser.add_argument("--ollama-timeout-sec", type=int, default=600, help="Ollama request timeout in seconds.")
+    parser.add_argument("--ollama-keep-alive", default="5m", help="Ollama keep_alive value, e.g. 5m, 30m, or 0.")
     parser.add_argument("--manual-json-path", default="", help="JSON/JSONL response file for manual_json backend.")
     parser.add_argument("--image-key-filter", default="", help="Process only image_keys that exactly match or contain this string.")
     parser.add_argument("--preserve-raw-llm-response", action="store_true", help="Store raw manual/LLM response text in each Pass B record.")
@@ -1369,7 +1834,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         include_low_confidence=not args.no_low_confidence,
         detect_conflicts=not args.no_conflicts,
         text_llm_backend=args.text_llm_backend,
+        text_llm_model=args.text_llm_model,
         preserve_raw_llm_response=bool(args.preserve_raw_llm_response),
+        ollama_base_url=args.ollama_base_url,
+        ollama_timeout_sec=int(args.ollama_timeout_sec),
+        ollama_keep_alive=args.ollama_keep_alive,
     )
 
     output_jsonl = args.output_jsonl or str(default_output_path(args.input_jsonl))

@@ -59,4 +59,4 @@ private_images/
 # Local deprecated/backup working folders
 .deprecated/
 .backups/
-
+.tools/
