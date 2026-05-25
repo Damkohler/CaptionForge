@@ -1,3 +1,20 @@
+# ⚠️ EXPERIMENTAL CODE — DO NOT PULL ⚠️
+
+> **CaptionForge is under active, unstable development.**
+>
+> This repository is currently a code-safekeeping and development checkpoint for the author.
+> It is **not** ready for general installation, ComfyUI Registry use, production workflows, or third-party support.
+>
+> APIs, node names, file layout, model-loading behavior, JSONL schemas, semantic profiles, and output formats may change without warning.
+>
+> **Please do not clone, install, package, fork for use, or submit issues expecting support yet.**
+
+---
+
+<p align="center">
+  <img src="web/assets/icons/jlc-comfyui-nodes_Logo-Dark-0128.png" alt="CaptionForge logo" width="128">
+</p>
+
 # CaptionForge
 
 **CaptionForge** is a model-agnostic captioning framework for ComfyUI, designed to generate cleaner, more consistent, auditable captions for LoRA dataset preparation and image dataset analysis.
@@ -90,6 +107,7 @@ jlc_joy_caption_lite_CUI_node.py
 jlc_captionforge_claim_extractor_CUI_node.py
 web/jlc_captionforge_icons.js
 web/assets/icons/jlc-comfyui-nodes_Logo-Dark-0128.png
+```
 
 ## Pipeline Direction
 
