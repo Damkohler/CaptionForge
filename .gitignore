@@ -60,3 +60,4 @@ private_images/
 .deprecated/
 .backups/
 .tools/
+.tests/

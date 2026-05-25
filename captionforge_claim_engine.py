@@ -39,7 +39,7 @@ CaptionForge Claim Extraction Engine
             • Exports future-LLM prompt bundles for backend development
 
 - Current Backend Strategy
-    - v0.6.0 is a deterministic, LLM-ready scaffold with profile-loaded semantic taxonomy, normalization rules, and claim-routing rules.
+    - v0.6.5 is a deterministic, LLM-ready scaffold with profile-loaded semantic taxonomy, normalization rules, and claim-routing rules.
 
     - Supported backends:
             • heuristic
@@ -99,7 +99,7 @@ CaptionForge Claim Extraction Engine
       produce captions that are closer to human-quality descriptive summaries.
 
 - ⚠️ Development Status
-    - This is Pass B v0.6.0 infrastructure.
+    - This is Pass B v0.6.5 infrastructure.
     - The default backend is deterministic and heuristic.
     - Live Ollama LLM claim extraction is integrated; heuristic/manual backends remain available.
     - The prompt and response schema are intentionally present so future LLM
@@ -118,7 +118,7 @@ from __future__ import annotations
 
 MANIFEST = {
     "name": "CaptionForge Claim Extraction Engine",
-    "version": (0, 6, 3),
+    "version": (0, 6, 5),
     "author": "J. L. Córdova",
     "description": (
         "CaptionForge Pass B text-only claim extraction engine for converting Pass A "
@@ -152,12 +152,16 @@ from typing import Any, Iterable, Optional
 @dataclass
 class ClaimExtractionConfig:
     engine_name: str = "CaptionForge Claim Engine"
-    engine_version: str = "0.6.3"
+    engine_version: str = "0.6.5"
 
     # Extraction behavior.
     min_claim_chars: int = 3
     max_claim_chars: int = 180
     max_claims_per_caption: int = 80
+    # v0.6.5: LLM output pressure guard. This caps the requested number of
+    # claims per image in the prompt, and the parser also truncates overlong
+    # valid responses defensively. 0 disables the LLM-specific cap.
+    max_llm_claims_per_image: int = 40
     include_low_confidence: bool = True
     dedupe_within_caption: bool = True
     normalize_synonyms: bool = True
@@ -182,6 +186,10 @@ class ClaimExtractionConfig:
     auto_pull_ollama_model: bool = False
     ollama_timeout_sec: int = 600
     ollama_keep_alive: str = "5m"
+    # v0.6.5: keep the proven 2400-token common-path default, but make
+    # it configurable for pathological reruns without editing source code.
+    ollama_num_predict: int = 2400
+    ollama_temperature: float = 0.0
 
     # v0.6 semantic profile behavior.
     # The Pass B output schema remains stable; the profile supplies deterministic
@@ -200,6 +208,13 @@ class BatchClaimConfig:
     limit_images: int = 0
     include_error_pass_a_records: bool = False
     overwrite: bool = True
+
+    # v0.6.4 resumable-batch behavior. Resume mode preserves prior ok
+    # records in the output JSONL and reruns only missing, error, or explicitly
+    # flagged image keys.
+    resume: bool = False
+    rerun_errors: bool = True
+    rerun_image_keys: list[str] = field(default_factory=list)
 
     # v0.3 LLM-ready diagnostics / manual backend.
     manual_json_path: str = ""
@@ -287,6 +302,11 @@ class LLMParseResult:
     parsed_claim_count: int = 0
     rejected_claim_count: int = 0
     parser_warnings: list[str] = field(default_factory=list)
+    error_class: str = ""
+    prompt_chars: int = 0
+    raw_response_chars: int = 0
+    elapsed_sec: float = 0.0
+    normalized_claim_count: int = 0
     raw_response_sha1: str = ""
     error: str = ""
 
@@ -316,6 +336,7 @@ class ImageClaimRecord:
     parser_warnings: list[str] = field(default_factory=list)
     rejected_claims: list[RejectedClaim] = field(default_factory=list)
     raw_llm_response: str = ""
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -754,6 +775,15 @@ def build_llm_prompt_bundle(
         ]
     }
 
+    max_llm_claims = int(getattr(config, "max_llm_claims_per_image", 0) or 0)
+    claim_limit_rule = ""
+    if max_llm_claims > 0:
+        claim_limit_rule = (
+            f"13. Return at most {max_llm_claims} claims total.\n"
+            "    Prefer the strongest, most visually useful claims. Do not exhaustively decompose every phrase.\n"
+            "    If captions are repetitive or malformed, summarize only clear visible facts.\n"
+        )
+
     prompt_text = (
         f"{instructions}\n\n"
         "You are extracting visual claims from caption text only. You do not see the image.\n"
@@ -776,7 +806,8 @@ def build_llm_prompt_bundle(
         "    Good: 'shirt text reading <quoted text>', 'poster text reading <quoted text>', 'sign text reading <quoted text>'.\n"
         "    Bad: 'text', 'words', 'letters'.\n"
         "12. For pose claims, normalized_claim should preserve the body relationship.\n"
-        "    Good: 'hands behind head', 'arms behind back', 'elbows out', 'looking over shoulder'.\n\n"
+        "    Good: 'hands behind head', 'arms behind back', 'elbows out', 'looking over shoulder'.\n"
+        f"{claim_limit_rule}\n"
 
         f"Expected JSON response shape:\n{json.dumps(response_contract, ensure_ascii=False, indent=2)}\n\n"
         f"Image key: {image_key}\n"
@@ -1021,8 +1052,8 @@ def ollama_generate_claim_response(
         "stream": False,
         "format": "json",
         "options": {
-            "temperature": 0,
-            "num_predict": 2400,
+            "temperature": float(config.ollama_temperature),
+            "num_predict": int(config.ollama_num_predict),
         },
     }
 
@@ -1031,7 +1062,9 @@ def ollama_generate_claim_response(
         payload["keep_alive"] = keep_alive
 
     print(
-        f"[CaptionForge Claim Engine] Sending prompt to Ollama model: {model_name}",
+        f"[CaptionForge Claim Engine] Sending prompt to Ollama model: {model_name} "
+        f"| num_predict={int(config.ollama_num_predict)} "
+        f"| temperature={float(config.ollama_temperature):g}",
         flush=True,
     )
     t0 = time.perf_counter()
@@ -1491,6 +1524,64 @@ def canonicalize_claim_type(
 
     return "general" if "general" in canonical_types else sorted(canonical_types)[0]
 
+
+def is_negative_absence_claim(
+    *,
+    original_claim: str,
+    normalized_claim: str,
+    evidence_text: str = "",
+) -> bool:
+    """
+    Reject absence-style claims such as:
+      - "there is no visible text in the image"
+      - "there is no makeup in the image"
+      - "the image does not show a phone"
+      - "no readable text is visible"
+      - normalized_claim "<no quoted text>"
+
+    Pass B currently extracts positive visible claims, not negative inventory
+    claims about everything absent from the image.
+    """
+    orig = (original_claim or "").strip().lower()
+    norm = (normalized_claim or "").strip().lower()
+    evid = (evidence_text or "").strip().lower()
+    combined = f"{orig} || {norm} || {evid}"
+
+    if not combined.strip(" |"):
+        return False
+
+    exact_bad = {
+        "<no quoted text>",
+        "no quoted text",
+        "none visible",
+        "nothing visible",
+        "not visible",
+        "not shown",
+        "not present",
+        "not depicted",
+    }
+
+    if orig in exact_bad or norm in exact_bad or evid in exact_bad:
+        return True
+
+    absence_patterns = [
+        r"\bthere (?:is|are) no\b",
+        r"\bthere (?:is|are) not any\b",
+        r"\bthere (?:is|are)n['’]?t any\b",
+        r"\bno\b.{0,80}\b(?:visible|shown|present|depicted|seen|readable)\b",
+        r"\bthe image does not (?:show|contain|include|depict)\b",
+        r"\bthe image doesn['’]?t (?:show|contain|include|depict)\b",
+        r"\bnot (?:visible|shown|present|depicted|seen|readable)\b",
+        r"\bwithout any\b",
+        r"\bwithout (?:visible|readable)\b",
+        r"\bdoes not appear\b",
+        r"\bdo not appear\b",
+        r"<no quoted text>",
+    ]
+
+    return any(re.search(pattern, combined) for pattern in absence_patterns)
+
+
 def claims_from_manual_response(
     image_key: str,
     response: dict[str, Any],
@@ -1523,6 +1614,13 @@ def claims_from_manual_response(
     claims: list[AtomicClaim] = []
     rejected: list[RejectedClaim] = []
     warnings: list[str] = []
+
+    max_llm_claims = int(getattr(config, "max_llm_claims_per_image", 0) or 0)
+    if max_llm_claims > 0 and len(claims_obj) > max_llm_claims:
+        warnings.append(
+            f"LLM returned {len(claims_obj)} claims; truncated to max_llm_claims_per_image={max_llm_claims}."
+        )
+        claims_obj = claims_obj[:max_llm_claims]
 
     for idx, item in enumerate(claims_obj):
         if not isinstance(item, dict):
@@ -1569,6 +1667,20 @@ def claims_from_manual_response(
                 specificity = norm_specificity
 
         claim_type = canonicalize_claim_type(claim_type, normalized, original, config=config)
+
+        if is_negative_absence_claim(
+            original_claim=original,
+            normalized_claim=normalized,
+            evidence_text=evidence_text,
+        ):
+            rejected.append(
+                RejectedClaim(
+                    idx,
+                    "negative/absence claim rejected",
+                    item,
+                )
+            )
+            continue
 
         # Accept source_record_indexes, source_record_index, or no source.
         src_indexes = item.get("source_record_indexes")
@@ -1762,6 +1874,72 @@ def make_uncertainty_flags(source_refs: list[SourceCaptionRef], normalized_claim
     return flags
 
 
+
+def classify_pass_b_error(exc: BaseException, raw_response: str = "") -> str:
+    """
+    Best-effort error classifier for resumable Pass B batches.
+
+    This intentionally avoids raising new errors while classifying failures; the
+    class is used for audit fields and retry selection, not control flow.
+    """
+    message = str(exc or "").lower()
+    raw = str(raw_response or "")
+
+    if isinstance(exc, TimeoutError) or "timed out" in message or "timeout" in message:
+        return "timed_out"
+    if "empty" in message and "response" in message:
+        return "empty_response"
+    if isinstance(exc, json.JSONDecodeError) or "json" in message:
+        stripped = raw.strip()
+        if stripped and not stripped.endswith(("}", "]")):
+            return "truncated_or_invalid_json"
+        if "unterminated" in message or "expecting value" in message or "expecting ',' delimiter" in message:
+            return "truncated_or_invalid_json"
+        return "invalid_json"
+    if "could not reach ollama" in message:
+        return "ollama_unreachable"
+    if "ollama model is not installed" in message:
+        return "ollama_model_missing"
+    if "non-object response" in message:
+        return "invalid_ollama_response"
+    return "error"
+
+
+def make_record_metrics(
+    *,
+    prompt_bundle: Optional[dict[str, Any]] = None,
+    raw_response: str = "",
+    elapsed_sec: float = 0.0,
+    llm_parse_result: Optional[LLMParseResult] = None,
+    atomic_claim_count: int = 0,
+    normalized_claim_count: int = 0,
+    rejected_claim_count: int = 0,
+) -> dict[str, Any]:
+    prompt_text = ""
+    if isinstance(prompt_bundle, dict):
+        prompt_text = str(prompt_bundle.get("prompt") or "")
+
+    parsed_claim_count = 0
+    parser_warning_count = 0
+    error_class = ""
+    if llm_parse_result is not None:
+        parsed_claim_count = int(llm_parse_result.parsed_claim_count or 0)
+        parser_warning_count = len(llm_parse_result.parser_warnings or [])
+        error_class = str(llm_parse_result.error_class or "")
+
+    return {
+        "prompt_chars": len(prompt_text),
+        "raw_response_chars": len(str(raw_response or "")),
+        "elapsed_sec": round(float(elapsed_sec or 0.0), 3),
+        "parsed_claim_count": parsed_claim_count,
+        "atomic_claim_count": int(atomic_claim_count or 0),
+        "normalized_claim_count": int(normalized_claim_count or 0),
+        "rejected_claim_count": int(rejected_claim_count or 0),
+        "parser_warning_count": parser_warning_count,
+        "error_class": error_class,
+    }
+
+
 def build_image_claim_record(
     image_key: str,
     pass_a_records: list[dict[str, Any]],
@@ -1769,9 +1947,11 @@ def build_image_claim_record(
     *,
     manual_response: Optional[dict[str, Any]] = None,
 ) -> ImageClaimRecord:
+    record_t0 = time.perf_counter()
     source_refs = [make_source_ref(r) for r in pass_a_records]
     prompt_bundle = build_llm_prompt_bundle(image_key, source_refs, config)
     prompt_sha1 = str(prompt_bundle.get("prompt_sha1") or "")
+    prompt_chars = len(str(prompt_bundle.get("prompt") or ""))
 
     llm_parse_result: LLMParseResult
     rejected_claims: list[RejectedClaim] = []
@@ -1787,6 +1967,8 @@ def build_image_claim_record(
                 prompt_schema_version=config.prompt_schema_version,
                 response_schema_version=config.response_schema_version,
                 parsed_claim_count=0,
+                prompt_chars=prompt_chars,
+                error_class="missing_manual_response",
                 error=f"No manual JSON response found for image_key={image_key!r}.",
             )
         else:
@@ -1832,6 +2014,10 @@ def build_image_claim_record(
         )
 
     normalized_claims = aggregate_claims(image_key, all_claims)
+    llm_parse_result.prompt_chars = prompt_chars
+    llm_parse_result.raw_response_chars = len(raw_llm_response or "")
+    llm_parse_result.elapsed_sec = round(time.perf_counter() - record_t0, 3)
+    llm_parse_result.normalized_claim_count = len(normalized_claims)
     conflicts = detect_conflicts(normalized_claims, config=config) if config.detect_conflicts else []
     uncertainty_flags = make_uncertainty_flags(source_refs, normalized_claims, conflicts)
 
@@ -1860,6 +2046,7 @@ def build_image_claim_record(
             "text_llm_backend": config.text_llm_backend,
             "text_llm_model": config.text_llm_model,
             "text_llm_prompt": config.text_llm_prompt,
+            "max_llm_claims_per_image": int(config.max_llm_claims_per_image),
             "prompt_schema_version": config.prompt_schema_version,
             "response_schema_version": config.response_schema_version,
             "prompt_sha1": prompt_sha1,
@@ -1874,7 +2061,69 @@ def build_image_claim_record(
         parser_warnings=list(llm_parse_result.parser_warnings),
         rejected_claims=rejected_claims,
         raw_llm_response=raw_llm_response if config.preserve_raw_llm_response else "",
+        metrics=make_record_metrics(
+            prompt_bundle=prompt_bundle,
+            raw_response=raw_llm_response,
+            elapsed_sec=llm_parse_result.elapsed_sec,
+            llm_parse_result=llm_parse_result,
+            atomic_claim_count=len(all_claims),
+            normalized_claim_count=len(normalized_claims),
+            rejected_claim_count=len(rejected_claims),
+        ),
     )
+
+
+
+def load_existing_pass_b_records(path: str | Path) -> dict[str, dict[str, Any]]:
+    """Load existing Pass B output records keyed by image_key for resume mode."""
+    p = Path(path)
+    if not p.exists() or p.is_dir():
+        return {}
+
+    by_key: dict[str, dict[str, Any]] = {}
+    with p.open("r", encoding="utf-8") as f:
+        for line_number, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                print(
+                    f"[CaptionForge Claim Engine] WARNING: ignoring invalid existing output line "
+                    f"during resume: {p}:{line_number}",
+                    flush=True,
+                )
+                continue
+            if not isinstance(obj, dict):
+                continue
+            key = str(obj.get("image_key") or "").strip()
+            if key:
+                by_key[key] = obj
+    return by_key
+
+
+def existing_record_is_success(record: dict[str, Any]) -> bool:
+    if not isinstance(record, dict):
+        return False
+    if str(record.get("status") or "").lower() != "ok":
+        return False
+    llm_parse = record.get("llm_parse_result") or {}
+    if isinstance(llm_parse, dict):
+        status = str(llm_parse.get("status") or "").lower()
+        if status and status not in {"ok", "ok_with_rejected_claims"}:
+            return False
+    return True
+
+
+def parse_rerun_image_keys(values: Iterable[str]) -> set[str]:
+    keys: set[str] = set()
+    for value in values or []:
+        for part in str(value or "").split(","):
+            part = part.strip()
+            if part:
+                keys.add(part)
+    return keys
 
 
 def extract_claims_batch(
@@ -1932,7 +2181,42 @@ def extract_claims_batch(
 
         # Preserve old overwrite semantics, but switch actual batch writing to
         # per-record append so long LLM runs produce visible progress.
-        if batch.overwrite and not batch.dry_run:
+        resume_existing: dict[str, dict[str, Any]] = {}
+        explicit_rerun_keys = parse_rerun_image_keys(batch.rerun_image_keys)
+
+        if batch.resume and out.exists():
+            resume_existing = load_existing_pass_b_records(out)
+            kept_existing: list[dict[str, Any]] = []
+            filtered_items: list[tuple[str, list[dict[str, Any]]]] = []
+
+            for image_key, grouped_records in items:
+                existing = resume_existing.get(image_key)
+                force_rerun = image_key in explicit_rerun_keys
+                if existing and existing_record_is_success(existing) and not force_rerun:
+                    kept_existing.append(existing)
+                    result.skipped += 1
+                    continue
+                if existing and not batch.rerun_errors and not force_rerun:
+                    kept_existing.append(existing)
+                    result.skipped += 1
+                    continue
+                filtered_items.append((image_key, grouped_records))
+
+            items = filtered_items
+
+            if not batch.dry_run:
+                safe_mkdir(out.parent)
+                with out.open("w", encoding="utf-8") as f:
+                    for existing in kept_existing:
+                        f.write(json.dumps(existing, ensure_ascii=False) + "\n")
+
+            print(
+                f"[CaptionForge Claim Engine] Resume mode: preserved={len(kept_existing)}, "
+                f"queued_for_processing={len(items)}, output={out}",
+                flush=True,
+            )
+
+        elif batch.overwrite and not batch.dry_run:
             safe_mkdir(out.parent)
             out.write_text("", encoding="utf-8")
 
@@ -1964,29 +2248,62 @@ def extract_claims_batch(
 
         except Exception as exc:
             result.failed += 1
+            source_refs = [make_source_ref(r) for r in grouped_records]
+            prompt_bundle = build_llm_prompt_bundle(image_key, source_refs, config)
+            prompt_sha1 = str(prompt_bundle.get("prompt_sha1") or "")
+            error_class = classify_pass_b_error(exc)
+            error_elapsed = time.perf_counter() - item_t0
+            llm_error = LLMParseResult(
+                backend=config.text_llm_backend,
+                status="error",
+                prompt_sha1=prompt_sha1,
+                prompt_schema_version=config.prompt_schema_version,
+                response_schema_version=config.response_schema_version,
+                parsed_claim_count=0,
+                rejected_claim_count=0,
+                parser_warnings=[],
+                error_class=error_class,
+                prompt_chars=len(str(prompt_bundle.get("prompt") or "")),
+                raw_response_chars=0,
+                elapsed_sec=round(error_elapsed, 3),
+                normalized_claim_count=0,
+                error=str(exc),
+            )
             record = ImageClaimRecord(
                 captionforge_pass="B",
                 image_key=image_key,
                 image=str(grouped_records[0].get("image") or image_key) if grouped_records else image_key,
                 status="error",
                 source_caption_count=len(grouped_records),
-                source_caption_records=[],
+                source_caption_records=source_refs,
                 atomic_claims=[],
                 normalized_claims=[],
                 conflicts=[],
-                uncertainty_flags=[f"error: {exc}"],
+                uncertainty_flags=[error_class, f"error: {exc}"],
                 params={
                     "engine": config.engine_name,
                     "engine_version": config.engine_version,
                     "text_llm_backend": config.text_llm_backend,
                     "text_llm_model": config.text_llm_model,
+                    "prompt_schema_version": config.prompt_schema_version,
+                    "response_schema_version": config.response_schema_version,
+                    "prompt_sha1": prompt_sha1,
+                    "semantic_profile_name": config.semantic_profile_name,
+                    "semantic_profile_version": config.semantic_profile_version,
+                    "semantic_profile_sha1": str(getattr(config, "_captionforge_semantic_profile_sha1", "")),
+                    "semantic_profile_fallback_reason": str(getattr(config, "_captionforge_semantic_profile_fallback_reason", "")),
                     "config": record_to_json(config),
                 },
                 timestamp=iso_timestamp(),
-                llm_parse_result=LLMParseResult(
-                    backend=config.text_llm_backend,
-                    status="error",
-                    error=str(exc),
+                llm_parse_result=llm_error,
+                metrics=make_record_metrics(
+                    prompt_bundle=prompt_bundle,
+                    raw_response="",
+                    elapsed_sec=error_elapsed,
+                    llm_parse_result=llm_error,
+                    atomic_claim_count=0,
+                    normalized_claim_count=0,
+                    rejected_claim_count=0,
                 ),
             )
             result.records.append(record)
@@ -2019,14 +2336,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit-images", type=int, default=0, help="Process only the first N grouped images. 0 = no limit.")
     parser.add_argument("--dry-run", action="store_true", help="Run extraction without writing JSONL.")
     parser.add_argument("--append", action="store_true", help="Append to output JSONL instead of overwriting.")
+    parser.add_argument("--resume", action="store_true", help="Preserve existing successful Pass B output records and rerun only missing/error/flagged image keys.")
+    parser.add_argument("--no-rerun-errors", action="store_true", help="In --resume mode, preserve existing error records instead of rerunning them.")
+    parser.add_argument("--rerun-image-key", action="append", default=[], help="Force rerun for an image_key in --resume mode. May be repeated or comma-separated.")
     parser.add_argument("--include-error-pass-a-records", action="store_true", help="Include Pass A records with status != ok.")
     parser.add_argument("--no-conflicts", action="store_true", help="Disable simple conflict detection.")
     parser.add_argument("--no-low-confidence", action="store_true", help="Drop lower-confidence heuristic claims.")
+    parser.add_argument("--max-llm-claims-per-image", type=int, default=40, help="Maximum claims requested from/parsing accepted for LLM backends per image. Default 40; use 0 to disable.")
     parser.add_argument("--text-llm-backend", default="heuristic", choices=["heuristic", "manual_json", "ollama"])
     parser.add_argument("--text-llm-model", default="", help="Text LLM model identifier. For Ollama, e.g. gpt-oss:20b or llama3.1:8b.")
     parser.add_argument("--ollama-base-url", default="http://127.0.0.1:11434", help="Ollama server URL.")
     parser.add_argument("--ollama-timeout-sec", type=int, default=600, help="Ollama request timeout in seconds.")
     parser.add_argument("--ollama-keep-alive", default="5m", help="Ollama keep_alive value, e.g. 5m, 30m, or 0.")
+    parser.add_argument("--ollama-num-predict", type=int, default=2400, help="Ollama num_predict token cap. Default 2400; try 3000 for pathological reruns.")
+    parser.add_argument("--ollama-temperature", type=float, default=0.0, help="Ollama sampling temperature. Default 0.0 for deterministic claim extraction.")
     parser.add_argument("--manual-json-path", default="", help="JSON/JSONL response file for manual_json backend.")
     parser.add_argument("--semantic-profile-json", default="", help="Optional deterministic semantic profile JSON. Defaults to female_character_v1.")
     parser.add_argument("--image-key-filter", default="", help="Process only image_keys that exactly match or contain this string.")
@@ -2042,12 +2365,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     config = ClaimExtractionConfig(
         include_low_confidence=not args.no_low_confidence,
         detect_conflicts=not args.no_conflicts,
+        max_llm_claims_per_image=max(0, int(args.max_llm_claims_per_image)),
         text_llm_backend=args.text_llm_backend,
         text_llm_model=args.text_llm_model,
         preserve_raw_llm_response=bool(args.preserve_raw_llm_response),
         ollama_base_url=args.ollama_base_url,
         ollama_timeout_sec=int(args.ollama_timeout_sec),
         ollama_keep_alive=args.ollama_keep_alive,
+        ollama_num_predict=int(args.ollama_num_predict),
+        ollama_temperature=float(args.ollama_temperature),
         semantic_profile_json=args.semantic_profile_json,
     )
 
@@ -2061,6 +2387,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         limit_images=int(args.limit_images),
         include_error_pass_a_records=bool(args.include_error_pass_a_records),
         overwrite=not bool(args.append),
+        resume=bool(args.resume),
+        rerun_errors=not bool(args.no_rerun_errors),
+        rerun_image_keys=list(args.rerun_image_key or []),
         manual_json_path=args.manual_json_path,
         write_llm_prompt_jsonl=bool(args.write_llm_prompt_jsonl),
         llm_prompt_jsonl=args.llm_prompt_jsonl,
@@ -2071,7 +2400,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     print(
         f"[CaptionForge Claim Engine] processed={result.processed}, "
-        f"failed={result.failed}, output={output_jsonl}"
+        f"skipped={result.skipped}, failed={result.failed}, output={output_jsonl}"
     )
 
     if args.dry_run:
