@@ -39,7 +39,7 @@ CaptionForge Claim Extraction Engine
             • Exports future-LLM prompt bundles for backend development
 
 - Current Backend Strategy
-    - v0.5.0 is a deterministic, LLM-ready scaffold.
+    - v0.6.0 is a deterministic, LLM-ready scaffold with profile-loaded semantic taxonomy, normalization rules, and claim-routing rules.
 
     - Supported backends:
             • heuristic
@@ -78,7 +78,7 @@ CaptionForge Claim Extraction Engine
     - Pass B records preserve the evidence chain from final normalized claims
       back to the originating Pass A captions.
 
-    - v0.5.0 adds parser-audit fields for LLM-readiness:
+    - v0.5.0 added parser-audit fields for LLM-readiness:
             • llm_parse_result
             • parser_warnings
             • rejected_claims
@@ -99,9 +99,9 @@ CaptionForge Claim Extraction Engine
       produce captions that are closer to human-quality descriptive summaries.
 
 - ⚠️ Development Status
-    - This is Pass B v0.5.0 infrastructure.
+    - This is Pass B v0.6.0 infrastructure.
     - The default backend is deterministic and heuristic.
-    - Live LLM claim extraction is not yet integrated.
+    - Live Ollama LLM claim extraction is integrated; heuristic/manual backends remain available.
     - The prompt and response schema are intentionally present so future LLM
       backends can be added without changing the downstream Pass B record shape.
 
@@ -118,14 +118,14 @@ from __future__ import annotations
 
 MANIFEST = {
     "name": "CaptionForge Claim Extraction Engine",
-    "version": (0, 5, 0),
+    "version": (0, 6, 3),
     "author": "J. L. Córdova",
     "description": (
         "CaptionForge Pass B text-only claim extraction engine for converting Pass A "
         "caption JSONL records into auditable atomic visual claims. Provides deterministic "
         "heuristic extraction, manual JSON parsing for future LLM response testing, source "
         "caption preservation, claim normalization, support aggregation, simple conflict "
-        "detection, parser-audit fields, and future-LLM prompt bundle export. Designed as "
+        "detection, parser-audit fields, and Ollama backend support, incremental JSONL writes, profile-loaded semantic taxonomy, normalization rules, and claim-routing rules, future-LLM prompt bundle export. Designed as "
         "an LLM-ready intermediate reasoning layer for model-agnostic, consensus-oriented "
         "caption refinement workflows."
     ),
@@ -152,7 +152,7 @@ from typing import Any, Iterable, Optional
 @dataclass
 class ClaimExtractionConfig:
     engine_name: str = "CaptionForge Claim Engine"
-    engine_version: str = "0.5.0"
+    engine_version: str = "0.6.3"
 
     # Extraction behavior.
     min_claim_chars: int = 3
@@ -173,7 +173,7 @@ class ClaimExtractionConfig:
         "obvious grammar errors and typos in the claim text. Return strict JSON only. "
         "Preserve source references. Do not add facts that are not supported by the captions."
     )
-    prompt_schema_version: str = "captionforge-pass-b-prompt-v0.5"
+    prompt_schema_version: str = "captionforge-pass-b-prompt-v0.6"
     response_schema_version: str = "captionforge-pass-b-claims-v0.5"
     preserve_raw_llm_response: bool = False
 
@@ -182,6 +182,13 @@ class ClaimExtractionConfig:
     auto_pull_ollama_model: bool = False
     ollama_timeout_sec: int = 600
     ollama_keep_alive: str = "5m"
+
+    # v0.6 semantic profile behavior.
+    # The Pass B output schema remains stable; the profile supplies deterministic
+    # taxonomy constants, aliases, hint vocabulary, and conflict categories.
+    semantic_profile_name: str = "image_v1_minimum"
+    semantic_profile_version: str = "1.0.0"
+    semantic_profile_json: str = ""
 
 
 @dataclass
@@ -326,73 +333,219 @@ class BatchClaimResult:
         return "\n".join(json.dumps(record_to_json(r), ensure_ascii=False) for r in self.records)
 
 
+
 # -------------------------------------------------------------------------
-# Constants and normalization vocabulary
+# Semantic profile loading and generic rule interpretation
 # -------------------------------------------------------------------------
 
-BOILERPLATE_PREFIXES = [
-    "the image depicts",
-    "the image shows",
-    "this image depicts",
-    "this image shows",
-    "the photo shows",
-    "this photo shows",
-    "a photo of",
-    "a photograph of",
-    "an image of",
-    "in this image",
-    "in this digital illustration",
-    "digital illustration of",
-]
+MINIMUM_SEMANTIC_PROFILE_NAME = "image_v1_minimum"
+MINIMUM_SEMANTIC_PROFILE_VERSION = "1.0.0"
 
-STYLE_WORDS = {
-    "digital illustration", "illustration", "render", "3d render", "quasi-3d render",
-    "anime style", "doll-like", "stylized", "cartoon", "painting", "photograph", "photo",
-    "studio lighting", "soft lighting", "dramatic lighting", "moody lighting",
-    "glossy", "vinyl", "plastic", "dollora",
-}
+# v0.6.3 design note:
+# The engine now keeps only a deliberately tiny built-in fallback profile.
+# Domain semantics (female characters, landscapes, products, etc.) should live
+# in installed or user-supplied semantic profile JSON files. The Pass B output
+# schema is intentionally unchanged; profiles change taxonomy/vocabulary/rules,
+# not the shape of emitted JSONL records.
+MINIMUM_IMAGE_SEMANTIC_PROFILE: dict[str, Any] = {'profile_name': 'image_v1_minimum', 'profile_version': '1.0.0', 'description': 'Minimum viable built-in CaptionForge fallback profile. It exists only to keep the engine functional when an installed profile is missing or corrupt.', 'claim_types': ['visible_text', 'style_medium', 'composition', 'general'], 'claim_type_aliases': {'text': 'visible_text', 'style': 'style_medium', 'lighting': 'style_medium'}, 'mutually_exclusive_categories': [], 'claim_type_override_rules': [{'claim_type': 'visible_text', 'mode': 'visible_text_cue', 'text_scope': 'combined'}, {'claim_type': 'style_medium', 'mode': 'hints', 'profile_key': 'style_words', 'match': 'contains', 'text_scope': 'normalized_then_combined'}], 'normalization_rules': [{'claim_type': 'visible_text', 'mode': 'visible_text_cue'}, {'claim_type': 'style_medium', 'mode': 'hints', 'profile_key': 'style_words', 'match': 'contains'}], 'boilerplate_prefixes': ['the image depicts', 'the image shows', 'this image depicts', 'this image shows', 'a photo of', 'a photograph of', 'an image of', 'in this image'], 'style_words': ['photo', 'photograph', 'illustration', 'render', 'painting', 'drawing', 'style', 'lighting', 'studio lighting'], 'color_synonyms': {'grey': 'gray'}, 'singularize_map': {}}
 
-COLOR_SYNONYMS = {
-    "blond": "blonde",
-    "light blond": "blonde",
-    "light blonde": "blonde",
-    "golden": "blonde",
-    "golden blond": "blonde",
-    "golden blonde": "blonde",
-    "platinum": "platinum blonde",
-    "brunette": "brown",
-    "auburn": "red",
-    "ginger": "red",
-    "reddish": "red",
-    "grey": "gray",
-    "silver": "gray",
-}
+# Backward-compatible alias. Older tests/imports may look for this symbol; it is
+# no longer the runtime default and should not be treated as the female profile.
+DEFAULT_SEMANTIC_PROFILE_NAME = MINIMUM_SEMANTIC_PROFILE_NAME
+DEFAULT_SEMANTIC_PROFILE_VERSION = MINIMUM_SEMANTIC_PROFILE_VERSION
+DEFAULT_FEMALE_CHARACTER_SEMANTIC_PROFILE = MINIMUM_IMAGE_SEMANTIC_PROFILE
 
-HAIR_COLORS = [
-    "platinum blonde", "blonde", "black", "brown", "red", "gray", "white", "pink",
-    "blue", "green", "purple", "orange", "dark", "light",
-]
-EYE_COLORS = ["blue", "green", "brown", "hazel", "gray", "black", "red", "pink", "purple"]
-BACKGROUND_COLORS = ["white", "gray", "black", "blue", "green", "red", "pink", "purple", "yellow", "orange", "brown"]
+ALLOWED_PROFILE_RULE_MODES = {"visible_text_cue", "hints", "contains", "color_noun"}
 
-CLOTHING_HINTS = [
-    "shirt", "t-shirt", "top", "tank top", "blouse", "dress", "jacket", "coat",
-    "skirt", "pants", "jeans", "shorts", "bodysuit", "sweater", "hoodie", "boots",
-    "shoes", "gloves", "hat", "scarf", "outfit", "clothing",
-]
 
-POSE_HINTS = [
-    "standing", "sitting", "kneeling", "crouching", "leaning", "looking", "facing",
-    "turned", "pose", "posed", "arms", "hands", "hand", "shoulder", "profile",
-    "three-quarter", "over one shoulder",
-]
+def deep_copy_jsonable(value: Any) -> Any:
+    return json.loads(json.dumps(value, ensure_ascii=False))
 
-SHOT_HINTS = [
-    "close-up", "extreme close-up", "medium shot", "upper body", "portrait",
-    "full body", "cowboy shot", "above knee", "waist-up", "headshot",
-]
 
-MUTUALLY_EXCLUSIVE_CATEGORIES = {"hair_color", "eye_color", "background_color"}
+def semantic_profile_sha1(profile: dict[str, Any]) -> str:
+    return sha1_text(json.dumps(profile, ensure_ascii=False, sort_keys=True))
+
+
+def validate_semantic_profile(profile: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(profile, dict):
+        raise ValueError("Semantic profile must be a JSON object.")
+
+    profile = deep_copy_jsonable(profile)
+
+    required = [
+        "profile_name",
+        "profile_version",
+        "claim_types",
+        "claim_type_aliases",
+        "mutually_exclusive_categories",
+    ]
+    missing = [key for key in required if key not in profile]
+    if missing:
+        raise ValueError(f"Semantic profile missing required keys: {missing}")
+
+    if not isinstance(profile["claim_types"], list) or not profile["claim_types"]:
+        raise ValueError("Semantic profile 'claim_types' must be a non-empty list.")
+    if not all(isinstance(x, str) and x.strip() for x in profile["claim_types"]):
+        raise ValueError("Semantic profile 'claim_types' must contain only non-empty strings.")
+
+    canonical = {str(x).strip().lower() for x in profile["claim_types"]}
+    profile["claim_types"] = sorted(canonical)
+
+    if "general" not in canonical:
+        profile["claim_types"].append("general")
+        canonical.add("general")
+
+    if not isinstance(profile["claim_type_aliases"], dict):
+        raise ValueError("Semantic profile 'claim_type_aliases' must be an object.")
+
+    aliases: dict[str, str] = {}
+    for key, value in profile["claim_type_aliases"].items():
+        k = str(key).strip().lower()
+        v = str(value).strip().lower()
+        if not k or not v:
+            raise ValueError("Semantic profile claim_type_aliases cannot contain empty keys/values.")
+        if v not in canonical:
+            raise ValueError(f"Semantic profile alias {k!r} maps to unknown claim type {v!r}.")
+        aliases[k] = v
+    profile["claim_type_aliases"] = aliases
+
+    conflicts = profile.get("mutually_exclusive_categories") or []
+    if not isinstance(conflicts, list):
+        raise ValueError("Semantic profile 'mutually_exclusive_categories' must be a list.")
+    bad_conflicts = [str(x) for x in conflicts if str(x).strip().lower() not in canonical]
+    if bad_conflicts:
+        raise ValueError(f"Semantic profile conflict categories are not claim types: {bad_conflicts}")
+    profile["mutually_exclusive_categories"] = [str(x).strip().lower() for x in conflicts]
+
+    for rule_key in ("normalization_rules", "claim_type_override_rules"):
+        rules = profile.get(rule_key, [])
+        if rules is None:
+            rules = []
+        if not isinstance(rules, list):
+            raise ValueError(f"Semantic profile '{rule_key}' must be a list.")
+        clean_rules: list[dict[str, Any]] = []
+        for i, rule in enumerate(rules):
+            if not isinstance(rule, dict):
+                raise ValueError(f"Semantic profile {rule_key}[{i}] must be an object.")
+            mode = str(rule.get("mode") or "").strip().lower()
+            claim_type = str(rule.get("claim_type") or "").strip().lower()
+            if mode not in ALLOWED_PROFILE_RULE_MODES:
+                raise ValueError(f"Semantic profile {rule_key}[{i}] has unsupported mode: {mode!r}.")
+            if claim_type not in canonical:
+                raise ValueError(f"Semantic profile {rule_key}[{i}] maps to unknown claim type: {claim_type!r}.")
+            if mode in {"hints", "contains"}:
+                profile_key = str(rule.get("profile_key") or "").strip()
+                if not profile_key:
+                    raise ValueError(f"Semantic profile {rule_key}[{i}] mode={mode!r} requires profile_key.")
+                if profile_key not in profile:
+                    raise ValueError(f"Semantic profile {rule_key}[{i}] references missing profile_key: {profile_key!r}.")
+                if not isinstance(profile.get(profile_key), list):
+                    raise ValueError(f"Semantic profile key {profile_key!r} must be a list for rule {rule_key}[{i}].")
+            if mode == "color_noun":
+                colors_key = str(rule.get("colors_key") or "").strip()
+                noun_regex = str(rule.get("noun_regex") or "").strip()
+                if not colors_key or colors_key not in profile:
+                    raise ValueError(f"Semantic profile {rule_key}[{i}] mode='color_noun' requires valid colors_key.")
+                if not isinstance(profile.get(colors_key), list) or not profile.get(colors_key):
+                    raise ValueError(f"Semantic profile colors_key {colors_key!r} must be a non-empty list.")
+                if not noun_regex:
+                    raise ValueError(f"Semantic profile {rule_key}[{i}] mode='color_noun' requires noun_regex.")
+                try:
+                    re.compile(noun_regex)
+                except re.error as exc:
+                    raise ValueError(f"Semantic profile {rule_key}[{i}] invalid noun_regex: {exc}") from exc
+            clean = dict(rule)
+            clean["mode"] = mode
+            clean["claim_type"] = claim_type
+            clean_rules.append(clean)
+        profile[rule_key] = clean_rules
+
+    return profile
+
+
+def warn_semantic_profile_fallback(reason: str) -> None:
+    print(
+        "[CaptionForge Claim Engine] WARNING: Semantic profile missing or corrupt; "
+        f"defaulting to minimum viable profile '{MINIMUM_SEMANTIC_PROFILE_NAME}'. Reason: {reason}",
+        flush=True,
+    )
+
+
+def load_semantic_profile(config: Optional[ClaimExtractionConfig] = None) -> dict[str, Any]:
+    profile_path = str(getattr(config, "semantic_profile_json", "") or "").strip() if config else ""
+
+    try:
+        if profile_path:
+            p = Path(profile_path)
+            if p.is_dir():
+                raise IsADirectoryError(f"semantic_profile_json points to a folder, not a JSON file: {p}")
+            if not p.exists():
+                raise FileNotFoundError(f"semantic_profile_json does not exist: {p}")
+            profile = json.loads(p.read_text(encoding="utf-8"))
+        else:
+            raise FileNotFoundError("no semantic_profile_json was supplied")
+
+        profile = validate_semantic_profile(profile)
+        fallback_reason = ""
+    except Exception as exc:
+        fallback_reason = str(exc)
+        warn_semantic_profile_fallback(fallback_reason)
+        profile = validate_semantic_profile(MINIMUM_IMAGE_SEMANTIC_PROFILE)
+
+    if config is not None:
+        config.semantic_profile_name = str(profile.get("profile_name") or MINIMUM_SEMANTIC_PROFILE_NAME)
+        config.semantic_profile_version = str(profile.get("profile_version") or MINIMUM_SEMANTIC_PROFILE_VERSION)
+        setattr(config, "_captionforge_semantic_profile", profile)
+        setattr(config, "_captionforge_semantic_profile_sha1", semantic_profile_sha1(profile))
+        setattr(config, "_captionforge_semantic_profile_fallback_reason", fallback_reason)
+
+    return profile
+
+
+def get_semantic_profile(config: Optional[ClaimExtractionConfig] = None) -> dict[str, Any]:
+    if config is not None:
+        existing = getattr(config, "_captionforge_semantic_profile", None)
+        if isinstance(existing, dict) and existing:
+            return existing
+    return load_semantic_profile(config)
+
+
+def profile_list(config: Optional[ClaimExtractionConfig], key: str, fallback: Iterable[str] = ()) -> list[str]:
+    profile = get_semantic_profile(config)
+    value = profile.get(key, list(fallback))
+    if isinstance(value, list):
+        return [str(x).strip() for x in value if str(x).strip()]
+    if isinstance(value, set):
+        return [str(x).strip() for x in sorted(value) if str(x).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
+def profile_set(config: Optional[ClaimExtractionConfig], key: str, fallback: Iterable[str] = ()) -> set[str]:
+    return {x.lower() for x in profile_list(config, key, fallback)}
+
+
+def profile_mapping(config: Optional[ClaimExtractionConfig], key: str, fallback: Optional[dict[str, str]] = None) -> dict[str, str]:
+    profile = get_semantic_profile(config)
+    value = profile.get(key, fallback or {})
+    if not isinstance(value, dict):
+        return {}
+    return {str(k).strip().lower(): str(v).strip().lower() for k, v in value.items() if str(k).strip()}
+
+
+# Legacy import compatibility only. Runtime logic should read from the selected
+# semantic profile through profile_list/profile_mapping/profile_set.
+BOILERPLATE_PREFIXES = MINIMUM_IMAGE_SEMANTIC_PROFILE.get("boilerplate_prefixes", [])
+STYLE_WORDS = set(MINIMUM_IMAGE_SEMANTIC_PROFILE.get("style_words", []))
+COLOR_SYNONYMS = MINIMUM_IMAGE_SEMANTIC_PROFILE.get("color_synonyms", {})
+HAIR_COLORS: list[str] = []
+EYE_COLORS: list[str] = []
+BACKGROUND_COLORS: list[str] = []
+CLOTHING_HINTS: list[str] = []
+POSE_HINTS: list[str] = []
+SHOT_HINTS: list[str] = []
+CANONICAL_CLAIM_TYPES = set(MINIMUM_IMAGE_SEMANTIC_PROFILE.get("claim_types", []))
+CLAIM_TYPE_ALIASES = MINIMUM_IMAGE_SEMANTIC_PROFILE.get("claim_type_aliases", {})
+MUTUALLY_EXCLUSIVE_CATEGORIES = set(MINIMUM_IMAGE_SEMANTIC_PROFILE.get("mutually_exclusive_categories", []))
 
 
 # -------------------------------------------------------------------------
@@ -585,15 +738,12 @@ def build_llm_prompt_bundle(
     ]
 
     instructions = config.text_llm_prompt.strip() or ClaimExtractionConfig().text_llm_prompt
+    claim_type_contract = " | ".join(profile_list(config, "claim_types", CANONICAL_CLAIM_TYPES))
 
     response_contract = {
         "claims": [
             {
-                "claim_type": (
-                    "hair_color | hair_style | eye_color | clothing | pose_action | "
-                    "expression | style_medium | background_color | background_object | "
-                    "composition | visible_text | general"
-                ),
+                "claim_type": claim_type_contract,
                 "evidence_text": "raw supporting phrase from one source caption; may contain typos",
                 "original_claim": "clean grammatical atomic visual claim, e.g. 'the woman has blonde hair'",
                 "normalized_claim": "short canonical comparison form with noun, e.g. 'blonde hair'",
@@ -872,6 +1022,7 @@ def ollama_generate_claim_response(
         "format": "json",
         "options": {
             "temperature": 0,
+            "num_predict": 2400,
         },
     }
 
@@ -922,17 +1073,17 @@ def normalize_whitespace(text: str) -> str:
     return text.strip()
 
 
-def strip_boilerplate(text: str) -> str:
+def strip_boilerplate(text: str, config: Optional[ClaimExtractionConfig] = None) -> str:
     s = normalize_whitespace(text)
     lowered = s.lower()
-    for prefix in BOILERPLATE_PREFIXES:
+    for prefix in profile_list(config, "boilerplate_prefixes", BOILERPLATE_PREFIXES):
         if lowered.startswith(prefix):
             return s[len(prefix):].lstrip(" ,:-")
     return s
 
 
-def split_caption_to_phrases(caption: str) -> list[str]:
-    caption = strip_boilerplate(caption)
+def split_caption_to_phrases(caption: str, config: Optional[ClaimExtractionConfig] = None) -> list[str]:
+    caption = strip_boilerplate(caption, config=config)
     raw_parts = re.split(r"[,;•\n]+|(?<=[.!?])\s+", caption)
 
     phrases: list[str] = []
@@ -951,15 +1102,15 @@ def split_caption_to_phrases(caption: str) -> list[str]:
     return phrases
 
 
-def canonical_color(value: str) -> str:
+def canonical_color(value: str, config: Optional[ClaimExtractionConfig] = None) -> str:
     v = value.lower().strip()
     v = re.sub(r"[-_]+", " ", v)
     v = re.sub(r"\s+", " ", v)
-    return COLOR_SYNONYMS.get(v, v)
+    return profile_mapping(config, "color_synonyms", COLOR_SYNONYMS).get(v, v)
 
 
-def clean_claim_text(text: str) -> str:
-    text = strip_boilerplate(text)
+def clean_claim_text(text: str, config: Optional[ClaimExtractionConfig] = None) -> str:
+    text = strip_boilerplate(text, config=config)
     text = text.strip().strip(" .;:,")
     text = re.sub(r"^(?:and|with|while|a|an|the)\s+", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\b(a|an)\s+(a|an|the)\b", r"\2", text, flags=re.IGNORECASE)
@@ -967,84 +1118,95 @@ def clean_claim_text(text: str) -> str:
     return text
 
 
-def singularize_light(text: str) -> str:
-    replacements = {
-        "eyes": "eye",
-        "hands": "hand",
-        "arms": "arm",
-        "legs": "leg",
-        "buns": "bun",
-        "gloves": "glove",
-        "boots": "boot",
-        "shoes": "shoe",
-    }
+
+def singularize_light(text: str, config: Optional[ClaimExtractionConfig] = None) -> str:
+    replacements = profile_mapping(config, "singularize_map", {})
+    if not replacements:
+        return text
     words = text.split()
     return " ".join(replacements.get(w, w) for w in words)
+
+
+def color_noun_match(text: str, rule: dict[str, Any], config: Optional[ClaimExtractionConfig]) -> Optional[tuple[str, str]]:
+    colors_key = str(rule.get("colors_key") or "").strip()
+    noun_regex = str(rule.get("noun_regex") or "").strip()
+    colors = profile_list(config, colors_key)
+    if not colors or not noun_regex:
+        return None
+
+    color_pattern = "|".join(re.escape(c.lower()) for c in sorted(colors, key=len, reverse=True) if c)
+    if not color_pattern:
+        return None
+
+    m = re.search(rf"\b({color_pattern})\s+({noun_regex})\b", text)
+    if not m:
+        return None
+    return m.group(1), m.group(2)
+
+
+def apply_profile_normalization_rule(
+    rule: dict[str, Any],
+    lower: str,
+    raw: str,
+    config: Optional[ClaimExtractionConfig],
+) -> Optional[tuple[str, str, str]]:
+    mode = str(rule.get("mode") or "").strip().lower()
+    claim_type = str(rule.get("claim_type") or "general").strip().lower() or "general"
+
+    if mode == "color_noun":
+        match = color_noun_match(lower, rule, config)
+        if not match:
+            return None
+        color_raw, _noun = match
+        color = canonical_color(color_raw, config=config)
+        template = str(rule.get("normalized_template") or "{color}").strip() or "{color}"
+        normalized = template.format(color=color, color_raw=color_raw).strip().lower()
+        specificity = "specific_normalized" if color != color_raw else "specific"
+        return normalized, claim_type, specificity
+
+    if mode == "visible_text_cue":
+        if has_visible_text_cue(f"{lower} {raw.lower()}"):
+            return lower, claim_type, "specific"
+        return None
+
+    if mode in {"hints", "contains"}:
+        key = str(rule.get("profile_key") or "").strip()
+        if not key:
+            return None
+        match_mode = str(rule.get("match") or mode).strip().lower()
+        for hint in profile_list(config, key):
+            h = hint.lower()
+            if not h:
+                continue
+            if match_mode == "contains":
+                matched = h in lower
+            else:
+                matched = bool(re.search(rf"\b{re.escape(h)}\b", lower))
+            if matched:
+                normalized = singularize_light(lower, config=config) if bool(rule.get("singularize")) else lower
+                return normalized, claim_type, "specific"
+        return None
+
+    return None
 
 
 def normalize_claim_text(text: str, config: ClaimExtractionConfig) -> tuple[str, str, str]:
     """
     Return (normalized_text, claim_type, specificity).
+
+    v0.6.3 keeps detailed semantics in the selected semantic profile. The engine
+    applies generic normalization rule modes in deterministic order.
     """
-    raw = clean_claim_text(text)
-    lower = raw.lower()
-    lower = lower.replace("t shirt", "t-shirt")
+    raw = clean_claim_text(text, config=config)
+    lower = raw.lower().replace("t shirt", "t-shirt")
     lower = re.sub(r"\s+", " ", lower).strip()
 
-    hair_match = re.search(
-        r"\b((?:light|dark|golden|platinum|blond|blonde|black|brown|brunette|red|reddish|auburn|ginger|gray|grey|white|pink|blue|green|purple|orange)(?:\s+blond|\s+blonde)?)\s+hair\b",
-        lower,
-    )
-    if hair_match:
-        color_raw = hair_match.group(1)
-        color = canonical_color(color_raw)
-        specificity = "specific_normalized" if color != color_raw else "specific"
-        return f"{color} hair", "hair_color", specificity
-
-    eye_match = re.search(r"\b(blue|green|brown|hazel|gray|grey|black|red|pink|purple)\s+eyes?\b", lower)
-    if eye_match:
-        color_raw = eye_match.group(1)
-        color = canonical_color(color_raw)
-        specificity = "specific_normalized" if color != color_raw else "specific"
-        return f"{color} eyes", "eye_color", specificity
-
-    bg_match = re.search(
-        r"\b(white|gray|grey|black|blue|green|red|pink|purple|yellow|orange|brown)\s+(?:background|backdrop|wall)\b",
-        lower,
-    )
-    if bg_match:
-        color_raw = bg_match.group(1)
-        color = canonical_color(color_raw)
-        specificity = "specific_normalized" if color != color_raw else "specific"
-        return f"{color} background", "background_color", specificity
-
-    for hint in CLOTHING_HINTS:
-        if re.search(rf"\b{re.escape(hint)}\b", lower):
-            return singularize_light(lower), "clothing", "specific"
-
-    for hint in POSE_HINTS:
-        if re.search(rf"\b{re.escape(hint)}\b", lower):
-            return lower, "pose_action", "specific"
-
-    for hint in SHOT_HINTS:
-        if re.search(rf"\b{re.escape(hint)}\b", lower):
-            return lower, "composition", "specific"
-
-    for hint in STYLE_WORDS:
-        if hint in lower:
-            return lower, "style_medium", "specific"
-
-    if '"' in raw or " text " in f" {lower} " or "reads" in lower or "says" in lower:
-        return lower, "visible_text", "specific"
-
-    if any(w in lower for w in ["poster", "guitar", "graffiti", "wall", "floor", "room", "background", "backdrop"]):
-        return lower, "background_object", "specific"
-
-    if any(w in lower for w in ["hair", "hairstyle", "bun", "braid", "ponytail", "bangs"]):
-        return lower, "hair_style", "specific"
-
-    if any(w in lower for w in ["expression", "smile", "smiling", "serious", "neutral", "half-lidded", "brows", "mouth"]):
-        return lower, "expression", "specific"
+    for rule in get_semantic_profile(config).get("normalization_rules", []):
+        if not isinstance(rule, dict):
+            continue
+        result = apply_profile_normalization_rule(rule, lower, raw, config)
+        if result is not None:
+            return result
 
     return lower, "general", "generic"
 
@@ -1122,12 +1284,12 @@ def make_atomic_claim(
 
 
 def extract_claims_from_caption(caption: str, source: SourceCaptionRef, config: ClaimExtractionConfig) -> list[AtomicClaim]:
-    phrases = split_caption_to_phrases(caption)
+    phrases = split_caption_to_phrases(caption, config=config)
     claims: list[AtomicClaim] = []
     seen_norms: set[str] = set()
 
     for phrase_index, phrase in enumerate(phrases):
-        original = clean_claim_text(phrase)
+        original = clean_claim_text(phrase, config=config)
         if not original:
             continue
 
@@ -1170,17 +1332,17 @@ def choose_llm_claim_text(item: dict[str, Any], config: ClaimExtractionConfig) -
     a whole sentence or caption fragment, use evidence_text when it is shorter
     and usable.
     """
-    evidence_text = clean_claim_text(str(item.get("evidence_text") or ""))
+    evidence_text = clean_claim_text(str(item.get("evidence_text") or ""), config=config)
 
-    original_raw = clean_claim_text(str(item.get("original_claim") or ""))
-    claim_raw = clean_claim_text(str(item.get("claim") or ""))
-    text_raw = clean_claim_text(str(item.get("text") or ""))
+    original_raw = clean_claim_text(str(item.get("original_claim") or ""), config=config)
+    claim_raw = clean_claim_text(str(item.get("claim") or ""), config=config)
+    text_raw = clean_claim_text(str(item.get("text") or ""), config=config)
 
     candidates = [original_raw, claim_raw, text_raw, evidence_text]
 
     cleaned: list[str] = []
     for value in candidates:
-        text = clean_claim_text(value)
+        text = clean_claim_text(value, config=config)
         if text and text not in cleaned:
             cleaned.append(text)
 
@@ -1213,91 +1375,121 @@ def choose_llm_claim_text(item: dict[str, Any], config: ClaimExtractionConfig) -
     return min(cleaned, key=len), evidence_text
 
 
-CANONICAL_CLAIM_TYPES = {
-    "hair_color",
-    "hair_style",
-    "eye_color",
-    "clothing",
-    "pose_action",
-    "expression",
-    "style_medium",
-    "background_color",
-    "background_object",
-    "composition",
-    "visible_text",
-    "general",
-}
+
+def has_visible_text_cue(text: str) -> bool:
+    return bool(
+        '"' in text
+        or "'" in text
+        or re.search(r"\b(?:text|lettering|letters|words|word|logo|label|sign|caption)\b", text)
+        or re.search(r"\b(?:reading|reads|says|spells|written)\b", text)
+    )
 
 
-CLAIM_TYPE_ALIASES = {
-    "eye_makeup": "eye_color",
-    "makeup": "expression",
-    "clothing_style": "clothing",
-    "text_color": "visible_text",
-    "style_realism": "style_medium",
-    "lighting": "style_medium",
-    "background": "background_object",
-    "object": "background_object",
-    "pose": "pose_action",
-    "action": "pose_action",
-    "hair": "hair_style",
-    "text": "visible_text",
-}
+
+def profile_rule_texts(rule: dict[str, Any], normalized: str, original: str, combined: str) -> list[str]:
+    scope = str(rule.get("text_scope") or "combined").strip().lower()
+    if scope == "normalized":
+        return [normalized]
+    if scope == "original":
+        return [original]
+    if scope == "normalized_then_combined":
+        return [normalized, combined]
+    if scope == "original_then_combined":
+        return [original, combined]
+    return [combined]
 
 
-def canonicalize_claim_type(value: str, normalized_claim: str = "", original_claim: str = "") -> str:
+def profile_rule_matches(
+    rule: dict[str, Any],
+    normalized: str,
+    original: str,
+    combined: str,
+    original_claim: str,
+    config: Optional[ClaimExtractionConfig],
+) -> bool:
+    """
+    Generic interpreter for deterministic semantic-profile claim routing rules.
+
+    The code intentionally knows only rule modes and text scopes, not domain-
+    specific taxonomy. Domain concepts such as makeup/accessory/landscape/
+    architecture should live in installed or user-supplied semantic profiles.
+    """
+    mode = str(rule.get("mode") or "").strip().lower()
+    texts = [t for t in profile_rule_texts(rule, normalized, original, combined) if t]
+
+    if mode == "visible_text_cue":
+        return any(has_visible_text_cue(f"{text} {original_claim}".lower()) for text in texts)
+
+    if mode in {"hints", "contains"}:
+        key = str(rule.get("profile_key") or "").strip()
+        if not key:
+            return False
+        match_mode = str(rule.get("match") or mode).strip().lower()
+        hints = [h.lower() for h in profile_list(config, key) if h]
+        for text in texts:
+            for hint in hints:
+                if match_mode == "contains":
+                    if hint in text:
+                        return True
+                elif re.search(rf"\b{re.escape(hint)}\b", text):
+                    return True
+        return False
+
+    if mode == "color_noun":
+        return any(color_noun_match(text, rule, config) is not None for text in texts)
+
+    return False
+
+
+def canonicalize_claim_type(
+    value: str,
+    normalized_claim: str = "",
+    original_claim: str = "",
+    config: Optional[ClaimExtractionConfig] = None,
+) -> str:
     """
     Convert LLM claim_type output into one canonical CaptionForge category.
 
-    Models sometimes return compound labels like:
-        "eye_color | eye_makeup"
-        "visible_text | text_color"
-
-    We keep the first valid canonical type, then fall back to aliases and simple
-    content heuristics.
+    v0.6.3 makes content-derived overrides profile-driven. The engine interprets
+    generic rule modes from claim_type_override_rules, while the selected semantic
+    profile supplies the domain-specific taxonomy and hint lists.
     """
+    canonical_types = profile_set(config, "claim_types", CANONICAL_CLAIM_TYPES)
+    aliases = profile_mapping(config, "claim_type_aliases", CLAIM_TYPE_ALIASES)
+
     raw = (value or "").strip().lower()
     normalized = (normalized_claim or "").lower()
     original = (original_claim or "").lower()
+    combined = f"{normalized} {original}".lower()
 
-    if not raw:
-        raw = ""
+    # Ordered profile-defined routing rules. Example for female_character_v1:
+    # makeup hints intentionally run before eye_color, so "green eye makeup"
+    # becomes makeup while "green eyes" remains eye_color.
+    rules = get_semantic_profile(config).get("claim_type_override_rules") or []
+    if isinstance(rules, list):
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            target = str(rule.get("claim_type") or "").strip().lower()
+            if not target or target not in canonical_types:
+                continue
+            if profile_rule_matches(rule, normalized, original, combined, original_claim, config):
+                return target
 
-    parts = [
-        p.strip()
-        for p in re.split(r"[|,/;]+", raw)
-        if p.strip()
-    ]
+    parts = [p.strip() for p in re.split(r"[|,/;]+", raw) if p.strip()]
 
+    # Respect the model's category only after deterministic profile rules had a
+    # chance to correct obvious domain cues.
     for part in parts:
-        if part in CANONICAL_CLAIM_TYPES:
+        if part in canonical_types:
             return part
 
     for part in parts:
-        if part in CLAIM_TYPE_ALIASES:
-            return CLAIM_TYPE_ALIASES[part]
+        alias_value = aliases.get(part)
+        if alias_value:
+            return alias_value
 
-    combined = f"{normalized} {original}"
-
-    if '"' in original_claim or " text" in combined or "reading " in combined or "reads " in combined:
-        return "visible_text"
-    if "hair" in combined or "bun" in combined or "pigtail" in combined or "braid" in combined:
-        if any(color in combined for color in HAIR_COLORS):
-            return "hair_color"
-        return "hair_style"
-    if "eye" in combined or "makeup" in combined:
-        return "eye_color"
-    if any(hint in combined for hint in CLOTHING_HINTS):
-        return "clothing"
-    if any(hint in combined for hint in POSE_HINTS):
-        return "pose_action"
-    if "background" in combined or "wall" in combined or "poster" in combined or "graffiti" in combined:
-        return "background_object"
-    if "lighting" in combined or "style" in combined or "artwork" in combined or "render" in combined:
-        return "style_medium"
-
-    return "general"
-
+    return "general" if "general" in canonical_types else sorted(canonical_types)[0]
 
 def claims_from_manual_response(
     image_key: str,
@@ -1361,7 +1553,7 @@ def claims_from_manual_response(
         specificity = str(item.get("specificity") or "specific").strip() or "specific"
 
         if normalized_raw:
-            normalized = clean_claim_text(normalized_raw).lower()
+            normalized = clean_claim_text(normalized_raw, config=config).lower()
             if not normalized:
                 normalized, inferred_claim_type, norm_specificity = normalize_claim_text(original, config)
                 claim_type = claim_type_raw or inferred_claim_type
@@ -1376,15 +1568,18 @@ def claims_from_manual_response(
             if not item.get("specificity"):
                 specificity = norm_specificity
 
-        claim_type = canonicalize_claim_type(claim_type, normalized, original)
+        claim_type = canonicalize_claim_type(claim_type, normalized, original, config=config)
 
         # Accept source_record_indexes, source_record_index, or no source.
         src_indexes = item.get("source_record_indexes")
         if src_indexes is None:
             src_indexes = item.get("source_record_index")
         if src_indexes is None:
+            # v0.6.1: A single safe default source is not treated as a parser
+            # warning. The generated AtomicClaim still records the concrete
+            # source_record_index, so the output remains auditable without
+            # noisy warnings for otherwise valid claims.
             src_indexes = [default_source.source_record_index]
-            warnings.append(f"claims[{idx}] missing source_record_indexes; defaulted to {default_source.source_record_index}.")
         if not isinstance(src_indexes, list):
             src_indexes = [src_indexes]
 
@@ -1517,12 +1712,12 @@ def extract_value_for_conflict(normalized: str, category: str) -> str:
     return normalized
 
 
-def detect_conflicts(normalized_claims: list[NormalizedClaim]) -> list[ConflictRecord]:
+def detect_conflicts(normalized_claims: list[NormalizedClaim], config: Optional[ClaimExtractionConfig] = None) -> list[ConflictRecord]:
     conflicts: list[ConflictRecord] = []
 
     by_category: dict[str, list[NormalizedClaim]] = defaultdict(list)
     for claim in normalized_claims:
-        if claim.claim_type in MUTUALLY_EXCLUSIVE_CATEGORIES:
+        if claim.claim_type in profile_set(config, "mutually_exclusive_categories", MUTUALLY_EXCLUSIVE_CATEGORIES):
             by_category[claim.claim_type].append(claim)
 
     for category, items in by_category.items():
@@ -1637,7 +1832,7 @@ def build_image_claim_record(
         )
 
     normalized_claims = aggregate_claims(image_key, all_claims)
-    conflicts = detect_conflicts(normalized_claims) if config.detect_conflicts else []
+    conflicts = detect_conflicts(normalized_claims, config=config) if config.detect_conflicts else []
     uncertainty_flags = make_uncertainty_flags(source_refs, normalized_claims, conflicts)
 
     if llm_parse_result.status not in {"ok"}:
@@ -1668,6 +1863,10 @@ def build_image_claim_record(
             "prompt_schema_version": config.prompt_schema_version,
             "response_schema_version": config.response_schema_version,
             "prompt_sha1": prompt_sha1,
+            "semantic_profile_name": config.semantic_profile_name,
+            "semantic_profile_version": config.semantic_profile_version,
+            "semantic_profile_sha1": str(getattr(config, "_captionforge_semantic_profile_sha1", "")),
+            "semantic_profile_fallback_reason": str(getattr(config, "_captionforge_semantic_profile_fallback_reason", "")),
             "config": record_to_json(config),
         },
         timestamp=iso_timestamp(),
@@ -1688,8 +1887,17 @@ def extract_claims_batch(
     if config.text_llm_backend not in {"heuristic", "manual_json", "ollama"}:
         raise ValueError(
             f"Unsupported text_llm_backend={config.text_llm_backend!r}. "
-            "v0.5 supports: heuristic, manual_json, ollama."
+            "v0.6 supports: heuristic, manual_json, ollama."
         )
+
+    semantic_profile = load_semantic_profile(config)
+
+    print(
+        "[CaptionForge Claim Engine] Semantic profile: "
+        f"{config.semantic_profile_name} v{config.semantic_profile_version} "
+        f"sha1={semantic_profile_sha1(semantic_profile)}",
+        flush=True,
+    )
 
     result = BatchClaimResult()
 
@@ -1820,6 +2028,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ollama-timeout-sec", type=int, default=600, help="Ollama request timeout in seconds.")
     parser.add_argument("--ollama-keep-alive", default="5m", help="Ollama keep_alive value, e.g. 5m, 30m, or 0.")
     parser.add_argument("--manual-json-path", default="", help="JSON/JSONL response file for manual_json backend.")
+    parser.add_argument("--semantic-profile-json", default="", help="Optional deterministic semantic profile JSON. Defaults to female_character_v1.")
     parser.add_argument("--image-key-filter", default="", help="Process only image_keys that exactly match or contain this string.")
     parser.add_argument("--preserve-raw-llm-response", action="store_true", help="Store raw manual/LLM response text in each Pass B record.")
     parser.add_argument("--write-llm-prompt-jsonl", action="store_true", help="Export future-LLM prompt bundles.")
@@ -1839,6 +2048,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         ollama_base_url=args.ollama_base_url,
         ollama_timeout_sec=int(args.ollama_timeout_sec),
         ollama_keep_alive=args.ollama_keep_alive,
+        semantic_profile_json=args.semantic_profile_json,
     )
 
     output_jsonl = args.output_jsonl or str(default_output_path(args.input_jsonl))

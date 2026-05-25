@@ -1,0 +1,68 @@
+{
+  "profile_name": "image_v1_minimum",
+  "profile_version": "1.0.0",
+  "description": "Minimum viable built-in CaptionForge fallback profile. It exists only to keep the engine functional when an installed profile is missing or corrupt.",
+  "claim_types": [
+    "visible_text",
+    "style_medium",
+    "composition",
+    "general"
+  ],
+  "claim_type_aliases": {
+    "text": "visible_text",
+    "style": "style_medium",
+    "lighting": "style_medium"
+  },
+  "mutually_exclusive_categories": [],
+  "claim_type_override_rules": [
+    {
+      "claim_type": "visible_text",
+      "mode": "visible_text_cue",
+      "text_scope": "combined"
+    },
+    {
+      "claim_type": "style_medium",
+      "mode": "hints",
+      "profile_key": "style_words",
+      "match": "contains",
+      "text_scope": "normalized_then_combined"
+    }
+  ],
+  "normalization_rules": [
+    {
+      "claim_type": "visible_text",
+      "mode": "visible_text_cue"
+    },
+    {
+      "claim_type": "style_medium",
+      "mode": "hints",
+      "profile_key": "style_words",
+      "match": "contains"
+    }
+  ],
+  "boilerplate_prefixes": [
+    "the image depicts",
+    "the image shows",
+    "this image depicts",
+    "this image shows",
+    "a photo of",
+    "a photograph of",
+    "an image of",
+    "in this image"
+  ],
+  "style_words": [
+    "photo",
+    "photograph",
+    "illustration",
+    "render",
+    "painting",
+    "drawing",
+    "style",
+    "lighting",
+    "studio lighting"
+  ],
+  "color_synonyms": {
+    "grey": "gray"
+  },
+  "singularize_map": {}
+}
