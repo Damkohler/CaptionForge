@@ -1000,6 +1000,13 @@ class JLC_JoyCaption:
         # Direct ComfyUI IMAGE input
         # -------------------------------------------------------------
         pil_images = _tensor_to_pil(image)
+
+        if pil_images and input_path:
+            print(
+                "[CaptionForge] IMAGE input and input_path are both active; "
+                "captioning both sources."
+            )
+            
         if pil_images:
             engine.load()
 

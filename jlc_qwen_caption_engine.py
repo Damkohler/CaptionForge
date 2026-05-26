@@ -1236,8 +1236,11 @@ class QwenCaptionEngine:
                 f"device_map={effective_device_map!r}, quantization={quantization}"
             )
 
-            print("[JLC Qwen Engine] bitsandbytes 8-bit enabled; "
-                       "suppressing known bf16->fp16 MatMul8bitLt warning.")
+            if quantization == "bnb_8bit":
+                try:
+                    from transformers import BitsAndBytesConfig
+                except Exception as exc:
+                    raise RuntimeError(...)
             
             device_map = getattr(self.model, "hf_device_map", None)
             if device_map:
@@ -1413,6 +1416,7 @@ class QwenCaptionEngine:
                 generation_kwargs["top_k"] = int(self.generation.top_k)
         else:
             generation_kwargs["do_sample"] = False
+            
 
         generated_ids = self.model.generate(
             **inputs,

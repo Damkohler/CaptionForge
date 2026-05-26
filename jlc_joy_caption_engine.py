@@ -1467,6 +1467,16 @@ class JoyCaptionEngine:
         autocast_enabled = self._autocast_enabled(device_type)
         bf16_supported = (device_type != "cuda") or torch.cuda.is_bf16_supported()
 
+        tokenizer = getattr(self.processor, "tokenizer", None)
+        if tokenizer is not None:
+            eos_token_id = getattr(tokenizer, "eos_token_id", None)
+            pad_token_id = getattr(tokenizer, "pad_token_id", None) or eos_token_id
+
+            if pad_token_id is not None:
+                generation_kwargs["pad_token_id"] = pad_token_id
+            if eos_token_id is not None:
+                generation_kwargs["eos_token_id"] = eos_token_id
+
         try:
             with torch.autocast(
                 device_type=device_type,

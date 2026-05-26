@@ -372,6 +372,12 @@ class JLC_JoyCaptionLite:
         if first_run.input_path:
             file_images = _iter_input_path_images(first_run.input_path, first_run.recursive, first_run.filename_glob)
 
+        if direct_images and file_images:
+            print(
+                "[CaptionForge] IMAGE input and Run Plan input_path are both active; "
+                "captioning both sources."
+            )
+
         if not direct_images and not file_images:
             raise RuntimeError(
                 "No image input found. Connect an IMAGE input or provide input_path in the "
