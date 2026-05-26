@@ -12,8 +12,14 @@
 ---
 
 <p align="center">
-  <img src="web/assets/icons/jlc-comfyui-nodes_Logo-Dark-0128.png" alt="CaptionForge logo" width="128">
+  <img src="assets/icons/jlc-comfyui-nodes_Logo-0512.png" width="120">
+  &nbsp;&nbsp;&nbsp;
+  <img src="assets/icons/jlc-comfyui-nodes_Logo-Dark-0512.png" width="120">
 </p>
+
+[![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Nodes-blue)]()
+[![License](https://img.shields.io/badge/license-MIT-green)]()
+![Status](https://img.shields.io/badge/status-development-brightyellow)
 
 # CaptionForge
 

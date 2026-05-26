@@ -182,47 +182,31 @@ from datetime import datetime
 import torch
 import numpy as np
 from PIL import Image
+import time
 
 import folder_paths
 
-try:
-    from .jlc_qwen_caption_engine import (
-        BatchCaptionConfig,
-        CaptionRecord,
-        CleanupConfig,
-        GenerationConfig,
-        MODEL_REGISTRY,
-        PROMPT_PRESETS,
-        QwenCaptionConfig,
-        QwenCaptionEngine,
-        append_jsonl_records,
-        load_existing_jsonl_images,
-        probe_registry_model_download,
-        record_to_json,
-        resolve_prompt,
-        timestamp,
-        write_run_config_json,
-        write_text_sidecar,
-    )
-except ImportError:
-    from jlc_qwen_caption_engine import (
-        BatchCaptionConfig,
-        CaptionRecord,
-        CleanupConfig,
-        GenerationConfig,
-        MODEL_REGISTRY,
-        PROMPT_PRESETS,
-        QwenCaptionConfig,
-        QwenCaptionEngine,
-        append_jsonl_records,
-        load_existing_jsonl_images,
-        probe_registry_model_download,
-        record_to_json,
-        resolve_prompt,
-        timestamp,
-        write_run_config_json,
-        write_text_sidecar,
-    )
+from .jlc_qwen_caption_engine import (
+    BatchCaptionConfig,
+    CaptionRecord,
+    CleanupConfig,
+    GenerationConfig,
+    MODEL_REGISTRY,
+    PROMPT_PRESETS,
+    QwenCaptionConfig,
+    QwenCaptionEngine,
+    append_jsonl_records,
+    load_existing_jsonl_images,
+    probe_registry_model_download,
+    record_to_json,
+    resolve_prompt,
+    timestamp,
+    write_run_config_json,
+    write_text_sidecar,
+)
+
+from .engines.run_plan.captionforge_run_plan import expand_captionforge_runs
+    
 
 # -------------------------------------------------------------------------
 # Fixed JLC model root
@@ -311,15 +295,23 @@ class JLC_QwenCaption:
                     list(MODEL_REGISTRY.keys()),
                     {
                         "default": "Qwen2.5-VL-3B-Instruct",
-                        "tooltip": "Select which supported Qwen vision-language model to use for captioning. The node will load it from the fixed JLC_QwenCaption model folder, downloading it if needed."
+                        "tooltip": (
+                            "Select which supported Qwen vision-language model to use for captioning. "
+                            "The node loads it from the fixed JLC_QwenCaption model folder, downloading "
+                            "it if needed."
+                        ),
                     },
                 ),
 
                 "qwen_quantization": (
                     ["Default", "Balanced (8-bit)"],
                     {
-                        "default": "Default",
-                        "tooltip": "Qwen model load mode. Default uses normal loading. Balanced (8-bit) uses bitsandbytes 8-bit loading to reduce VRAM pressure, especially for Qwen2.5-VL 7B variants."
+                        "default": "Balanced (8-bit)",
+                        "tooltip": (
+                            "Qwen model load mode. Balanced (8-bit) uses bitsandbytes 8-bit loading "
+                            "to reduce VRAM pressure, especially for Qwen2.5-VL 7B variants. This is "
+                            "the recommended CaptionForge default on 16 GB VRAM systems."
+                        ),
                     },
                 ),
 
@@ -328,7 +320,12 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional file or folder path. If this points to a single image file, that file is captioned. If it points to a folder, all supported images in that folder are captioned. Can be used instead of, or together with, the IMAGE input."
+                        "tooltip": (
+                            "Optional standalone file or folder path. If this points to a single image "
+                            "file, that file is captioned. If it points to a folder, all supported "
+                            "images in that folder are captioned. Can be used instead of, or together "
+                            "with, the IMAGE input."
+                        ),
                     },
                 ),
 
@@ -336,7 +333,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "If input_path points to a folder, search subfolders too. Disable to process only images directly inside the selected folder."
+                        "tooltip": (
+                            "Standalone folder mode: if input_path points to a folder, search "
+                            "subfolders too. Disable to process only images directly inside the "
+                            "selected folder."
+                        ),
                     },
                 ),
 
@@ -345,7 +346,10 @@ class JLC_QwenCaption:
                     {
                         "default": "*",
                         "multiline": False,
-                        "tooltip": "Optional filename filter for folder captioning. Examples: *, *.png, *.jpg, JessJenn_*.webp, *_closeup.*"
+                        "tooltip": (
+                            "Standalone folder mode filename filter. Examples: *, *.png, *.jpg, "
+                            "JessJenn_*.webp, *_closeup.*"
+                        ),
                     },
                 ),
 
@@ -353,7 +357,10 @@ class JLC_QwenCaption:
                     list(PROMPT_PRESETS.keys()),
                     {
                         "default": "default_literal" if "default_literal" in PROMPT_PRESETS else sorted(PROMPT_PRESETS.keys())[0],
-                        "tooltip": "Choose a built-in captioning prompt preset. This is used when custom_prompt is blank and no prompt_file is provided."
+                        "tooltip": (
+                            "Built-in CaptionForge prompt preset. Used when custom_prompt is blank "
+                            "and no prompt_file is provided."
+                        ),
                     },
                 ),
 
@@ -362,7 +369,11 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": True,
-                        "tooltip": "Optional custom prompt text. If provided, this overrides both prompt_file and prompt_preset."
+                        "tooltip": (
+                            "Optional custom prompt text. If provided, this overrides both prompt_file "
+                            "and prompt_preset. This remains model-specific and is not currently "
+                            "overridden by the CaptionForge Run Plan."
+                        ),
                     },
                 ),
 
@@ -371,7 +382,11 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional path to a text file containing the caption prompt. Used only when custom_prompt is blank. If both custom_prompt and prompt_file are blank, prompt_preset is used."
+                        "tooltip": (
+                            "Optional path to a text file containing the caption prompt. Used only "
+                            "when custom_prompt is blank. If both custom_prompt and prompt_file are "
+                            "blank, prompt_preset is used."
+                        ),
                     },
                 ),
 
@@ -382,7 +397,11 @@ class JLC_QwenCaption:
                         "min": 16,
                         "max": 4096,
                         "step": 8,
-                        "tooltip": "Maximum number of new tokens the model may generate for each caption. Higher values allow longer captions but may increase runtime."
+                        "tooltip": (
+                            "Maximum number of new tokens for standalone captioning. When a "
+                            "CaptionForge Run Plan is connected, this is overridden by the Run "
+                            "Plan's shared constant token budget."
+                        ),
                     },
                 ),
 
@@ -393,7 +412,11 @@ class JLC_QwenCaption:
                         "min": 0.0,
                         "max": 2.0,
                         "step": 0.01,
-                        "tooltip": "Sampling temperature. Higher values increase variation; lower values make output more deterministic. Set to 0.0 for greedy/non-sampling generation."
+                        "tooltip": (
+                            "Sampling temperature for standalone captioning. When a CaptionForge "
+                            "Run Plan is connected, this is overridden by the Run Plan temperature "
+                            "schedule."
+                        ),
                     },
                 ),
 
@@ -404,7 +427,11 @@ class JLC_QwenCaption:
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.01,
-                        "tooltip": "Nucleus sampling threshold. When sampling is enabled, the model chooses from the smallest token set whose cumulative probability reaches this value."
+                        "tooltip": (
+                            "Top-p sampling value for standalone captioning. When a CaptionForge "
+                            "Run Plan is connected, this is overridden by the Run Plan top-p "
+                            "schedule."
+                        ),
                     },
                 ),
 
@@ -415,7 +442,11 @@ class JLC_QwenCaption:
                         "min": 0,
                         "max": 500,
                         "step": 1,
-                        "tooltip": "Top-k sampling limit. When sampling is enabled, restricts token choice to the top K candidates. Set to 0 to disable top-k filtering."
+                        "tooltip": (
+                            "Top-k sampling value for standalone captioning. When a CaptionForge "
+                            "Run Plan is connected, this is overridden by the Run Plan top-k "
+                            "schedule."
+                        ),
                     },
                 ),
 
@@ -426,7 +457,26 @@ class JLC_QwenCaption:
                         "min": 1.0,
                         "max": 2.0,
                         "step": 0.01,
-                        "tooltip": "Penalty applied to repeated tokens. Values slightly above 1.0 can reduce repetitive captions."
+                        "tooltip": (
+                            "Penalty applied to repeated tokens. Values slightly above 1.0 can "
+                            "reduce repetitive captions. This is not currently overridden by the "
+                            "CaptionForge Run Plan."
+                        ),
+                    },
+                ),
+
+                "captions_per_image": (
+                    "INT",
+                    {
+                        "default": 1,
+                        "min": 1,
+                        "max": 100,
+                        "step": 1,
+                        "tooltip": (
+                            "Number of caption records per image for standalone captioning. When "
+                            "a CaptionForge Run Plan is connected, this is overridden by the Run "
+                            "Plan."
+                        ),
                     },
                 ),
 
@@ -437,7 +487,11 @@ class JLC_QwenCaption:
                         "min": -1,
                         "max": 0xFFFFFFFF,
                         "step": 1,
-                        "tooltip": "Random seed for caption generation. Use -1 to allow nondeterministic behavior. Use a fixed value for repeatable sampling results."
+                        "tooltip": (
+                            "Random seed for standalone captioning. When a CaptionForge Run Plan "
+                            "is connected, this widget is overridden by per-caption-instance seeds "
+                            "derived from the Run Plan."
+                        ),
                     },
                 ),
 
@@ -448,7 +502,11 @@ class JLC_QwenCaption:
                         "min": 0,
                         "max": 4096,
                         "step": 64,
-                        "tooltip": "Maximum size for the longest image side before captioning. The image is resized in memory only; the original file is never overwritten. Set to 0 to disable resizing."
+                        "tooltip": (
+                            "Maximum longest-side image size for standalone captioning. The image "
+                            "is resized in memory only. When a CaptionForge Run Plan is connected, "
+                            "this is overridden by the Run Plan's shared workload guard."
+                        ),
                     },
                 ),
 
@@ -457,7 +515,11 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional output folder for TXT, JSONL, and run-config files. If left blank, outputs are written next to the source images when possible, or to a default Comfy output folder for direct IMAGE input."
+                        "tooltip": (
+                            "Output folder for standalone captioning. When a CaptionForge Run Plan "
+                            "is connected, this is overridden by the Run Plan output_dir so all "
+                            "engines write to one shared evidence pool."
+                        ),
                     },
                 ),
 
@@ -465,7 +527,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "If enabled, write one .txt sidecar caption file per image."
+                        "tooltip": (
+                            "If enabled, write one TXT audit sidecar per image or per ensemble run. "
+                            "When a CaptionForge Run Plan is connected, TXT files are audit artifacts; "
+                            "JSONL remains the primary evidence output."
+                        ),
                     },
                 ),
 
@@ -473,7 +539,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "If enabled, append caption records to a JSONL file."
+                        "tooltip": (
+                            "If enabled, append caption records to a JSONL file. When a CaptionForge "
+                            "Run Plan is connected, this is forced ON because JSONL evidence is the "
+                            "primary CaptionForge Pass A output."
+                        ),
                     },
                 ),
 
@@ -481,7 +551,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "Additional JSONL output toggle. If enabled, JSONL records are written even if write_jsonl is off. Useful when you want TXT sidecars plus a JSONL audit trail."
+                        "tooltip": (
+                            "Standalone compatibility toggle for writing JSONL in addition to TXT. "
+                            "When a CaptionForge Run Plan is connected, this is forced OFF because "
+                            "write_jsonl is already forced ON."
+                        ),
                     },
                 ),
 
@@ -489,7 +563,10 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "If enabled, save a small JSON file recording model, prompt, and generation settings for reproducibility."
+                        "tooltip": (
+                            "If enabled, save a small JSON file recording model, prompt, cleanup, "
+                            "and generation settings for reproducibility."
+                        ),
                     },
                 ),
 
@@ -498,7 +575,11 @@ class JLC_QwenCaption:
                     {
                         "default": "captions.jsonl",
                         "multiline": False,
-                        "tooltip": "Filename to use for the JSONL output file."
+                        "tooltip": (
+                            "Filename to use for JSONL evidence output. In CaptionForge Run Plan "
+                            "mode, connected captioners should normally share the same filename "
+                            "inside the shared output_dir."
+                        ),
                     },
                 ),
 
@@ -506,7 +587,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "If enabled, existing TXT sidecar files may be overwritten. If disabled, existing files are preserved."
+                        "tooltip": (
+                            "Standalone mode: allow existing TXT sidecars to be overwritten. When "
+                            "a CaptionForge Run Plan is connected, this is forced ON because TXT "
+                            "files are audit artifacts and must not block JSONL evidence generation."
+                        ),
                     },
                 ),
 
@@ -514,7 +599,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "If enabled and overwrite behavior is triggered, existing TXT files are first renamed to a timestamped backup."
+                        "tooltip": (
+                            "Standalone mode: if overwrite behavior is triggered, existing TXT "
+                            "files are first renamed to a timestamped backup. In CaptionForge mode, "
+                            "TXT sidecars are audit artifacts and JSONL evidence is primary."
+                        ),
                     },
                 ),
 
@@ -522,7 +611,10 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "If enabled, the node goes through the workflow logic without writing TXT, JSONL, or run-config files."
+                        "tooltip": (
+                            "If enabled, the node goes through workflow logic without writing TXT, "
+                            "JSONL, or run-config files."
+                        ),
                     },
                 ),
 
@@ -533,7 +625,10 @@ class JLC_QwenCaption:
                         "min": 0,
                         "max": 100000,
                         "step": 1,
-                        "tooltip": "Maximum number of images to process from input_path. Set to 0 for no limit."
+                        "tooltip": (
+                            "Standalone folder mode: maximum number of images to process from "
+                            "input_path. Set to 0 for no limit."
+                        ),
                     },
                 ),
 
@@ -541,7 +636,12 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "If enabled, images whose TXT sidecar already exists are skipped unless overwrite is enabled."
+                        "tooltip": (
+                            "Standalone mode: skip images whose TXT sidecar already exists unless "
+                            "overwrite is enabled. When a CaptionForge Run Plan is connected, this "
+                            "is forced OFF so existing audit TXT files cannot suppress required "
+                            "JSONL evidence generation."
+                        ),
                     },
                 ),
 
@@ -549,7 +649,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "If enabled, the node checks the target JSONL file and skips images that already appear there."
+                        "tooltip": (
+                            "Standalone mode: skip images already present in the target JSONL file. "
+                            "When a CaptionForge Run Plan is connected, this is forced OFF so reruns "
+                            "with new seeds or schedules append fresh evidence records."
+                        ),
                     },
                 ),
 
@@ -558,7 +662,11 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional text to prepend to every final caption."
+                        "tooltip": (
+                            "Optional standalone text prefix for final captions. When a CaptionForge "
+                            "Run Plan includes a trigger_word, that trigger is injected ahead of "
+                            "this prefix."
+                        ),
                     },
                 ),
 
@@ -567,7 +675,7 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional text to append to every final caption."
+                        "tooltip": "Optional text to append to every final caption.",
                     },
                 ),
 
@@ -576,7 +684,7 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": True,
-                        "tooltip": "Optional list of phrases to remove from captions, one per line."
+                        "tooltip": "Optional list of phrases to remove from captions, one per line.",
                     },
                 ),
 
@@ -585,7 +693,7 @@ class JLC_QwenCaption:
                     {
                         "default": "",
                         "multiline": True,
-                        "tooltip": "Optional search-and-replace rules, one per line, using the format old=>new."
+                        "tooltip": "Optional search-and-replace rules, one per line, using the format old=>new.",
                     },
                 ),
 
@@ -593,7 +701,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": True,
-                        "tooltip": "If enabled, keep the loaded model cached in memory for faster repeated runs."
+                        "tooltip": (
+                            "If enabled, keep the loaded model cached in memory for faster repeated "
+                            "runs. CaptionForge cache policy may still evict this model when another "
+                            "captioning model must load."
+                        ),
                     },
                 ),
 
@@ -601,7 +713,11 @@ class JLC_QwenCaption:
                     "BOOLEAN",
                     {
                         "default": False,
-                        "tooltip": "If enabled, do not load the model or caption images. Instead, create the expected model folder and download lightweight metadata/config files only, skipping large weight files."
+                        "tooltip": (
+                            "If enabled, do not load the model or caption images. Instead, create "
+                            "the expected model folder and download lightweight metadata/config "
+                            "files only, skipping large weight files."
+                        ),
                     },
                 ),
             },
@@ -609,7 +725,23 @@ class JLC_QwenCaption:
                 "image": (
                     "IMAGE",
                     {
-                        "tooltip": "Optional IMAGE input from the ComfyUI graph. If connected, the node captions these image tensors directly. Can be used instead of, or together with, input_path."
+                        "tooltip": (
+                            "Optional IMAGE input from the ComfyUI graph. If connected, the node "
+                            "captions these image tensors directly. Can be used instead of, or "
+                            "together with, input_path."
+                        ),
+                    },
+                ),
+                "captionforge_run_config": (
+                    "CAPTIONFORGE_RUN_CONFIG",
+                    {
+                        "tooltip": (
+                            "Optional shared CaptionForge Run Plan. When connected, it overrides "
+                            "captions_per_image, seed behavior, sampling settings, max_size, "
+                            "max_new_tokens, trigger prefix, and output_dir. It also forces JSONL "
+                            "evidence output and disables TXT/JSONL skip behavior that could "
+                            "suppress required CaptionForge evidence records."
+                        ),
                     },
                 ),
             },
@@ -640,6 +772,7 @@ class JLC_QwenCaption:
         top_p,
         top_k,
         repetition_penalty,
+        captions_per_image,
         seed,
         max_size,
         output_dir,
@@ -661,6 +794,7 @@ class JLC_QwenCaption:
         keep_loaded,
         download_probe_only,
         image=None,
+        captionforge_run_config=None,
     ):
         if download_probe_only:
             result = probe_registry_model_download(model, JLC_QWEN_MODEL_ROOT)
@@ -672,18 +806,45 @@ class JLC_QwenCaption:
             prompt_preset=prompt_preset,
         )
 
+        run_plan = expand_captionforge_runs(
+            captionforge_run_config,
+            widget_captions_per_image=int(captions_per_image),
+            widget_seed=int(seed),
+            widget_temperature=float(temperature),
+            widget_top_p=float(top_p),
+            widget_top_k=int(top_k),
+            widget_max_new_tokens=int(max_new_tokens),
+            widget_max_size=int(max_size),
+            widget_trigger_word="",
+            widget_output_dir=output_dir,
+        )
+
+        first_run = run_plan[0]
+        run_plan_connected = bool(captionforge_run_config)
+
+        if run_plan_connected:
+            write_jsonl = True
+            also_jsonl = False
+            skip_existing_txt = False
+            skip_existing_jsonl_images = False
+            overwrite = True
+
+        effective_prefix = prefix
+        if first_run.trigger_word:
+            effective_prefix = f"{first_run.trigger_word}, {prefix}".strip(", ")
+
         generation = GenerationConfig(
-            max_new_tokens=int(max_new_tokens),
-            temperature=float(temperature),
-            top_p=float(top_p),
-            top_k=int(top_k),
+            max_new_tokens=int(first_run.max_new_tokens),
+            temperature=float(first_run.temperature),
+            top_p=float(first_run.top_p),
+            top_k=int(first_run.top_k),
             repetition_penalty=float(repetition_penalty),
-            seed=None if int(seed) < 0 else int(seed),
+            seed=first_run.seed,
         )
 
         cleanup = CleanupConfig(
             trigger="",
-            prefix=prefix,
+            prefix=effective_prefix,
             suffix=suffix,
             forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
             replacement_rules=_parse_replace_pairs(replace_pairs),
@@ -702,7 +863,7 @@ class JLC_QwenCaption:
             quiet_transformers_load=True,
             patch_lm_head_weight=True,
             ignore_mismatched_sizes=True,
-            max_size=int(max_size),
+            max_size=int(first_run.max_size),
             prompt=prompt,
             allow_download=True,
         )
@@ -716,6 +877,10 @@ class JLC_QwenCaption:
         input_path = (input_path or "").strip()
         output_dir = (output_dir or "").strip()
         jsonl_filename = (jsonl_filename or "captions.jsonl").strip() or "captions.jsonl"
+
+        if first_run.output_dir:
+                    output_dir = first_run.output_dir
+
         use_jsonl = bool(write_jsonl or also_jsonl)
 
         all_records: list[CaptionRecord] = []
@@ -749,49 +914,89 @@ class JLC_QwenCaption:
                 source_name = f"comfy_image_{index:04d}"
                 txt_path = image_output_dir / f"{source_name}.txt"
 
-                if skip_existing_txt and write_txt and txt_path.exists() and not overwrite:
-                    print(f"[JLC Qwen Caption] Skipping existing TXT: {txt_path}")
-                    continue
+                if len(run_plan) == 1:
+                    if skip_existing_txt and write_txt and txt_path.exists() and not overwrite:
+                        print(f"[JLC Qwen Caption] Skipping existing TXT: {txt_path}")
+                        continue
 
                 if use_jsonl and skip_existing_jsonl_images:
                     if source_name in seen_jsonl_images:
                         print(f"[JLC Qwen Caption] Skipping existing JSONL image: {source_name}")
                         continue
 
-                final_caption, raw_caption = engine.caption_pil(pil)
-                record = CaptionRecord(
-                    image=source_name,
-                    caption=final_caption,
-                    raw_caption=raw_caption,
-                    model_name=model,
-                    model_path=str(engine.local_model_path or ""),
-                    prompt=prompt,
-                    seed=generation.seed,
-                    temperature=generation.temperature,
-                    top_p=generation.top_p,
-                    top_k=generation.top_k,
-                    max_new_tokens=generation.max_new_tokens,
-                    max_size=int(max_size),
-                    timestamp=datetime.now().isoformat(timespec="seconds"),
-                    captionforge_pass="A",
-                    model_family="qwen",
-                    ensemble_run_index=0,
-                    image_key=source_name,
-                )
-
-                all_records.append(record)
-                records_to_jsonl.append(record)
-
-                if write_txt:
-                    write_text_sidecar(
-                        txt_path,
-                        record.caption,
-                        overwrite=bool(overwrite),
-                        backup_existing=bool(backup_existing),
-                        dry_run=bool(dry_run),
+                for run in run_plan:
+                    engine.generation = GenerationConfig(
+                        max_new_tokens=int(run.max_new_tokens),
+                        temperature=float(run.temperature),
+                        top_p=float(run.top_p),
+                        top_k=int(run.top_k),
+                        repetition_penalty=float(repetition_penalty),
+                        seed=run.seed,
                     )
 
-                print(f"[JLC Qwen Caption] Captioned IMAGE {index + 1}/{len(pil_images)}: {source_name}")
+                    effective_prefix = prefix
+                    if run.trigger_word:
+                        effective_prefix = f"{run.trigger_word}, {prefix}".strip(", ")
+
+                    engine.cleanup = CleanupConfig(
+                        trigger="",
+                        prefix=effective_prefix,
+                        suffix=suffix,
+                        forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
+                        replacement_rules=_parse_replace_pairs(replace_pairs),
+                    )
+                    engine.config.max_size = int(run.max_size)
+
+                    run_source_name = source_name
+                    run_txt_path = txt_path
+                    if len(run_plan) > 1:
+                        run_txt_path = image_output_dir / f"{source_name}__cf_run_{run.ensemble_run_index:02d}.txt"
+
+                    if skip_existing_txt and write_txt and run_txt_path.exists() and not overwrite:
+                        print(f"[JLC Qwen Caption] Skipping existing TXT: {run_txt_path}")
+                        continue
+
+                    t0 = time.perf_counter()
+                    final_caption, raw_caption = engine.caption_pil(pil)
+                    dt = time.perf_counter() - t0
+                    print(f"[JLC Qwen Caption] Generation time run {run.ensemble_run_index}: {dt:.2f}s")
+
+                    record = CaptionRecord(
+                        image=run_source_name,
+                        caption=final_caption,
+                        raw_caption=raw_caption,
+                        model_name=model,
+                        model_path=str(engine.local_model_path or ""),
+                        prompt=prompt,
+                        seed=run.seed,
+                        temperature=run.temperature,
+                        top_p=run.top_p,
+                        top_k=run.top_k,
+                        max_new_tokens=run.max_new_tokens,
+                        max_size=int(run.max_size),
+                        timestamp=datetime.now().isoformat(timespec="seconds"),
+                        captionforge_pass="A",
+                        model_family="qwen",
+                        ensemble_run_index=run.ensemble_run_index,
+                        image_key=run_source_name,
+                    )
+
+                    all_records.append(record)
+                    records_to_jsonl.append(record)
+
+                    if write_txt:
+                        write_text_sidecar(
+                            run_txt_path,
+                            record.caption,
+                            overwrite=bool(overwrite),
+                            backup_existing=bool(backup_existing),
+                            dry_run=bool(dry_run),
+                        )
+
+                    print(
+                        f"[JLC Qwen Caption] Captioned IMAGE {index + 1}/{len(pil_images)} "
+                        f"run {run.ensemble_run_index + 1}/{len(run_plan)}: {source_name}"
+                    )
 
             if use_jsonl:
                 append_jsonl_records(jsonl_path, records_to_jsonl, dry_run=bool(dry_run))

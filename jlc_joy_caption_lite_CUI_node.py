@@ -158,20 +158,7 @@ except ImportError:
         MODEL_REGISTRY,
     )
 
-
-MANIFEST = {
-    "name": "JLC Joy Caption (Lite)",
-    "version": (1, 0, 1),
-    "author": "J. L. Córdova",
-    "description": (
-        "Minimal direct-IMAGE JoyCaption/LLaVA-family caption node powered by "
-        "the shared JLC Joy Caption engine."
-    ),
-}
-
-
 JLC_JOY_MODEL_ROOT = Path(folder_paths.models_dir) / "LLM" / "JLC_JoyCaption"
-
 
 DEFAULT_LITE_PROMPT = (
     "You are an image captioning assistant. Describe the image in a highly "

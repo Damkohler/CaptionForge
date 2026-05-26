@@ -149,6 +149,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Optional
+import warnings
 
 from PIL import Image
 import torch
@@ -159,6 +160,23 @@ from .captionforge_model_cache import (
     register_model,
     prepare_for_model_load,
     unload_after_run,
+)
+
+
+# -------------------------------------------------------------------------
+# Eliminate noise from transformers: UserWarning:
+# MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization
+# -------------------------------------------------------------------------
+
+warnings.filterwarnings(
+    "ignore",
+    message=r".*MatMul8bitLt: inputs will be cast.*",
+    category=UserWarning,
+)
+
+warnings.filterwarnings(
+    "ignore",
+    message=r".*torchvision backend image processor with LANCZOS resample.*",
 )
 
 
@@ -1333,6 +1351,14 @@ class JoyCaptionEngine:
             )
 
         print(f"[JLC Joy Engine] Loaded model (mode={self.config.memory_mode}, kbit={self.is_kbit}).")
+        device_map = getattr(self.model, "hf_device_map", None)
+        if device_map:
+            print(f"[JLC Joy Engine] hf_device_map: {device_map}")
+        else:
+            try:
+                print(f"[JLC Joy Engine] first parameter device: {next(self.model.parameters()).device}")
+            except Exception:
+                pass        
 
     def prepare_for_inference(self) -> None:
         if self.processor is None:

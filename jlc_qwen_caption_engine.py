@@ -1239,6 +1239,15 @@ class QwenCaptionEngine:
             print("[JLC Qwen Engine] bitsandbytes 8-bit enabled; "
                        "suppressing known bf16->fp16 MatMul8bitLt warning.")
             
+            device_map = getattr(self.model, "hf_device_map", None)
+            if device_map:
+                print(f"[JLC Qwen Engine] hf_device_map: {device_map}")
+            else:
+                try:
+                    print(f"[JLC Qwen Engine] first parameter device: {next(self.model.parameters()).device}")
+                except Exception:
+                    pass
+            
             self.model = model_cls.from_pretrained(
                 str(local_path),
                 **model_kwargs,
