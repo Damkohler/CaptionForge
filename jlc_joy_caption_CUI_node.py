@@ -919,6 +919,9 @@ class JLC_JoyCaption:
             widget_max_size=int(max_size),
             widget_trigger_word="",
             widget_output_dir=output_dir,
+            widget_input_path=input_path,
+            widget_recursive=bool(recursive),
+            widget_filename_glob=filename_glob,
         )
 
         first_run = run_plan[0]
@@ -982,6 +985,11 @@ class JLC_JoyCaption:
 
         if first_run.output_dir:
             output_dir = first_run.output_dir
+        if first_run.input_path:
+            input_path = first_run.input_path
+        if run_plan_connected:
+            recursive = bool(first_run.recursive)
+            filename_glob = first_run.filename_glob or "*"
         
         jsonl_filename = (jsonl_filename or "captions.jsonl").strip() or "captions.jsonl"
         use_jsonl = bool(write_jsonl or also_jsonl)
@@ -1088,6 +1096,9 @@ class JLC_JoyCaption:
                     all_records.append(record)
                     records_to_jsonl.append(record)
 
+                    if use_jsonl:
+                        append_jsonl_records(jsonl_path, [record], dry_run=bool(dry_run))
+
                     if write_txt:
                         write_text_sidecar(
                             run_txt_path,
@@ -1101,9 +1112,6 @@ class JLC_JoyCaption:
                         f"[JLC Joy Caption] Captioned IMAGE {index + 1}/{len(pil_images)} "
                         f"run {run.ensemble_run_index + 1}/{len(run_plan)}: {source_name}"
                     )
-
-            if use_jsonl:
-                append_jsonl_records(jsonl_path, records_to_jsonl, dry_run=bool(dry_run))
 
         # -------------------------------------------------------------
         # File/folder input path

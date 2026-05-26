@@ -1,119 +1,45 @@
 """
-CaptionForge Run Plan Helpers — Shared Pass A Configuration Utilities
+CaptionForge Run Plan helpers
 
-- CaptionForge
-  - This module is part of **CaptionForge**, a model-agnostic captioning
-    framework for ComfyUI developed by **J. L. Córdova**.
+Small shared utility for optional Pass A ensemble-run configuration.
 
-  - Repository
-    https://github.com/Damkohler/CaptionForge
+This module is intentionally model-agnostic. It does not know about Qwen,
+Joy, or any future captioning engine. It only normalizes a shared run plan
+and expands it into per-caption generation settings.
 
-- Module Purpose
-    - This module contains the shared, model-agnostic logic behind the
-      JLC CaptionForge Run Plan node.
-
-    - It does not load models.
-
-    - It does not caption images.
-
-    - It does not know about Qwen, Joy, or any specific captioning engine.
-
-    - It only:
-            • builds a normalized CaptionForge run config dictionary
-            • parses connected run-config objects or JSON strings
-            • expands schedules into per-caption-instance settings
-            • derives per-caption-instance seeds
-            • provides a small immutable CaptionForgeRun dataclass
-
-- Pass A Role
-    - CaptionForge Pass A generates caption evidence records.
-
-    - A single Run Plan may be shared by multiple independent captioning engines
-      so that Qwen, Joy, and future engines generate comparable evidence under
-      the same run-level constraints.
-
-- Run Expansion Contract
-    - A connected CAPTIONFORGE_RUN_CONFIG overrides matching node-local widget
-      values.
-
-    - If no Run Plan is connected, caption nodes may still call this module with
-      widget fallbacks and behave as standalone tools.
-
-    - Schedules are intentionally forgiving:
-            • blank schedule -> use node-local scalar fallback
-            • shorter-than-n schedule -> repeat final schedule value
-            • malformed schedule values -> ignored
-
-    - This supports practical workflows such as varying temperature while
-      keeping top-p and top-k constant.
-
-- Seed Contract
-    - seed_mode controls per-caption-instance seed generation:
-            • fixed      -> same seed for all ensemble runs
-            • increment  -> base_seed + run_index
-            • decrement  -> base_seed - run_index, clamped to zero
-            • random     -> pseudo-random sequence from base_seed, or
-                            nondeterministic seeds when base_seed is -1
-
-    - Matching run indices across different caption engines intentionally receive
-      matching seeds so evidence records are paired by ensemble_run_index.
-
-- Output Directory Contract
-    - output_dir is carried through the run config and expanded runs.
-
-    - The Run Plan node requires it in CaptionForge mode.
-
-    - Standalone caption nodes may still use their own fallback directories when
-      no Run Plan is connected.
-
-- Token Budget Contract
-    - max_new_tokens is treated as a shared constant, not a schedule.
-
-    - This avoids biasing downstream claim extraction by letting one caption
-      instance produce much more verbose or speculative text than another.
-
-- Design Philosophy
-    - This helper is intentionally small and strict.
-
-    - It centralizes CaptionForge run-plan semantics so Qwen, Joy, Lite nodes,
-      and future caption engines do not each reimplement seed/schedule logic.
-
-- ⚠️ Development Status
-    - Early CaptionForge Pass A infrastructure.
-    - Config schema may evolve before CaptionForge v1.0.0.
-
-- Attribution & License
-  - Concept and implementation by **J. L. Córdova**
-    with development assistance from **ChatGPT (OpenAI)**.
-
-  - Copyright (c) 2026 J. L. Córdova
-
-  - Released under the **MIT License**.
+Design rules:
+- The Run Plan is optional.
+- Connected Run Plan values override matching node widgets.
+- Blank schedule fields fall back to node-local widget values.
+- Short schedules repeat their last value.
+- max_new_tokens is a shared constant, not a diversity schedule.
+- max_size is a shared workload guard.
+- trigger_word is a shared LoRA training identity token.
+- input_path / recursive / filename_glob are shared dataset-routing controls.
 """
 
 from __future__ import annotations
-
-MANIFEST = {
-    "name": "CaptionForge Run Plan Helpers",
-    "version": (0, 1, 0),
-    "author": "J. L. Córdova",
-    "description": (
-        "Shared model-agnostic helper module for CaptionForge Pass A run "
-        "planning. Builds normalized run-config dictionaries, parses connected "
-        "CAPTIONFORGE_RUN_CONFIG objects or JSON strings, expands per-caption "
-        "sampling schedules, derives per-caption-instance seeds, carries the "
-        "required shared output_dir, and returns immutable CaptionForgeRun "
-        "objects for Qwen, Joy, Lite nodes, and future captioning engines. "
-        "Centralizes run-plan semantics so independent caption nodes can produce "
-        "coordinated JSONL evidence records for downstream claim extraction and "
-        "final CaptionForge caption synthesis."
-    ),
-}
 
 import json
 import random
 from dataclasses import dataclass
 from typing import Any
+
+
+MANIFEST = {
+    "name": "CaptionForge Run Plan Helpers",
+    "version": (0, 2, 0),
+    "author": "J. L. Córdova",
+    "description": (
+        "Shared model-agnostic helper module for CaptionForge Pass A run planning. "
+        "Builds normalized run-config dictionaries, parses connected "
+        "CAPTIONFORGE_RUN_CONFIG objects or JSON strings, expands per-caption "
+        "sampling schedules, derives per-caption-instance seeds, carries shared "
+        "output_dir and optional input_path/recursive/filename_glob routing, and "
+        "returns immutable CaptionForgeRun objects for Qwen, Joy, Lite nodes, and "
+        "future captioning engines."
+    ),
+}
 
 
 MAX_SEED_32 = 0xFFFFFFFF
@@ -130,6 +56,9 @@ class CaptionForgeRun:
     max_size: int
     trigger_word: str
     output_dir: str
+    input_path: str
+    recursive: bool
+    filename_glob: str
 
 
 def _coerce_int(value: Any, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
@@ -156,6 +85,19 @@ def _coerce_float(value: Any, default: float, min_value: float | None = None, ma
     if max_value is not None:
         out = min(max_value, out)
     return out
+
+
+def _coerce_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return bool(default)
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    return bool(default)
 
 
 def _parse_schedule(value: Any, cast, default_value):
@@ -234,6 +176,7 @@ def _seed_for_run(base_seed: int, seed_mode: str, index: int) -> int | None:
 
     if seed_mode == "random":
         rng = random.Random(base_seed)
+        out = base_seed
         for _ in range(index + 1):
             out = rng.randint(0, MAX_SEED_32)
         return out
@@ -280,10 +223,13 @@ def build_captionforge_run_config(
     max_new_tokens: int = 512,
     trigger_word: str = "",
     output_dir: str = "",
+    input_path: str = "",
+    recursive: bool = True,
+    filename_glob: str = "*",
 ) -> dict[str, Any]:
     return {
         "captionforge_config_type": "captionforge_run_plan",
-        "captionforge_config_version": 1,
+        "captionforge_config_version": 2,
 
         "captions_per_image": _coerce_int(captions_per_image, 1, 1, 100),
         "base_seed": _coerce_int(base_seed, -1, -1, MAX_SEED_32),
@@ -297,6 +243,10 @@ def build_captionforge_run_config(
         "max_new_tokens": _coerce_int(max_new_tokens, 512, 16, 4096),
         "trigger_word": str(trigger_word or "").strip(),
         "output_dir": str(output_dir or "").strip(),
+
+        "input_path": str(input_path or "").strip(),
+        "recursive": _coerce_bool(recursive, True),
+        "filename_glob": str(filename_glob or "*").strip() or "*",
     }
 
 
@@ -312,6 +262,9 @@ def expand_captionforge_runs(
     widget_max_size: int = 1024,
     widget_trigger_word: str = "",
     widget_output_dir: str = "",
+    widget_input_path: str = "",
+    widget_recursive: bool = True,
+    widget_filename_glob: str = "*",
 ) -> list[CaptionForgeRun]:
     """
     Expand connected Run Plan + node widget fallbacks into per-caption settings.
@@ -353,6 +306,9 @@ def expand_captionforge_runs(
 
     trigger_word = str(cfg.get("trigger_word", widget_trigger_word) or "").strip()
     output_dir = str(cfg.get("output_dir", widget_output_dir) or "").strip()
+    input_path = str(cfg.get("input_path", widget_input_path) or "").strip()
+    recursive = _coerce_bool(cfg.get("recursive", widget_recursive), bool(widget_recursive))
+    filename_glob = str(cfg.get("filename_glob", widget_filename_glob) or "*").strip() or "*"
 
     temperatures = _parse_schedule(
         cfg.get("temperature_schedule", ""),
@@ -384,6 +340,9 @@ def expand_captionforge_runs(
                 max_size=max_size,
                 trigger_word=trigger_word,
                 output_dir=output_dir,
+                input_path=input_path,
+                recursive=recursive,
+                filename_glob=filename_glob,
             )
         )
 
