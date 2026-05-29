@@ -33,7 +33,7 @@ MANIFEST = {
     "description": (
         "Shared model-agnostic helper module for CaptionForge Pass A run planning. "
         "Builds normalized run-config dictionaries, parses connected "
-        "CAPTIONFORGE_RUN_CONFIG objects or JSON strings, expands per-caption "
+        "CAPTIONFORGE_PIPELINE_PLAN objects or JSON strings, expands per-caption "
         "sampling schedules, derives per-caption-instance seeds, carries shared "
         "output_dir and optional input_path/recursive/filename_glob routing, and "
         "returns immutable CaptionForgeRun objects for Qwen, Joy, Lite nodes, and "
@@ -187,7 +187,7 @@ def _seed_for_run(base_seed: int, seed_mode: str, index: int) -> int | None:
 def normalize_captionforge_run_config(config: Any) -> dict[str, Any]:
     """
     Accept either:
-    - dict from a connected CAPTIONFORGE_RUN_CONFIG socket
+    - dict from a connected CAPTIONFORGE_PIPELINE_PLAN socket
     - JSON string
     - empty/None
 

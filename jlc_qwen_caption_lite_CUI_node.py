@@ -267,7 +267,7 @@ class JLC_QwenCaptionLite:
                     },
                 ),
                 "captionforge_run_config": (
-                    "CAPTIONFORGE_RUN_CONFIG",
+                    "CAPTIONFORGE_PIPELINE_PLAN",
                     {
                         "tooltip": (
                             "Optional shared CaptionForge Run Plan. When connected, this Lite node "

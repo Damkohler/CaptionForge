@@ -1,7 +1,7 @@
 """
 JLC CaptionForge Run Plan — ComfyUI Pass A Coordination Node
 
-This node emits a shared CAPTIONFORGE_RUN_CONFIG object for Qwen, Joy, Lite,
+This node emits a shared CAPTIONFORGE_PIPELINE_PLAN object for Qwen, Joy, Lite,
 and future CaptionForge captioning nodes.
 
 It does not caption images. It coordinates Pass A evidence generation:
@@ -36,7 +36,7 @@ MANIFEST = {
     "author": "J. L. Córdova",
     "description": (
         "Optional CaptionForge Pass A coordination node. Emits a shared "
-        "CAPTIONFORGE_RUN_CONFIG object for Qwen, Joy, Lite, and future "
+        "CAPTIONFORGE_PIPELINE_PLAN object for Qwen, Joy, Lite, and future "
         "captioning engines. Defines one required project/run output folder, "
         "optional shared input_path routing, recursive and filename-glob dataset "
         "controls, captions per image, per-caption-instance seed behavior, "
@@ -228,7 +228,7 @@ class JLC_CaptionForgeRunPlan:
             },
         }
 
-    RETURN_TYPES = ("CAPTIONFORGE_RUN_CONFIG", "STRING")
+    RETURN_TYPES = ("CAPTIONFORGE_PIPELINE_PLAN", "STRING")
     RETURN_NAMES = ("run_config", "run_config_json")
     FUNCTION = "build"
     CATEGORY = "JLC/Captioning"
