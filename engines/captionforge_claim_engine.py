@@ -118,7 +118,7 @@ from __future__ import annotations
 
 MANIFEST = {
     "name": "CaptionForge Claim Extraction Engine",
-    "version": (0, 6, 5),
+    "version": (0, 6, 6),
     "author": "J. L. Córdova",
     "description": (
         "CaptionForge Pass B text-only claim extraction engine for converting Pass A "
@@ -152,7 +152,7 @@ from typing import Any, Iterable, Optional
 @dataclass
 class ClaimExtractionConfig:
     engine_name: str = "CaptionForge Claim Engine"
-    engine_version: str = "0.6.5"
+    engine_version: str = "0.6.6"
 
     # Extraction behavior.
     min_claim_chars: int = 3
@@ -177,9 +177,20 @@ class ClaimExtractionConfig:
         "obvious grammar errors and typos in the claim text. Return strict JSON only. "
         "Preserve source references. Do not add facts that are not supported by the captions."
     )
-    prompt_schema_version: str = "captionforge-pass-b-prompt-v0.6"
+    prompt_schema_version: str = "captionforge-pass-b-prompt-v0.6.6"
     response_schema_version: str = "captionforge-pass-b-claims-v0.5"
     preserve_raw_llm_response: bool = False
+
+    # v0.6.6 LLM reliability guards.
+    # Pass A records remain unchanged. These settings only compact the evidence
+    # inserted into live/manual LLM prompt bundles, reducing local-model token
+    # pressure and JSON truncation risk.
+    prompt_verbosity: str = "standard"       # compact, standard, debug
+    max_caption_chars_for_llm: int = 900      # 0 disables prompt-time caption compaction
+    # Optional Pass B metadata guard. Trigger words are useful in final LoRA
+    # captions, but they are not visual evidence and should not become claims
+    # such as visible_text. Accepts comma-separated terms.
+    trigger_word: str = ""
 
     # Ollama backend behavior.
     ollama_base_url: str = "http://127.0.0.1:11434"
@@ -190,6 +201,10 @@ class ClaimExtractionConfig:
     # it configurable for pathological reruns without editing source code.
     ollama_num_predict: int = 2400
     ollama_temperature: float = 0.0
+    # Schema mode: Ollama supports either plain JSON mode or a JSON Schema
+    # object in the `format` field. Schema mode gives the model a tighter
+    # upstream structure contract while preserving downstream parser/audit guards.
+    ollama_format_mode: str = "json"          # json, schema
 
     # v0.6 semantic profile behavior.
     # The Pass B output schema remains stable; the profile supplies deterministic
@@ -309,6 +324,20 @@ class LLMParseResult:
     normalized_claim_count: int = 0
     raw_response_sha1: str = ""
     error: str = ""
+
+
+class LLMResponseParseError(ValueError):
+    """
+    Parser wrapper that preserves raw LLM text when JSON parsing fails.
+
+    Long local-model responses can fail after returning useful but malformed or
+    truncated JSON. Keeping the raw response in the final error record makes the
+    failure auditable and distinguishes empty output from partial output.
+    """
+
+    def __init__(self, message: str, raw_response: str = "") -> None:
+        super().__init__(message)
+        self.raw_response = str(raw_response or "")
 
 
 @dataclass
@@ -741,25 +770,194 @@ def make_source_ref(record: dict[str, Any]) -> SourceCaptionRef:
 # LLM prompt contract
 # -------------------------------------------------------------------------
 
+def normalize_prompt_verbosity(value: str) -> str:
+    value = str(value or "standard").strip().lower()
+    if value not in {"compact", "standard", "debug"}:
+        return "standard"
+    return value
+
+
+def compact_caption_for_llm(caption: str, max_chars: int) -> tuple[str, bool, int]:
+    """
+    Return (caption_for_prompt, was_compacted, original_chars).
+
+    This is intentionally prompt-local. It does not alter Pass A records, TXT
+    sidecars, JSONL audit records, or downstream source-caption preservation.
+    """
+    text = normalize_whitespace(str(caption or ""))
+    original_chars = len(text)
+    max_chars = int(max_chars or 0)
+
+    if max_chars <= 0 or original_chars <= max_chars:
+        return text, False, original_chars
+
+    if max_chars <= 20:
+        return text[:max_chars].rstrip(), True, original_chars
+
+    # Prefer cutting at a sentence or phrase boundary near the cap.
+    window = text[:max_chars]
+    boundary = max(
+        window.rfind(". "),
+        window.rfind("; "),
+        window.rfind(", "),
+    )
+    if boundary >= int(max_chars * 0.55):
+        compacted = window[: boundary + 1].rstrip(" ,;.")
+    else:
+        compacted = window.rsplit(" ", 1)[0].rstrip(" ,;.") if " " in window else window.rstrip()
+
+    if not compacted:
+        compacted = window.rstrip()
+
+    return compacted + " …", True, original_chars
+
+
+
+
+def parse_trigger_terms(value: str) -> list[str]:
+    terms: list[str] = []
+    for raw in str(value or "").replace("\n", ",").replace(";", ",").split(","):
+        term = raw.strip()
+        if term and term not in terms:
+            terms.append(term)
+    return terms
+
+
+def collapse_metadata_token(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(text or "").lower())
+
+
+def is_trigger_metadata_claim(
+    *,
+    original_claim: str,
+    normalized_claim: str,
+    evidence_text: str = "",
+    config: Optional[ClaimExtractionConfig] = None,
+) -> bool:
+    """Reject configured LoRA trigger words as non-visual metadata claims.
+
+    Trigger tokens often appear in Pass A sidecar captions by design. Pass B
+    should not reinterpret them as visible text, logos, labels, or visual facts.
+    Matching uses both substring and punctuation-insensitive collapsed forms so
+    tokens like ``DolLoRA_DdMuertos`` survive underscore/case variations.
+    """
+    terms = parse_trigger_terms(getattr(config, "trigger_word", "") if config else "")
+    if not terms:
+        return False
+
+    combined = f"{original_claim} || {normalized_claim} || {evidence_text}".lower()
+    collapsed_combined = collapse_metadata_token(combined)
+
+    for term in terms:
+        lower_term = term.lower().strip()
+        collapsed_term = collapse_metadata_token(term)
+        if not lower_term and not collapsed_term:
+            continue
+        if lower_term and lower_term in combined:
+            return True
+        if collapsed_term and collapsed_term in collapsed_combined:
+            return True
+
+    return False
+
+
+def is_eye_makeup_not_eye_color_claim(
+    *,
+    original_claim: str,
+    normalized_claim: str,
+    evidence_text: str = "",
+) -> bool:
+    """Detect colored eye-area cosmetics that should not become eye_color.
+
+    Local LLMs sometimes normalize phrases such as "purple eye makeup" or
+    "pink eyeshadow" to "purple eyes". This guard only fires when the
+    supporting text explicitly contains makeup/paint/cosmetic eye-area cues, so
+    genuine unusual iris colors can still remain eye_color.
+    """
+    combined = f"{original_claim} || {normalized_claim} || {evidence_text}".lower()
+
+    patterns = [
+        r"\beye[-\s]?(?:makeup|shadow|liner|paint)\b",
+        r"\b(?:eyeshadow|eye shadow|eyeliner|mascara|false lashes|lashes)\b",
+        r"\b(?:makeup|paint|face paint|body paint|cosmetic|cosmetics)\b.{0,50}\beyes?\b",
+        r"\beyes?\b.{0,50}\b(?:makeup|paint|eyeshadow|eye shadow|eyeliner|mascara|lashes)\b",
+        r"\baround (?:the )?eyes?\b.{0,50}\b(?:makeup|paint|shadow|eyeliner|lashes)\b",
+    ]
+    return any(re.search(pattern, combined) for pattern in patterns)
+
+
+def coerce_eye_makeup_normalized_claim(
+    *,
+    original_claim: str,
+    normalized_claim: str,
+    evidence_text: str = "",
+) -> str:
+    """Prefer a makeup noun phrase when correcting eye-area cosmetic claims."""
+    combined = normalize_whitespace(f"{original_claim} {evidence_text}").lower()
+
+    # Preserve useful color+cosmetic phrases if they are present.
+    color_words = (
+        "pink|purple|blue|green|red|black|white|gold|golden|silver|orange|yellow|"
+        "magenta|violet|teal|turquoise|cyan"
+    )
+    cosmetic_words = r"eye makeup|eyeshadow|eye shadow|eyeliner|eye paint|mascara|lashes"
+    m = re.search(rf"\b((?:{color_words})(?:\s+and\s+(?:{color_words}))?\s+(?:{cosmetic_words}))\b", combined)
+    if m:
+        return normalize_whitespace(m.group(1)).strip().lower()
+
+    for phrase in ["eye makeup", "eyeshadow", "eye shadow", "eyeliner", "mascara", "lashes", "eye paint"]:
+        if phrase in combined:
+            return phrase
+
+    # Last resort: if the model normalized cosmetics into "purple eyes", keep
+    # the color but attach the correct noun.
+    m = re.search(rf"\b({color_words})\s+eyes?\b", str(normalized_claim or "").lower())
+    if m:
+        return f"{m.group(1)} eye makeup"
+
+    return str(normalized_claim or "eye makeup").strip().lower() or "eye makeup"
+
 def build_llm_prompt_bundle(
     image_key: str,
     source_refs: list[SourceCaptionRef],
     config: ClaimExtractionConfig,
 ) -> dict[str, Any]:
-    captions = [
-        {
-            "local_source_index": idx,
-            "source_record_index": src.source_record_index,
-            "model_family": src.model_family,
-            "model_name": src.model_name,
-            "ensemble_run_index": src.ensemble_run_index,
-            "caption": src.caption or src.raw_caption,
-        }
-        for idx, src in enumerate(source_refs)
-    ]
+    max_caption_chars = int(getattr(config, "max_caption_chars_for_llm", 0) or 0)
+
+    captions = []
+    compacted_count = 0
+    original_caption_chars_total = 0
+    prompt_caption_chars_total = 0
+
+    for idx, src in enumerate(source_refs):
+        source_caption = src.caption or src.raw_caption
+        prompt_caption, was_compacted, original_chars = compact_caption_for_llm(
+            source_caption,
+            max_caption_chars,
+        )
+        if was_compacted:
+            compacted_count += 1
+        original_caption_chars_total += original_chars
+        prompt_caption_chars_total += len(prompt_caption)
+
+        captions.append(
+            {
+                "local_source_index": idx,
+                "source_record_index": src.source_record_index,
+                "USE_THIS_SOURCE_RECORD_INDEX": src.source_record_index,
+                "model_family": src.model_family,
+                "model_name": src.model_name,
+                "ensemble_run_index": src.ensemble_run_index,
+                "caption": prompt_caption,
+                "caption_original_chars": original_chars,
+                "caption_prompt_chars": len(prompt_caption),
+                "caption_was_compacted": was_compacted,
+            }
+        )
 
     instructions = config.text_llm_prompt.strip() or ClaimExtractionConfig().text_llm_prompt
     claim_type_contract = " | ".join(profile_list(config, "claim_types", CANONICAL_CLAIM_TYPES))
+    prompt_verbosity = normalize_prompt_verbosity(getattr(config, "prompt_verbosity", "standard"))
 
     response_contract = {
         "claims": [
@@ -779,40 +977,83 @@ def build_llm_prompt_bundle(
     claim_limit_rule = ""
     if max_llm_claims > 0:
         claim_limit_rule = (
-            f"13. Return at most {max_llm_claims} claims total.\n"
-            "    Prefer the strongest, most visually useful claims. Do not exhaustively decompose every phrase.\n"
-            "    If captions are repetitive or malformed, summarize only clear visible facts.\n"
+            f"Return at most {max_llm_claims} claims total. "
+            "Prefer the strongest, most visually useful claims. "
+            "Do not exhaustively decompose every phrase."
         )
 
-    prompt_text = (
-        f"{instructions}\n\n"
-        "You are extracting visual claims from caption text only. You do not see the image.\n"
-        "Return strict JSON only, with no markdown fences and no explanatory prose.\n\n"
+    trigger_terms = parse_trigger_terms(getattr(config, "trigger_word", ""))
+    trigger_rule = ""
+    if trigger_terms:
+        trigger_rule = (
+            "Do not extract these metadata trigger words as visual claims or visible_text: "
+            + ", ".join(trigger_terms)
+            + ". "
+        )
 
-        "Important rules:\n"
-        "1. Do not add visual facts that are not supported by the captions.\n"
-        "2. Keep claims atomic: one visible attribute/action/style/background/text fact per claim.\n"
-        "3. Use the exact source_record_index values provided in Source captions.\n"
-        "4. Do not invent local source indexes such as 0, 1, 2 unless those are also the actual source_record_index values.\n"
-        "5. You may correct grammar and obvious caption typos in original_claim.\n"
-        "6. Keep evidence_text close to the raw caption phrase that supports the claim.\n"
-        "7. Keep visible quoted text exactly as written unless the caption itself is clearly malformed.\n"
-        "8. Do not merge unrelated facts into one claim.\n"
-        "9. Prefer useful dataset-caption claims over tiny fragments such as 'to the right', 'textures', or 'has a slim'.\n"
-        "10. normalized_claim must include the attribute noun when useful for comparison.\n"
-        "    Good: 'blonde hair', 'green eye makeup', 'black crop top', 'pink electric guitar', 'wooden table', 'blue sky'.\n"
-        "    Bad: 'blonde', 'green', 'black', 'guitar', 'table', 'sky'.\n"
-        "11. For visible_text claims, normalized_claim should preserve the readable text and include context when appropriate.\n"
-        "    Good: 'shirt text reading <quoted text>', 'poster text reading <quoted text>', 'sign text reading <quoted text>'.\n"
-        "    Bad: 'text', 'words', 'letters'.\n"
-        "12. For pose claims, normalized_claim should preserve the body relationship.\n"
-        "    Good: 'hands behind head', 'arms behind back', 'elbows out', 'looking over shoulder'.\n"
-        f"{claim_limit_rule}\n"
+    if prompt_verbosity == "compact":
+        prompt_text = (
+            f"{instructions}\n\n"
+            "You extract visible visual claims from caption text only. You do not see the image.\n"
+            "Return strict JSON only. No markdown. No prose.\n\n"
+            "JSON shape:\n"
+            "{\"claims\":[{\"claim_type\":\"one allowed type\","
+            "\"evidence_text\":\"supporting phrase\","
+            "\"original_claim\":\"clean atomic visual claim\","
+            "\"normalized_claim\":\"short canonical noun phrase\","
+            "\"specificity\":\"generic|specific|specific_normalized\","
+            "\"source_record_indexes\":[13]}]}\n\n"
+            f"Allowed claim_type values: {claim_type_contract}\n"
+            "Rules: visible facts only; one fact per claim; do not invent facts; "
+            "eye_color means iris color only; colored eyeshadow/eye makeup/paint around eyes is makeup, not eye_color; "
+            "normalized_claim should include the noun, e.g. 'blonde hair' not 'blonde'; "
+            "use exact source_record_index / USE_THIS_SOURCE_RECORD_INDEX values. "
+            f"{trigger_rule}\n"
+            f"{claim_limit_rule}\n\n"
+            f"Image key: {image_key}\n"
+            f"Source captions:\n{json.dumps(captions, ensure_ascii=False, separators=(',', ':'))}\n"
+        )
+    else:
+        numbered_claim_limit_rule = ""
+        if max_llm_claims > 0:
+            numbered_claim_limit_rule = (
+                f"13. Return at most {max_llm_claims} claims total.\n"
+                "    Prefer the strongest, most visually useful claims. Do not exhaustively decompose every phrase.\n"
+                "    If captions are repetitive or malformed, summarize only clear visible facts.\n"
+            )
 
-        f"Expected JSON response shape:\n{json.dumps(response_contract, ensure_ascii=False, indent=2)}\n\n"
-        f"Image key: {image_key}\n"
-        f"Source captions:\n{json.dumps(captions, ensure_ascii=False, indent=2)}\n"
-    )
+        prompt_text = (
+            f"{instructions}\n\n"
+            "You are extracting visual claims from caption text only. You do not see the image.\n"
+            "Return strict JSON only, with no markdown fences and no explanatory prose.\n\n"
+
+            "Important rules:\n"
+            "1. Do not add visual facts that are not supported by the captions.\n"
+            "2. Keep claims atomic: one visible attribute/action/style/background/text fact per claim.\n"
+            "3. Use the exact source_record_index values provided in Source captions.\n"
+            "4. Do not invent local source indexes such as 0, 1, 2 unless those are also the actual source_record_index values.\n"
+            "5. The field USE_THIS_SOURCE_RECORD_INDEX repeats the correct source index; use that value.\n"
+            "6. You may correct grammar and obvious caption typos in original_claim.\n"
+            "7. Keep evidence_text close to the raw caption phrase that supports the claim.\n"
+            "8. Keep visible quoted text exactly as written unless the caption itself is clearly malformed.\n"
+            "9. Do not merge unrelated facts into one claim.\n"
+            "10. Prefer useful dataset-caption claims over tiny fragments such as 'to the right', 'textures', or 'has a slim'.\n"
+            "11. normalized_claim must include the attribute noun when useful for comparison.\n"
+            "    Good: 'blonde hair', 'green eye makeup', 'black crop top', 'pink electric guitar', 'wooden table', 'blue sky'.\n"
+            "    Bad: 'blonde', 'green', 'black', 'guitar', 'table', 'sky'.\n"
+            "12. eye_color means iris color only. Colored eyeshadow, eyeliner, eye makeup, or paint around the eyes is makeup, not eye_color.\n"
+            "13. For visible_text claims, normalized_claim should preserve the readable text and include context when appropriate.\n"
+            "    Good: 'shirt text reading <quoted text>', 'poster text reading <quoted text>', 'sign text reading <quoted text>'.\n"
+            "    Bad: 'text', 'words', 'letters'.\n"
+            "14. For pose claims, normalized_claim should preserve the body relationship.\n"
+            "    Good: 'hands behind head', 'arms behind back', 'elbows out', 'looking over shoulder'.\n"
+            f"15. {trigger_rule}\n" if trigger_rule else ""
+            f"{numbered_claim_limit_rule}\n"
+
+            f"Expected JSON response shape:\n{json.dumps(response_contract, ensure_ascii=False, indent=2)}\n\n"
+            f"Image key: {image_key}\n"
+            f"Source captions:\n{json.dumps(captions, ensure_ascii=False, indent=2)}\n"
+        )
 
     return {
         "captionforge_pass": "B_prompt",
@@ -821,9 +1062,16 @@ def build_llm_prompt_bundle(
         "prompt": prompt_text,
         "prompt_sha1": sha1_text(prompt_text),
         "source_captions": captions,
+        "prompt_verbosity": prompt_verbosity,
+        "caption_compaction": {
+            "max_caption_chars_for_llm": max_caption_chars,
+            "source_caption_count": len(captions),
+            "compacted_caption_count": compacted_count,
+            "original_caption_chars_total": original_caption_chars_total,
+            "prompt_caption_chars_total": prompt_caption_chars_total,
+        },
         "timestamp": iso_timestamp(),
     }
-
 
 def load_manual_claims(path: str | Path) -> dict[str, Any]:
     if not str(path).strip():
@@ -1030,6 +1278,93 @@ def ensure_ollama_model_available(config: ClaimExtractionConfig) -> None:
     )
 
 
+def build_ollama_claim_response_schema(config: ClaimExtractionConfig) -> dict[str, Any]:
+    """
+    Build the optional Ollama JSON Schema for Pass B claim extraction.
+
+    Ollama's plain ``format="json"`` nudges output toward JSON, but does
+    not constrain the response shape. Passing a schema gives local models a
+    tighter upstream contract. The normal parser still validates and audits
+    the response, because local generation can still fail from timeout, server
+    interruption, malformed partial output, or model-specific quirks.
+    """
+    claim_types = profile_list(config, "claim_types", CANONICAL_CLAIM_TYPES)
+    if not claim_types:
+        claim_types = ["general"]
+
+    max_items = int(getattr(config, "max_llm_claims_per_image", 0) or 0)
+
+    claim_item_schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "claim_type": {
+                "type": "string",
+                "enum": claim_types,
+            },
+            "evidence_text": {
+                "type": "string",
+                "description": "Short raw supporting phrase from the source caption.",
+            },
+            "original_claim": {
+                "type": "string",
+                "description": "Clean grammatical atomic visual claim.",
+            },
+            "normalized_claim": {
+                "type": "string",
+                "description": "Short canonical comparison form with useful nouns preserved.",
+            },
+            "specificity": {
+                "type": "string",
+                "enum": ["generic", "specific", "specific_normalized"],
+            },
+            "certainty": {
+                "type": "string",
+                "enum": ["visible", "inferred_from_caption", "uncertain"],
+            },
+            "confidence": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0,
+            },
+            "source_record_indexes": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "minItems": 1,
+            },
+        },
+        "required": [
+            "claim_type",
+            "original_claim",
+            "normalized_claim",
+            "source_record_indexes",
+        ],
+        "additionalProperties": False,
+    }
+
+    claims_schema: dict[str, Any] = {
+        "type": "array",
+        "items": claim_item_schema,
+    }
+    if max_items > 0:
+        claims_schema["maxItems"] = max_items
+
+    return {
+        "type": "object",
+        "properties": {
+            "claims": claims_schema,
+        },
+        "required": ["claims"],
+        "additionalProperties": False,
+    }
+
+
+def resolve_ollama_format(config: ClaimExtractionConfig) -> str | dict[str, Any]:
+    mode = str(getattr(config, "ollama_format_mode", "json") or "json").strip().lower()
+    if mode == "schema":
+        return build_ollama_claim_response_schema(config)
+    return "json"
+
+
 def ollama_generate_claim_response(
     prompt_bundle: dict[str, Any],
     config: ClaimExtractionConfig,
@@ -1050,7 +1385,7 @@ def ollama_generate_claim_response(
         "model": model_name,
         "prompt": prompt,
         "stream": False,
-        "format": "json",
+        "format": resolve_ollama_format(config),
         "options": {
             "temperature": float(config.ollama_temperature),
             "num_predict": int(config.ollama_num_predict),
@@ -1064,7 +1399,8 @@ def ollama_generate_claim_response(
     print(
         f"[CaptionForge Claim Engine] Sending prompt to Ollama model: {model_name} "
         f"| num_predict={int(config.ollama_num_predict)} "
-        f"| temperature={float(config.ollama_temperature):g}",
+        f"| temperature={float(config.ollama_temperature):g} "
+        f"| format_mode={str(getattr(config, 'ollama_format_mode', 'json') or 'json')}",
         flush=True,
     )
     t0 = time.perf_counter()
@@ -1666,7 +2002,36 @@ def claims_from_manual_response(
             if not item.get("specificity"):
                 specificity = norm_specificity
 
-        claim_type = canonicalize_claim_type(claim_type, normalized, original, config=config)
+        if is_eye_makeup_not_eye_color_claim(
+            original_claim=original,
+            normalized_claim=normalized,
+            evidence_text=evidence_text,
+        ):
+            claim_type_raw = "makeup"
+            if re.search(r"\b(?:pink|purple|blue|green|red|black|white|gold|golden|silver|orange|yellow|magenta|violet|teal|turquoise)\s+eyes?\b", normalized.lower()):
+                normalized = coerce_eye_makeup_normalized_claim(
+                    original_claim=original,
+                    normalized_claim=normalized,
+                    evidence_text=evidence_text,
+                )
+                specificity = "specific"
+
+        claim_type = canonicalize_claim_type(claim_type_raw, normalized, original, config=config)
+
+        if is_trigger_metadata_claim(
+            original_claim=original,
+            normalized_claim=normalized,
+            evidence_text=evidence_text,
+            config=config,
+        ):
+            rejected.append(
+                RejectedClaim(
+                    idx,
+                    "metadata trigger word rejected",
+                    item,
+                )
+            )
+            continue
 
         if is_negative_absence_claim(
             original_claim=original,
@@ -1984,7 +2349,10 @@ def build_image_claim_record(
 
     elif config.text_llm_backend == "ollama":
         raw_llm_response = ollama_generate_claim_response(prompt_bundle, config)
-        ollama_response = extract_json_object(raw_llm_response)
+        try:
+            ollama_response = extract_json_object(raw_llm_response)
+        except Exception as exc:
+            raise LLMResponseParseError(str(exc), raw_response=raw_llm_response) from exc
 
         all_claims, llm_parse_result, rejected_claims, raw_llm_response = claims_from_manual_response(
             image_key,
@@ -2047,6 +2415,9 @@ def build_image_claim_record(
             "text_llm_model": config.text_llm_model,
             "text_llm_prompt": config.text_llm_prompt,
             "max_llm_claims_per_image": int(config.max_llm_claims_per_image),
+            "max_caption_chars_for_llm": int(getattr(config, "max_caption_chars_for_llm", 0) or 0),
+            "prompt_verbosity": normalize_prompt_verbosity(getattr(config, "prompt_verbosity", "standard")),
+            "trigger_word": str(getattr(config, "trigger_word", "") or ""),
             "prompt_schema_version": config.prompt_schema_version,
             "response_schema_version": config.response_schema_version,
             "prompt_sha1": prompt_sha1,
@@ -2251,7 +2622,8 @@ def extract_claims_batch(
             source_refs = [make_source_ref(r) for r in grouped_records]
             prompt_bundle = build_llm_prompt_bundle(image_key, source_refs, config)
             prompt_sha1 = str(prompt_bundle.get("prompt_sha1") or "")
-            error_class = classify_pass_b_error(exc)
+            raw_failed_response = str(getattr(exc, "raw_response", "") or "")
+            error_class = classify_pass_b_error(exc, raw_response=raw_failed_response)
             error_elapsed = time.perf_counter() - item_t0
             llm_error = LLMParseResult(
                 backend=config.text_llm_backend,
@@ -2264,7 +2636,8 @@ def extract_claims_batch(
                 parser_warnings=[],
                 error_class=error_class,
                 prompt_chars=len(str(prompt_bundle.get("prompt") or "")),
-                raw_response_chars=0,
+                raw_response_chars=len(raw_failed_response),
+                raw_response_sha1=sha1_text(raw_failed_response) if raw_failed_response else "",
                 elapsed_sec=round(error_elapsed, 3),
                 normalized_claim_count=0,
                 error=str(exc),
@@ -2285,6 +2658,8 @@ def extract_claims_batch(
                     "engine_version": config.engine_version,
                     "text_llm_backend": config.text_llm_backend,
                     "text_llm_model": config.text_llm_model,
+                    "max_caption_chars_for_llm": int(getattr(config, "max_caption_chars_for_llm", 0) or 0),
+                    "prompt_verbosity": normalize_prompt_verbosity(getattr(config, "prompt_verbosity", "standard")),
                     "prompt_schema_version": config.prompt_schema_version,
                     "response_schema_version": config.response_schema_version,
                     "prompt_sha1": prompt_sha1,
@@ -2296,9 +2671,10 @@ def extract_claims_batch(
                 },
                 timestamp=iso_timestamp(),
                 llm_parse_result=llm_error,
+                raw_llm_response=raw_failed_response if config.preserve_raw_llm_response else "",
                 metrics=make_record_metrics(
                     prompt_bundle=prompt_bundle,
-                    raw_response="",
+                    raw_response=raw_failed_response,
                     elapsed_sec=error_elapsed,
                     llm_parse_result=llm_error,
                     atomic_claim_count=0,
@@ -2343,6 +2719,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-conflicts", action="store_true", help="Disable simple conflict detection.")
     parser.add_argument("--no-low-confidence", action="store_true", help="Drop lower-confidence heuristic claims.")
     parser.add_argument("--max-llm-claims-per-image", type=int, default=40, help="Maximum claims requested from/parsing accepted for LLM backends per image. Default 40; use 0 to disable.")
+    parser.add_argument("--max-caption-chars-for-llm", type=int, default=900, help="Prompt-time cap per source caption for LLM backends. Default 900; use 0 to disable.")
+    parser.add_argument("--prompt-verbosity", default="standard", choices=["compact", "standard", "debug"], help="Pass B LLM prompt style. compact is recommended for local Ollama models.")
+    parser.add_argument("--trigger-word", default="", help="Comma-separated LoRA trigger/metadata terms to reject as visual claims, especially visible_text.")
     parser.add_argument("--text-llm-backend", default="heuristic", choices=["heuristic", "manual_json", "ollama"])
     parser.add_argument("--text-llm-model", default="", help="Text LLM model identifier. For Ollama, e.g. gpt-oss:20b or llama3.1:8b.")
     parser.add_argument("--ollama-base-url", default="http://127.0.0.1:11434", help="Ollama server URL.")
@@ -2350,6 +2729,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ollama-keep-alive", default="5m", help="Ollama keep_alive value, e.g. 5m, 30m, or 0.")
     parser.add_argument("--ollama-num-predict", type=int, default=2400, help="Ollama num_predict token cap. Default 2400; try 3000 for pathological reruns.")
     parser.add_argument("--ollama-temperature", type=float, default=0.0, help="Ollama sampling temperature. Default 0.0 for deterministic claim extraction.")
+    parser.add_argument("--ollama-format-mode", default="json", choices=["json", "schema"], help="Ollama response format mode. json uses Ollama JSON mode; schema passes a strict JSON Schema for the claims response.")
     parser.add_argument("--manual-json-path", default="", help="JSON/JSONL response file for manual_json backend.")
     parser.add_argument("--semantic-profile-json", default="", help="Optional deterministic semantic profile JSON. Defaults to female_character_v1.")
     parser.add_argument("--image-key-filter", default="", help="Process only image_keys that exactly match or contain this string.")
@@ -2366,6 +2746,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         include_low_confidence=not args.no_low_confidence,
         detect_conflicts=not args.no_conflicts,
         max_llm_claims_per_image=max(0, int(args.max_llm_claims_per_image)),
+        max_caption_chars_for_llm=max(0, int(args.max_caption_chars_for_llm)),
+        prompt_verbosity=args.prompt_verbosity,
+        trigger_word=args.trigger_word,
         text_llm_backend=args.text_llm_backend,
         text_llm_model=args.text_llm_model,
         preserve_raw_llm_response=bool(args.preserve_raw_llm_response),
@@ -2374,6 +2757,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         ollama_keep_alive=args.ollama_keep_alive,
         ollama_num_predict=int(args.ollama_num_predict),
         ollama_temperature=float(args.ollama_temperature),
+        ollama_format_mode=args.ollama_format_mode,
         semantic_profile_json=args.semantic_profile_json,
     )
 

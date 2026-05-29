@@ -145,7 +145,7 @@ except Exception:
     folder_paths = None
 
 try:
-    from .captionforge_claim_engine import (
+    from .engines.captionforge_claim_engine import (
         BatchClaimConfig,
         ClaimExtractionConfig,
         default_output_path,
@@ -153,7 +153,7 @@ try:
         extract_claims_batch,
     )
 except ImportError:
-    from captionforge_claim_engine import (
+    from .engines.captionforge_claim_engine import (
         BatchClaimConfig,
         ClaimExtractionConfig,
         default_output_path,
