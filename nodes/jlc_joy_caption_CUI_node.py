@@ -166,7 +166,7 @@ from __future__ import annotations
 
 MANIFEST = {
     "name": "JLC Joy Caption",
-    "version": (1, 0, 1),
+    "version": (1, 0, 2),
     "author": "J. L. Córdova",
     "description": (
         "Single-node ComfyUI frontend for JoyCaption/LLaVA-family image captioning inside "
@@ -193,7 +193,7 @@ import time
 
 import folder_paths
 
-from .jlc_joy_caption_engine import (
+from ..engines.jlc_joy_caption_engine import (
     BatchCaptionConfig,
     CAPTION_LENGTH_CHOICES,
     CAPTION_TYPE_MAP,
@@ -216,7 +216,7 @@ from .jlc_joy_caption_engine import (
     write_text_sidecar,
 )
 
-from .engines.run_plan.captionforge_run_plan import expand_captionforge_runs
+from ..engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
 
 # -------------------------------------------------------------------------
 # Fixed JLC model root
@@ -450,7 +450,7 @@ class JLC_JoyCaption:
                         "tooltip": (
                             "System prompt used by JoyCaption/LLaVA. Keep this conservative for "
                             "dataset captioning. This remains model-specific and is not currently "
-                            "overridden by the CaptionForge Run Plan."
+                            "overridden by the CaptionForge Pipeline Planner."
                         ),
                     },
                 ),
@@ -463,7 +463,7 @@ class JLC_JoyCaption:
                         "tooltip": (
                             "Optional custom prompt text. In custom_or_preset mode, this overrides "
                             "both prompt_file and prompt_preset. This remains model-specific and is "
-                            "not currently overridden by the CaptionForge Run Plan."
+                            "not currently overridden by the CaptionForge Pipeline Planner."
                         ),
                     },
                 ),
@@ -489,7 +489,7 @@ class JLC_JoyCaption:
                         "step": 8,
                         "tooltip": (
                             "Maximum number of new tokens for standalone captioning. When a "
-                            "CaptionForge Run Plan is connected, this is overridden by the Run "
+                            "CaptionForge Pipeline Planner is connected, this is overridden by the Run "
                             "Plan's shared constant token budget."
                         ),
                     },
@@ -504,7 +504,7 @@ class JLC_JoyCaption:
                         "step": 0.01,
                         "tooltip": (
                             "Sampling temperature for standalone captioning. When a CaptionForge "
-                            "Run Plan is connected, this is overridden by the Run Plan temperature "
+                            "Pipeline Planner is connected, this is overridden by the Pipeline Planner temperature "
                             "schedule."
                         ),
                     },
@@ -519,7 +519,7 @@ class JLC_JoyCaption:
                         "step": 0.01,
                         "tooltip": (
                             "Top-p sampling value for standalone captioning. When a CaptionForge "
-                            "Run Plan is connected, this is overridden by the Run Plan top-p "
+                            "Pipeline Planner is connected, this is overridden by the Pipeline Planner top-p "
                             "schedule."
                         ),
                     },
@@ -534,7 +534,7 @@ class JLC_JoyCaption:
                         "step": 1,
                         "tooltip": (
                             "Top-k sampling value for standalone captioning. When a CaptionForge "
-                            "Run Plan is connected, this is overridden by the Run Plan top-k "
+                            "Pipeline Planner is connected, this is overridden by the Pipeline Planner top-k "
                             "schedule."
                         ),
                     },
@@ -550,7 +550,7 @@ class JLC_JoyCaption:
                         "tooltip": (
                             "Penalty applied to repeated tokens. Values slightly above 1.0 can "
                             "reduce repetitive captions, if supported by the model path. This is "
-                            "not currently overridden by the CaptionForge Run Plan."
+                            "not currently overridden by the CaptionForge Pipeline Planner."
                         ),
                     },
                 ),
@@ -564,7 +564,7 @@ class JLC_JoyCaption:
                         "step": 1,
                         "tooltip": (
                             "Number of caption records per image for standalone captioning. When "
-                            "a CaptionForge Run Plan is connected, this is overridden by the Run "
+                            "a CaptionForge Pipeline Planner is connected, this is overridden by the Run "
                             "Plan."
                         ),
                     },
@@ -578,9 +578,9 @@ class JLC_JoyCaption:
                         "max": 0xFFFFFFFF,
                         "step": 1,
                         "tooltip": (
-                            "Random seed for standalone captioning. When a CaptionForge Run Plan "
+                            "Random seed for standalone captioning. When a CaptionForge Pipeline Planner "
                             "is connected, this widget is overridden by per-caption-instance seeds "
-                            "derived from the Run Plan."
+                            "derived from the Pipeline Planner."
                         ),
                     },
                 ),
@@ -594,8 +594,8 @@ class JLC_JoyCaption:
                         "step": 64,
                         "tooltip": (
                             "Maximum longest-side image size for standalone captioning. The image "
-                            "is resized in memory only. When a CaptionForge Run Plan is connected, "
-                            "this is overridden by the Run Plan's shared workload guard."
+                            "is resized in memory only. When a CaptionForge Pipeline Planner is connected, "
+                            "this is overridden by the Pipeline Planner's shared workload guard."
                         ),
                     },
                 ),
@@ -606,8 +606,8 @@ class JLC_JoyCaption:
                         "default": "",
                         "multiline": False,
                         "tooltip": (
-                            "Output folder for standalone captioning. When a CaptionForge Run Plan "
-                            "is connected, this is overridden by the Run Plan output_dir so all "
+                            "Output folder for standalone captioning. When a CaptionForge Pipeline Planner "
+                            "is connected, this is overridden by the Pipeline Planner output_dir so all "
                             "engines write to one shared evidence pool."
                         ),
                     },
@@ -619,7 +619,7 @@ class JLC_JoyCaption:
                         "default": True,
                         "tooltip": (
                             "If enabled, write one TXT audit sidecar per image or per ensemble run. "
-                            "When a CaptionForge Run Plan is connected, TXT files are audit artifacts; "
+                            "When a CaptionForge Pipeline Planner is connected, TXT files are audit artifacts; "
                             "JSONL remains the primary evidence output."
                         ),
                     },
@@ -631,7 +631,7 @@ class JLC_JoyCaption:
                         "default": False,
                         "tooltip": (
                             "If enabled, append caption records to a JSONL file. When a CaptionForge "
-                            "Run Plan is connected, this is forced ON because JSONL evidence is the "
+                            "Pipeline Planner is connected, this is forced ON because JSONL evidence is the "
                             "primary CaptionForge Pass A output."
                         ),
                     },
@@ -643,7 +643,7 @@ class JLC_JoyCaption:
                         "default": False,
                         "tooltip": (
                             "Standalone compatibility toggle for writing JSONL in addition to TXT. "
-                            "When a CaptionForge Run Plan is connected, this is forced OFF because "
+                            "When a CaptionForge Pipeline Planner is connected, this is forced OFF because "
                             "write_jsonl is already forced ON."
                         ),
                     },
@@ -666,7 +666,7 @@ class JLC_JoyCaption:
                         "default": "captions.jsonl",
                         "multiline": False,
                         "tooltip": (
-                            "Filename to use for JSONL evidence output. In CaptionForge Run Plan "
+                            "Filename to use for JSONL evidence output. In CaptionForge Pipeline Planner "
                             "mode, connected captioners should normally share the same filename "
                             "inside the shared output_dir."
                         ),
@@ -679,7 +679,7 @@ class JLC_JoyCaption:
                         "default": False,
                         "tooltip": (
                             "Standalone mode: allow existing TXT sidecars to be overwritten. When "
-                            "a CaptionForge Run Plan is connected, this is forced ON because TXT "
+                            "a CaptionForge Pipeline Planner is connected, this is forced ON because TXT "
                             "files are audit artifacts and must not block JSONL evidence generation."
                         ),
                     },
@@ -725,7 +725,7 @@ class JLC_JoyCaption:
                         "default": True,
                         "tooltip": (
                             "Standalone mode: skip images whose TXT sidecar already exists unless "
-                            "overwrite is enabled. When a CaptionForge Run Plan is connected, this "
+                            "overwrite is enabled. When a CaptionForge Pipeline Planner is connected, this "
                             "is forced OFF so existing audit TXT files cannot suppress required "
                             "JSONL evidence generation."
                         ),
@@ -738,7 +738,7 @@ class JLC_JoyCaption:
                         "default": False,
                         "tooltip": (
                             "Standalone mode: skip images already present in the target JSONL file. "
-                            "When a CaptionForge Run Plan is connected, this is forced OFF so reruns "
+                            "When a CaptionForge Pipeline Planner is connected, this is forced OFF so reruns "
                             "with new seeds or schedules append fresh evidence records."
                         ),
                     },
@@ -751,7 +751,7 @@ class JLC_JoyCaption:
                         "multiline": False,
                         "tooltip": (
                             "Optional standalone text prefix for final captions. When a CaptionForge "
-                            "Run Plan includes a trigger_word, that trigger is injected ahead of "
+                            "Pipeline Planner includes a trigger_word, that trigger is injected ahead of "
                             "this prefix."
                         ),
                     },
@@ -823,7 +823,7 @@ class JLC_JoyCaption:
                     "CAPTIONFORGE_PIPELINE_PLAN",
                     {
                         "tooltip": (
-                            "Optional shared CaptionForge Run Plan. When connected, it overrides "
+                            "Optional shared CaptionForge Pipeline Planner. When connected, it overrides "
                             "captions_per_image, seed behavior, sampling settings, max_size, "
                             "max_new_tokens, trigger prefix, and output_dir. It also forces JSONL "
                             "evidence output and disables TXT/JSONL skip behavior that could "
@@ -910,6 +910,7 @@ class JLC_JoyCaption:
 
         run_plan = expand_captionforge_runs(
             captionforge_run_config,
+            model_key="joy",
             widget_captions_per_image=int(captions_per_image),
             widget_seed=int(seed),
             widget_temperature=float(temperature),
@@ -924,8 +925,13 @@ class JLC_JoyCaption:
             widget_filename_glob=filename_glob,
         )
 
-        first_run = run_plan[0]
         run_plan_connected = bool(captionforge_run_config)
+        if run_plan_connected and not run_plan:
+            status = "[CaptionForge] Joy Caption disabled by Pipeline Planner."
+            print(status)
+            return (status, "", prompt)
+
+        first_run = run_plan[0]
 
         if run_plan_connected:
             write_jsonl = True

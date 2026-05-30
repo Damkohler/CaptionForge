@@ -1,51 +1,38 @@
-Refactor Plan:
-Phase 1: add nodes/ and engines/run_plan/
-Phase 2: move cache to engines/cache/
-Phase 3: move Qwen/Joy engines to engines/captioning/
-Phase 4: move Qwen/Joy node wrappers to nodes/
-Phase 5: move claim/semantic engine to engines/semantic/
-
-
-Proposed Folder/File Structure:
+Project Folder/File Structure:
 
 CaptionForge/
 ├─ __init__.py
 ├─ README.md
 ├─ .gitignore
-├─ pyproject.toml                 # later, if useful
+├─ pyproject.toml
 │
 ├─ nodes/
 │  ├─ __init__.py
-│  ├─ qwen_caption_node.py
-│  ├─ joy_caption_node.py
-│  ├─ qwen_caption_lite_node.py
-│  ├─ joy_caption_lite_node.py
-│  └─ captionforge_run_plan_node.py
+│  ├─ jlc_captionforge_claim_extractor_CUI_node.py
+│  ├─ jlc_captionforge_pipeline_planner_node.py
+│  ├─ jlc_captionforge_run_plan_node.py
+│  ├─ jlc_joy_caption_CUI_node.py
+│  ├─ jlc_joy_caption_lite_CUI_node.py
+│  ├─ jlc_qwen_caption_CUI_node.py
+│  ├─ jlc_qwen_caption_lite_CUI_node.py
 │
 ├─ engines/
 │  ├─ __init__.py
-│  ├─ captioning/
-│  │  ├─ __init__.py
-│  │  ├─ qwen_caption_engine.py
-│  │  └─ joy_caption_engine.py
-│  │
-│  ├─ semantic/
-│  │  ├─ __init__.py
-│  │  └─ claim_engine.py
-│  │
-│  ├─ cache/
-│  │  ├─ __init__.py
-│  │  └─ model_cache.py
-│  │
-│  └─ run_plan/
-│     ├─ __init__.py
-│     └─ captionforge_run_plan.py
+│  ├─ captionforge_claim_engine.py
+│  ├─ captionforge_model_cache.py
+│  ├─ captionforge_pipeline_planner_engine.py
+│  ├─ CLI_Settings.txt
+│  ├─ jlc_joy_caption_engine.py
+│  ├─ jlc_qwen_caption_engine.py
 │
 ├─ semantic_profiles/
+│  ├─ female_character_v1.semantic_profile.json
 │  ├─ general_v1.semantic_profile.json
-│  ├─ female_character_v1.json
-│  └─ experimental/
+│  ├─ image_v1_minimum.semantic_profile.json
+│  ├─ experimental/
+│  │  ├─ female_character_conservative_v1.semantic_profile.json
+│  │  ├─ female_character_rich_overbroad_v1.semantic_profile.json
 │
 └─ web/
-   ├─ captionforge_branding.js
+   ├─ jlc_captionforge_icons.js
    └─ ...

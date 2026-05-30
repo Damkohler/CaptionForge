@@ -68,32 +68,32 @@ CaptionForge — ComfyUI Package Entry Point
 
 from __future__ import annotations
 
-from .jlc_qwen_caption_CUI_node import (
+from .nodes.jlc_qwen_caption_CUI_node import (
     NODE_CLASS_MAPPINGS as QWEN_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as QWEN_NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-from .jlc_joy_caption_CUI_node import (
+from .nodes.jlc_joy_caption_CUI_node import (
     NODE_CLASS_MAPPINGS as JOY_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as JOY_NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-from .jlc_qwen_caption_lite_CUI_node import (
+from .nodes.jlc_qwen_caption_lite_CUI_node import (
     NODE_CLASS_MAPPINGS as QWEN_LITE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as QWEN_LITE_DISPLAY_NAME_MAPPINGS,
 )
 
-from .jlc_joy_caption_lite_CUI_node import (
+from .nodes.jlc_joy_caption_lite_CUI_node import (
     NODE_CLASS_MAPPINGS as JOY_LITE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as JOY_LITE_DISPLAY_NAME_MAPPINGS,
 )
 
-from .jlc_captionforge_claim_extractor_CUI_node import (
+from .nodes.jlc_captionforge_claim_extractor_CUI_node import (
     NODE_CLASS_MAPPINGS as CLAIM_EXTRACTOR_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as CLAIM_EXTRACTOR_DISPLAY_NAME_MAPPINGS,
 )
 
-from .nodes.jlc_captionforge_run_plan_node import (
+from .nodes.jlc_captionforge_pipeline_planner_node import (
     NODE_CLASS_MAPPINGS as RUN_PLAN_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as RUN_PLAN_DISPLAY_NAME_MAPPINGS,
 )
