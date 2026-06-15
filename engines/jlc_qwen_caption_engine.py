@@ -173,6 +173,35 @@ from .captionforge_model_cache import (
     unload_after_run,
 )
 
+try:
+    from .captionforge_caption_prompt_kit import (
+        CAPTION_TYPE_CHOICES,
+        CAPTION_LENGTH_CHOICES,
+        EXTRA_OPTIONS as PROMPT_KIT_EXTRA_OPTIONS,
+        build_caption_prompt_spec,
+    )
+except Exception:  # pragma: no cover - keeps legacy direct-file testing tolerant
+    CAPTION_TYPE_CHOICES = ["Descriptive", "Straightforward", "LoRA Literal"]
+    CAPTION_LENGTH_CHOICES = ["any", "very short", "short", "medium-length", "long", "very long"]
+    PROMPT_KIT_EXTRA_OPTIONS = []
+
+    def build_caption_prompt_spec(
+        caption_type="Descriptive",
+        caption_length="long",
+        extra_options=None,
+        name_input="",
+        dialect="qwen",
+    ):
+        prompt = DEFAULT_PROMPT
+        return prompt, {
+            "caption_type": caption_type,
+            "caption_length": str(caption_length),
+            "extra_options": tuple(extra_options or ()),
+            "name_input": name_input,
+            "dialect": dialect,
+            "source": "fallback_default_prompt",
+        }
+
 
 # -------------------------------------------------------------------------
 # Model registry
@@ -395,7 +424,17 @@ class QwenCaptionConfig:
 
     # Image and prompt behavior.
     max_size: int = 1024
-    prompt: str = DEFAULT_PROMPT
+
+    # If prompt is non-empty, it wins and preserves legacy/custom behavior.
+    # If prompt is empty, CaptionForge builds a generic Qwen/Smol prompt-kit prompt.
+    prompt: str = ""
+    caption_type: str = "Descriptive"
+    caption_length: str = "long"
+    extra_options: tuple[str, ...] = (
+        "Describe only visible details; do not infer identity, story, or intent.",
+        "Be conservative: omit uncertain details instead of guessing.",
+    )
+    name_input: str = ""
 
     # Download/probe behavior for registry models.
     allow_download: bool = True
@@ -444,6 +483,7 @@ class CaptionRecord:
     model_family: str = "qwen"
     ensemble_run_index: int = 0
     image_key: str = ""
+    prompt_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -1000,6 +1040,44 @@ def write_run_config_json(path: Path, config: dict[str, Any], dry_run: bool = Fa
 
 
 
+
+def _format_bytes(num_bytes: int | None) -> str:
+    if not num_bytes:
+        return "unknown"
+    value = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024.0 or unit == "TB":
+            return f"{value:.2f} {unit}"
+        value /= 1024.0
+    return f"{num_bytes} B"
+
+
+def _folder_weight_size_bytes(path: Path) -> int:
+    total = 0
+    for pattern in ("*.safetensors", "*.bin", "*.pt", "*.pth", "*.gguf", "*.ckpt"):
+        try:
+            total += sum(p.stat().st_size for p in path.rglob(pattern) if p.is_file())
+        except Exception:
+            pass
+    return total
+
+
+def _cuda_diagnostic_line() -> str:
+    if not torch.cuda.is_available():
+        return "CUDA unavailable"
+    try:
+        idx = torch.cuda.current_device()
+        props = torch.cuda.get_device_properties(idx)
+        allocated = torch.cuda.memory_allocated(idx)
+        reserved = torch.cuda.memory_reserved(idx)
+        total = getattr(props, "total_memory", 0)
+        return (
+            f"CUDA:{idx} {props.name} | "
+            f"allocated={_format_bytes(allocated)}, reserved={_format_bytes(reserved)}, total={_format_bytes(total)}"
+        )
+    except Exception as exc:
+        return f"CUDA diagnostics unavailable: {exc}"
+
 def json_safe(value):
         if isinstance(value, set):
             return sorted(value)
@@ -1032,6 +1110,30 @@ class QwenCaptionEngine:
         self.processor = None
         self.model = None
         self.local_model_path: Optional[Path] = None
+        self._last_prompt_metadata: dict[str, Any] = {}
+
+    def resolve_caption_prompt(self) -> tuple[str, dict[str, Any]]:
+        custom = (self.config.prompt or "").replace("\\n", "\n").strip()
+        if custom:
+            metadata = {
+                "source": "custom_or_legacy_engine_prompt",
+                "dialect": "qwen",
+                "caption_type": getattr(self.config, "caption_type", "custom"),
+                "caption_length": getattr(self.config, "caption_length", "custom"),
+                "extra_options": list(getattr(self.config, "extra_options", ())),
+                "name_input": getattr(self.config, "name_input", ""),
+            }
+            return custom, metadata
+
+        prompt, spec = build_caption_prompt_spec(
+            caption_type=getattr(self.config, "caption_type", "Descriptive"),
+            caption_length=getattr(self.config, "caption_length", "long"),
+            extra_options=getattr(self.config, "extra_options", ()),
+            name_input=getattr(self.config, "name_input", ""),
+            dialect="qwen",
+        )
+        metadata = spec.to_metadata() if hasattr(spec, "to_metadata") else dict(spec)
+        return prompt, metadata
 
     def resolve_model_path(self) -> Path:
         if self.config.model_path.strip():
@@ -1189,6 +1291,9 @@ class QwenCaptionEngine:
             if max_pixels:
                 processor_kwargs.update({"min_pixels": min_pixels, "max_pixels": max_pixels})
 
+            print(f"[JLC Qwen Engine] Local model path: {local_path}")
+            print(f"[JLC Qwen Engine] Local weight size: {_format_bytes(_folder_weight_size_bytes(local_path))}")
+            print(f"[JLC Qwen Engine] { _cuda_diagnostic_line() }")
             print(f"[JLC Qwen Engine] Loading processor: {local_path}")
             self.processor = AutoProcessor.from_pretrained(
                 str(local_path),
@@ -1236,12 +1341,11 @@ class QwenCaptionEngine:
                 f"device_map={effective_device_map!r}, quantization={quantization}"
             )
 
-            if quantization == "bnb_8bit":
-                try:
-                    from transformers import BitsAndBytesConfig
-                except Exception as exc:
-                    raise RuntimeError(...)
-            
+            self.model = model_cls.from_pretrained(
+                str(local_path),
+                **model_kwargs,
+            )
+
             device_map = getattr(self.model, "hf_device_map", None)
             if device_map:
                 print(f"[JLC Qwen Engine] hf_device_map: {device_map}")
@@ -1250,11 +1354,6 @@ class QwenCaptionEngine:
                     print(f"[JLC Qwen Engine] first parameter device: {next(self.model.parameters()).device}")
                 except Exception:
                     pass
-            
-            self.model = model_cls.from_pretrained(
-                str(local_path),
-                **model_kwargs,
-            )
 
             if self.config.patch_lm_head_weight and quantization == "none":
                 self._maybe_patch_lm_head_weight()
@@ -1343,7 +1442,8 @@ class QwenCaptionEngine:
         if self.generation.seed is not None:
             set_seed(self.generation.seed)
 
-        prompt = self.config.prompt.replace("\\n", "\n").strip() or DEFAULT_PROMPT
+        prompt, prompt_metadata = self.resolve_caption_prompt()
+        self._last_prompt_metadata = dict(prompt_metadata)
         image = image.convert("RGB")
         image_for_model = resize_for_model(image, self.config.max_size)
 
@@ -1453,7 +1553,7 @@ class QwenCaptionEngine:
             raw_caption=raw_caption,
             model_name=self.config.model_name,
             model_path=str(self.local_model_path or self.config.model_path),
-            prompt=self.config.prompt,
+            prompt=self.resolve_caption_prompt()[0],
             seed=self.generation.seed,
             temperature=self.generation.temperature,
             top_p=self.generation.top_p,
@@ -1465,6 +1565,7 @@ class QwenCaptionEngine:
             model_family="qwen",
             ensemble_run_index=0,
             image_key=str(p.resolve()),
+            prompt_metadata=dict(self._last_prompt_metadata),
         )
 
     def caption_batch(self, batch: BatchCaptionConfig) -> BatchCaptionResult:
@@ -1568,7 +1669,7 @@ class QwenCaptionEngine:
                     raw_caption="",
                     model_name=self.config.model_name,
                     model_path=str(self.local_model_path or self.config.model_path),
-                    prompt=self.config.prompt,
+                    prompt=self.resolve_caption_prompt()[0],
                     seed=self.generation.seed,
                     temperature=self.generation.temperature,
                     top_p=self.generation.top_p,
@@ -1582,6 +1683,7 @@ class QwenCaptionEngine:
                     model_family="qwen",
                     ensemble_run_index=0,
                     image_key=str(image_path.resolve()),
+                    prompt_metadata=self.resolve_caption_prompt()[1],
                 )
 
                 result.records.append(error_record)
@@ -1601,6 +1703,7 @@ class QwenCaptionEngine:
             "timestamp": iso_timestamp(),
             "engine": "JLC Qwen Caption Engine",
             "qwen_config": asdict(self.config),
+            "prompt_metadata": self.resolve_caption_prompt()[1],
             "generation": asdict(self.generation),
             "cleanup": {
                 **asdict(self.cleanup),

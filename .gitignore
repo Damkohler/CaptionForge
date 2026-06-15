@@ -59,5 +59,10 @@ private_images/
 # Local deprecated/backup working folders
 .deprecated/
 .backups/
+.bak/
 .tools/
 .tests/
+
+# Local prompt/config backups
+config/.bak/
+**/.bak/

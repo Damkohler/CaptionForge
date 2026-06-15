@@ -1,13 +1,12 @@
-# ⚠️ EXPERIMENTAL CODE — DO NOT PULL ⚠️
+# ⚠️ CaptionForge — experimental development checkpoint
 
 > **CaptionForge is under active, unstable development.**
 >
-> This repository is currently a code-safekeeping and development checkpoint for the author.
-> It is **not** ready for general installation, ComfyUI Registry use, production workflows, or third-party support.
+> This repository is a code-safekeeping and development checkpoint for the author. It is **not** ready for ComfyUI Registry use, production workflows, packaging, or third-party support.
 >
-> APIs, node names, file layout, model-loading behavior, JSONL schemas, semantic profiles, and output formats may change without warning.
+> APIs, node names, file layout, model-loading behavior, JSONL schemas, prompts, semantic profiles, and output formats may change without warning.
 >
-> **Please do not clone, install, package, fork for use, or submit issues expecting support yet.**
+> **Do not clone, install, package, fork for use, or submit issues expecting support yet.** Anyone pulling the work at this stage should expect breakage.
 
 ---
 
@@ -19,207 +18,257 @@
 
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Nodes-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
-![Status](https://img.shields.io/badge/status-development-brightyellow)
+![Status](https://img.shields.io/badge/status-experimental-orange)
 
 # CaptionForge
 
-**CaptionForge** is a model-agnostic captioning framework for ComfyUI, designed to generate cleaner, more consistent, auditable captions for LoRA dataset preparation and image dataset analysis.
+**CaptionForge** is an experimental ComfyUI captioning framework for building cleaner, richer, and more auditable captions for LoRA dataset preparation.
 
-Rather than treating any single captioning model as the final authority, CaptionForge is built around the idea that caption quality can be improved through structured comparison, repeated observation, audit trails, claim extraction, statistical agreement, LLM-assisted reasoning, and consensus-based refinement.
+The project is built around a simple working assumption: a single vision-language model caption is useful, but not authoritative. CaptionForge treats raw captions as witness statements, then uses stronger text and vision-language models to merge, validate, correct, and export final dataset captions.
 
-The long-term goal is to approximate human-quality descriptive captions by using existing vision and language models inside a more deliberate captioning infrastructure.
+The current development target is not a generic image-caption toy. The default prompts and examples are tuned toward character/style LoRA captioning, especially detailed human or doll-like subjects, clothing, pose, materials, color, lighting, and visible style traits. Other domains may require custom prompts or semantic profiles.
 
-## Current Status
+## Current direction
 
-CaptionForge now includes its first working ComfyUI implementation.
-
-The current codebase provides:
-
-- Qwen-family captioning through a full ComfyUI node
-- JoyCaption/LLaVA-family captioning through a full ComfyUI node
-- Lite daily-use caption nodes for Qwen and Joy
-- Shared model cache management
-- Pass A JSONL caption audit records
-- Pass B text-only claim extraction
-- LLM-ready Pass B scaffolding for future local text-model integration
-- Frontend icon branding for CaptionForge nodes
-
-This is still early development, but the repository now contains working code rather than only a project placeholder.
-
-## Vision
-
-Image captioning models are powerful, but individual captions can still contain:
-
-- hallucinated visual details
-- missing important features
-- inconsistent wording
-- repetition
-- awkward grammar
-- overconfident but unsupported claims
-- model-specific biases
-
-CaptionForge aims to reduce these problems by treating captions as evidence, not answers.
-
-Multiple engines can describe the same image. Their outputs can then be audited, decomposed into visual claims, compared, normalized, scored, and recombined into cleaner final captions.
-
-## Current Nodes
-
-CaptionForge currently registers the following ComfyUI nodes:
-
-### JLC Qwen Caption
-
-Full Qwen-family vision-language captioning node.
-
-Supports direct ComfyUI `IMAGE` input, file/folder captioning, prompt presets, custom prompts, prompt files, TXT sidecars, JSONL audit output, run configuration logging, model download probing, and optional bitsandbytes 8-bit loading.
-
-### JLC Joy Caption
-
-Full JoyCaption/LLaVA-family captioning node.
-
-Supports direct ComfyUI `IMAGE` input, file/folder captioning, CaptionForge prompt presets, JoyCaption-native template controls, TXT sidecars, JSONL audit output, run configuration logging, model download probing, and memory-efficient 8-bit loading.
-
-### JLC Qwen Caption (Lite)
-
-Minimal direct-image Qwen captioning node for daily interactive use.
-
-This Lite node exposes only the core controls needed for quick captioning inside ComfyUI.
-
-### JLC Joy Caption (Lite)
-
-Minimal direct-image JoyCaption node for daily interactive use.
-
-This Lite node exposes only the core controls needed for quick captioning inside ComfyUI.
-
-### JLC CaptionForge Claim Extractor
-
-Text-only Pass B node.
-
-Consumes shared Pass A caption JSONL, groups records by `image_key`, extracts atomic visual claims, normalizes rough equivalents, preserves source references, flags simple conflicts, and writes one Pass B claim JSONL record per image.
-
-## Current Files
-
-The first code seed includes:
+The old claim-extraction/statistical-consensus path has been deprecated for now. The active mainline is a simpler, stronger multi-pass pipeline:
 
 ```text
-__init__.py
-captionforge_model_cache.py
-captionforge_claim_engine.py
-jlc_qwen_caption_engine.py
-jlc_joy_caption_engine.py
-jlc_qwen_caption_CUI_node.py
-jlc_joy_caption_CUI_node.py
-jlc_qwen_caption_lite_CUI_node.py
-jlc_joy_caption_lite_CUI_node.py
-jlc_captionforge_claim_extractor_CUI_node.py
-web/jlc_captionforge_icons.js
-web/assets/icons/jlc-comfyui-nodes_Logo-Dark-0128.png
+Pass A: Raw witness captions
+  Joy Python witness xN
+  Qwen Python witness xN
+  optional Ollama VLM witness xN
+
+Pass B: Fat Draft
+  text-only Ollama LLM merges raw witness captions into one over-complete draft
+
+Pass C: VLM Validated Final
+  Ollama VLM validates/corrects the fat draft against the image
+  this VLM output is the natural final caption
+
+Pass D: Export / Format
+  export the natural caption directly
+  optionally use a text-only LLM to convert it into comma-separated taggy format
 ```
 
-## Pipeline Direction
+The current preferred defaults are:
 
-CaptionForge is being designed around a multi-pass strategy.
+```text
+Fat Draft LLM:        mistral-small:24b
+VLM Validator:        gemma4:26b
+Taggy Formatter LLM:  mistral-small:24b
+```
 
-### Pass A — Caption Generation
+A reversed experimental branch is also being explored:
 
-Generate one or more captions from one or more engines.
+```text
+Pass A raw captions → VLM-cleaned facts → text LLM reconciliation → final export
+```
 
-Current Pass A engines include:
+That reversed branch remains experimental and is not the mainline default.
 
-- Qwen-family VLM captioning
-- JoyCaption/LLaVA-family captioning
+## What CaptionForge is trying to do
 
-Pass A records are written as JSONL audit entries containing model metadata, prompt settings, generation parameters, raw captions, cleaned captions, and image keys.
+CaptionForge is intended to produce captions that are:
 
-### Pass B — Claim Extraction
+- richer than a single raw VLM caption
+- less hallucinated than unvalidated text-only synthesis
+- useful for LoRA training
+- auditable through JSONL sidecars
+- locally runnable
+- prompt-configurable
+- model-agnostic enough to swap better witnesses, distillers, validators, and formatters over time
 
-Convert caption text into atomic visual claims.
+The project currently favors **visible, trainable detail** over generic prose. Useful caption details include subject type, face, hair, eyes, makeup, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and style.
 
-Current Pass B status:
+Visible sensual or revealing clothing details may be described neutrally when they are part of the image. The prompts should not invent hidden anatomy, unseen clothing, explicit acts, or contradicted details.
 
-- deterministic heuristic backend
-- manual JSON backend for parser testing
-- LLM-ready prompt and response schema
-- parser warnings
-- rejected claim records
-- optional raw response preservation
-- future-LLM prompt bundle export
+## Current node families
 
-Live LLM extraction is not yet integrated.
+Node names and categories are still in flux. The intended organization is under the JLC / Captioning / CaptionForge area of the ComfyUI node menu.
 
-### Future Passes
+### Pipeline / orchestration
 
-Planned future stages may include:
+#### JLC CaptionForge Pipeline Planner
 
-- normalizing equivalent claims
-- comparing claims across engines and repeated runs
-- detecting contradictions
-- scoring claims by support and usefulness
-- validating captions against claim evidence
-- text-only LLM cleanup/refinement
-- producing final LoRA-ready captions
-- preserving all intermediate evidence in auditable records
+Coordinates a run: input routing, output folder, run name, overwrite behavior, witness counts, model choices, prompts, trigger word / user caption anchor, and final export behavior.
 
-The final caption should be less like a single model guess and more like a consensus summary of supported visual evidence.
+The planner is intended to be the central control surface for normal CaptionForge runs.
 
-## Model-Agnostic Direction
+#### JLC CaptionForge
 
-CaptionForge is intended to remain engine-democratic.
+The capstone node. Current development target:
 
-The framework should be able to incorporate different kinds of captioning, tagging, or visual reasoning systems, such as:
+1. consume Pass A raw captions
+2. run a text-only fat draft pass
+3. run a VLM validation/capstone pass against the image
+4. export natural and taggy captions
 
-- local VLM captioners
-- specialized aesthetic or tagging models
-- general-purpose multimodal models
-- LLM-based text cleanup passes
-- validator models
-- future visual reasoning systems
-- additional robustness engines as they become useful
+The natural caption should come directly from the VLM validator. The final text LLM pass should be format-only, not a rewrite of the natural caption.
 
-No single model is assumed to be canonical.
+### Caption witnesses
 
-Qwen and Joy are the first working engines, not the final boundary of the project.
+#### JLC Joy Caption / JLC Joy Caption (Lite)
 
-## Installation
+Python-based JoyCaption/LLaVA-family witness captioning.
 
-Clone or copy this repository into your ComfyUI `custom_nodes` folder:
+Joy remains one of the strongest local Pass A witnesses. Lite nodes are intended for daily interactive captioning; heavy nodes are being brought up to the same workflow integration standard.
 
-`ComfyUI/custom_nodes/CaptionForge`
+#### JLC Qwen Caption / JLC Qwen Caption (Lite)
 
-Restart ComfyUI after installation.
+Python-based Qwen-family witness captioning.
 
-Model files are not included in this repository. CaptionForge nodes use local model folders under ComfyUI’s `models/LLM/` directory and may offer download-probe behavior through the node UI.
+Qwen remains one of the strongest local Pass A witnesses, with optional 8-bit loading where supported.
 
-## Model Locations
+#### JLC Ollama VLM Caption
 
-Current model roots:
+Planned / in-progress optional Pass A witness node powered by Ollama VLMs such as:
 
-`ComfyUI/models/LLM/JLC_QwenCaption/`
+```text
+gemma4:26b
+gemma4:12b
+qwen3.6:35B-A3B
+```
 
-`ComfyUI/models/LLM/JLC_JoyCaption/`
+This node should behave like the Python Joy/Qwen witnesses: image in, one raw caption out, append to the same Pass A JSONL schema. It is not intended to replace the validator/capstone role.
 
-Qwen and Joy models are Hugging Face model directories, not single checkpoint files.
+### Prompt / options helpers
+
+#### CaptionForge Extra Options
+
+Shared prompt-option helper used to keep witness prompts more consistent without hardcoding every captioning model into the same behavior.
+
+This is especially useful for character LoRA captioning, where details such as clothing, materials, pose, expression, camera/framing, and visible style traits need to be requested consistently.
+
+## Deprecated or de-emphasized branches
+
+The following branches are currently deprecated, parked, or removed from the default path:
+
+- BLIP2 witness experiments
+- Florence witness experiments
+- SmolVLM witness experiments
+- InternVL witness experiments
+- early deterministic claim extraction
+- early statistical claim-consensus pipeline
+- short-caption export as a default output
+
+These may remain in history or experimental files, but they should not define the current README or mainline architecture.
+
+## Output files
+
+CaptionForge writes auditable sidecars during pipeline runs. Exact filenames may continue to change, but the current convention is roughly:
+
+```text
+<run_name>__A_RAW_CAPTIONS.jsonl
+<run_name>__B_FAT_DRAFT.jsonl
+<run_name>__C_VLM_VALIDATED.jsonl
+<run_name>__D_FINAL_EXPORT.jsonl
+```
+
+Final exports are expected to include:
+
+```text
+Natural caption:  VLM-validated paragraph
+Taggy caption:    comma-separated LoRA-style caption
+```
+
+Short captions are not a current default because they discard too much LoRA-useful information.
+
+## Model configuration
+
+CaptionForge uses two model ecosystems:
+
+1. **Python / Hugging Face model folders** for Joy and Qwen witness engines.
+2. **Ollama models** for text LLM fat draft, VLM validation, optional taggy formatting, and planned Ollama VLM witnesses.
+
+A current target Ollama model configuration looks like this:
+
+```json
+{
+  "distiller_models": [
+    "mistral-small:24b",
+    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
+    "deepseek-r1:32b",
+    "tarruda/neuraldaredevil-8b-abliterated:fp16",
+    "gpt-oss:20b"
+  ],
+  "validator_models": [
+    "gemma4:26b",
+    "qwen3.6:35B-A3B"
+  ],
+  "format_models": [
+    "mistral-small:24b",
+    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
+    "gpt-oss:20b",
+    "deepseek-r1:32b"
+  ],
+  "ollama_vlm_witness_models": [
+    "gemma4:26b",
+    "gemma4:12b",
+    "qwen3.6:35B-A3B"
+  ],
+  "defaults": {
+    "distiller_model": "mistral-small:24b",
+    "validator_model": "gemma4:26b",
+    "format_model": "mistral-small:24b",
+    "ollama_vlm_witness_model": "gemma4:26b"
+  },
+  "include_custom": true
+}
+```
+
+Terminology:
+
+```text
+distiller_model           text-only fat draft LLM
+validator_model           image-aware VLM capstone / validator
+format_model              text-only taggy formatter
+ollama_vlm_witness_model  optional Pass A Ollama image-caption witness
+```
+
+## Model locations
 
 Large model weights are intentionally not stored in this repository.
 
-## Notes
+Python-based witness models are expected under ComfyUI model folders, for example:
 
-CaptionForge is designed for local workflows and practical dataset preparation.
+```text
+ComfyUI/models/LLM/JLC_QwenCaption/
+ComfyUI/models/LLM/JLC_JoyCaption/
+```
 
-The current implementation favors:
+Ollama models must be installed and runnable through Ollama outside this repository.
 
-- reproducible settings
+## Installation
+
+This repository is not ready for normal users. For development only, copy or clone it into:
+
+```text
+ComfyUI/custom_nodes/CaptionForge
+```
+
+Then restart ComfyUI.
+
+Because this is unstable code, expect to manually resolve Python dependencies, local model folders, Ollama model availability, file paths, node category changes, and workflow breakage.
+
+## Hardware notes
+
+CaptionForge is designed for local workflows, but the current working direction assumes large local models. Practical use may require substantial VRAM and patience.
+
+The author’s active development environment includes an RTX 4090 Laptop GPU with 16 GB VRAM. Some Ollama models used in testing are much larger on disk than the Python witness models, and runtime behavior depends heavily on quantization, Ollama version, context length, and model implementation.
+
+## Development principles
+
+CaptionForge currently prioritizes:
+
+- local execution
 - auditable intermediate records
-- explicit JSONL outputs
-- separation between ComfyUI node wrappers and reusable engines
-- local model execution
-- careful VRAM/cache management
-- incremental development toward consensus-based caption refinement
-
-## Development Status
-
-This repository is in early active development.
-
-APIs, node names, file layout, prompt presets, model registries, and output schemas may evolve before a stable public release.
+- JSONL sidecars
+- reusable engines separated from ComfyUI node wrappers
+- planner-driven workflows
+- model cache / VRAM hygiene
+- strong defaults for LoRA captioning
+- explicit prompt roles
+- no backward-compatibility burden during pre-release development
 
 ## Attribution & License
 

@@ -124,7 +124,7 @@ from __future__ import annotations
 
 MANIFEST = {
     "name": "JLC Joy Caption Engine",
-    "version": (1, 0, 0),
+    "version": (1, 1, 0),
     "author": "J. L. Córdova",
     "description": (
         "Shared JoyCaption-family CaptionForge Pass A engine for local image captioning, "
@@ -316,6 +316,51 @@ CAPTION_LENGTH_CHOICES = ["any", "very short", "short", "medium-length", "long",
     str(i) for i in range(20, 261, 10)
 ]
 
+# -------------------------------------------------------------------------
+# JoyCaption Beta One Space-compatible prompt harness
+# -------------------------------------------------------------------------
+# Keep the older local map above as historical reference, then override the
+# runtime prompt map with the public HF Space-compatible helper. This keeps
+# existing imports stable for node wrappers while moving the Space prompt
+# builder into a small dedicated module.
+try:
+    from .captionforge_joy_space_prompt_kit import (
+        CAPTION_TYPE_MAP as SPACE_CAPTION_TYPE_MAP,
+        CAPTION_LENGTH_CHOICES as SPACE_CAPTION_LENGTH_CHOICES,
+        EXTRA_OPTIONS as SPACE_EXTRA_OPTIONS,
+        NAME_OPTION,
+        SPACE_ID,
+        SPACE_BUILD_LABEL,
+        SPACE_SYSTEM_PROMPT,
+        build_space_prompt,
+        build_space_prompt_spec,
+    )
+
+    CAPTION_TYPE_MAP = dict(SPACE_CAPTION_TYPE_MAP)
+    CAPTION_LENGTH_CHOICES = list(SPACE_CAPTION_LENGTH_CHOICES)
+    EXTRA_OPTIONS = list(SPACE_EXTRA_OPTIONS)
+    DEFAULT_SPACE_SYSTEM_PROMPT = SPACE_SYSTEM_PROMPT
+
+    PROMPT_PRESETS.update(
+        {
+            "joy_space_descriptive_long": build_space_prompt("Descriptive", "long", [], ""),
+            "joy_space_straightforward_long": build_space_prompt("Straightforward", "long", [], ""),
+        }
+    )
+
+except Exception:
+    NAME_OPTION = "If there is a person/character in the image you must refer to them as {name}."
+    SPACE_ID = ""
+    SPACE_BUILD_LABEL = ""
+    DEFAULT_SPACE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
+
+    def build_space_prompt(caption_type="Descriptive", caption_length="long", extra_options=None, name_input=""):
+        return build_joy_prompt(caption_type, caption_length, extra_options or [], name_input)
+
+    def build_space_prompt_spec(caption_type="Descriptive", caption_length="long", extra_options=None, name_input="", system_prompt=DEFAULT_SYSTEM_PROMPT):
+        return build_space_prompt(caption_type, caption_length, extra_options or [], name_input), None
+
+
 
 # -------------------------------------------------------------------------
 # Dataclasses
@@ -383,6 +428,8 @@ class JoyCaptionConfig:
     keep_loaded: bool = True
     cache_policy: str = ""             # "", evict_other_caption_models, keep_this_model, unload_after_run
     quiet_transformers_load: bool = True
+    apply_liger_kernel: bool = False
+    space_compatible_mode: bool = False
 
     # Image and prompt behavior.
     max_size: int = 1024
@@ -1331,6 +1378,20 @@ class JoyCaptionEngine:
 
         self.model.eval()
 
+        if getattr(self.config, "apply_liger_kernel", False):
+            try:
+                from liger_kernel.transformers import apply_liger_kernel_to_llama
+                language_model = getattr(self.model, "language_model", None)
+                if language_model is not None:
+                    apply_liger_kernel_to_llama(model=language_model)
+                    print("[JLC Joy Engine] Applied Liger kernel to Joy language_model.")
+                else:
+                    print("[JLC Joy Engine] Liger requested but language_model was not found; continuing.")
+            except Exception as exc:
+                print(f"[JLC Joy Engine] Liger requested but unavailable/failed: {exc}")
+
+        self._print_load_diagnostics()
+
         if self.local_model_path is not None:
             cache_policy = self._cache_policy()
             register_model(
@@ -1359,6 +1420,45 @@ class JoyCaptionEngine:
                 print(f"[JLC Joy Engine] first parameter device: {next(self.model.parameters()).device}")
             except Exception:
                 pass        
+
+    def _print_load_diagnostics(self) -> None:
+        try:
+            first_device = next(self.model.parameters()).device if self.model is not None else "none"
+        except Exception:
+            first_device = "unknown"
+
+        print(
+            "[JLC Joy Engine] load diagnostics: "
+            f"memory_mode={self.config.memory_mode}, "
+            f"dtype={self.config.dtype}, "
+            f"kbit={self.is_kbit}, "
+            f"first_parameter_device={first_device}, "
+            f"inference_device={self.inference_device}, "
+            f"offload_device={self.offload_device}, "
+            f"max_size={self.config.max_size}, "
+            f"space_compatible_mode={getattr(self.config, 'space_compatible_mode', False)}, "
+            f"liger={getattr(self.config, 'apply_liger_kernel', False)}"
+        )
+
+        device_map = getattr(self.model, "hf_device_map", None)
+        if device_map:
+            print(f"[JLC Joy Engine] hf_device_map: {device_map}")
+
+        if torch.cuda.is_available():
+            try:
+                dev = self.inference_device
+                if dev.type == "cuda":
+                    free, total = torch.cuda.mem_get_info(dev)
+                    allocated = torch.cuda.memory_allocated(dev)
+                    reserved = torch.cuda.memory_reserved(dev)
+                    gib = 1024 ** 3
+                    print(
+                        "[JLC Joy Engine] cuda memory: "
+                        f"free={free / gib:.2f} GiB, total={total / gib:.2f} GiB, "
+                        f"allocated={allocated / gib:.2f} GiB, reserved={reserved / gib:.2f} GiB"
+                    )
+            except Exception:
+                pass
 
     def prepare_for_inference(self) -> None:
         if self.processor is None:
@@ -1415,7 +1515,10 @@ class JoyCaptionEngine:
         system_prompt = self.config.system_prompt.strip() or DEFAULT_SYSTEM_PROMPT
         prompt = self.config.prompt.replace("\\n", "\n").strip() or DEFAULT_PROMPT
         image = image.convert("RGB")
-        image_for_model = resize_for_model(image, self.config.max_size)
+        if getattr(self.config, "space_compatible_mode", False) and int(self.config.max_size) <= 0:
+            image_for_model = image
+        else:
+            image_for_model = resize_for_model(image, self.config.max_size)
 
         convo = [
             {

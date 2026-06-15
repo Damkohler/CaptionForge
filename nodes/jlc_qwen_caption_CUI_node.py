@@ -160,7 +160,7 @@ from __future__ import annotations
 
 MANIFEST = {
     "name": "JLC Qwen Caption",
-    "version": (1, 0, 1),
+    "version": (1, 1, 0),
     "author": "J. L. Córdova",
     "description": (
         "Single-node ComfyUI frontend for Qwen-family vision-language captioning inside "
@@ -206,6 +206,16 @@ from ..engines.jlc_qwen_caption_engine import (
 )
 
 from ..engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
+
+from ..engines.captionforge_caption_prompt_kit import (
+    CAPTION_LENGTH_CHOICES,
+    CAPTION_TYPE_CHOICES,
+    build_caption_prompt,
+)
+from .jlc_captionforge_template_options import (
+    CAPTIONFORGE_EXTRA_OPTIONS_CHOICES,
+    resolve_effective_extra_options,
+)
     
 
 # -------------------------------------------------------------------------
@@ -275,8 +285,46 @@ def _parse_replace_pairs(value: str) -> list[tuple[str, str]]:
     return rules
 
 
+
+
+def _normalize_pipeline_plan(config):
+    if config is None:
+        return {}
+    if isinstance(config, dict):
+        return dict(config)
+    if isinstance(config, str):
+        text = config.strip()
+        if not text:
+            return {}
+        try:
+            obj = json.loads(text)
+            return obj if isinstance(obj, dict) else {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _planned_caption_jsonl_path(captionforge_run_config) -> Path | None:
+    """Return Planner-owned shared Pass A JSONL path, if present.
+
+    The Planner owns the canonical caption evidence file name. Caption witness
+    nodes should append to this exact path in planned mode so the final
+    CaptionForge node can read the same file without widget duplication.
+    """
+    cfg = _normalize_pipeline_plan(captionforge_run_config)
+    paths = cfg.get("paths") if isinstance(cfg.get("paths"), dict) else {}
+    for key in ("caption_jsonl", "pass_a_jsonl"):
+        value = str(paths.get(key) or "").strip()
+        if value:
+            return Path(value)
+    return None
+
 def _make_jsonl_string(records: list[CaptionRecord]) -> str:
     return "\n".join(json.dumps(record_to_json(r), ensure_ascii=False) for r in records)
+
+
+def _extra_options_from_widgets(*items: str) -> list[str]:
+    return [str(item).strip() for item in items if str(item).strip()]
 
 
 class JLC_QwenCaption:
@@ -351,6 +399,69 @@ class JLC_QwenCaption:
                             "JessJenn_*.webp, *_closeup.*"
                         ),
                     },
+                ),
+
+                "prompt_mode": (
+                    ["custom_or_preset", "caption_template"],
+                    {
+                        "default": "caption_template",
+                        "tooltip": (
+                            "custom_or_preset uses custom_prompt, prompt_file, or prompt_preset. "
+                            "caption_template uses caption_type, caption_length, local extra options, "
+                            "or an optional CAPTIONFORGE_EXTRA_OPTIONS sidecar input."
+                        ),
+                    },
+                ),
+
+                "caption_type": (
+                    CAPTION_TYPE_CHOICES,
+                    {
+                        "default": "LoRA Literal" if "LoRA Literal" in CAPTION_TYPE_CHOICES else CAPTION_TYPE_CHOICES[0],
+                        "tooltip": "Caption template style used in caption_template mode.",
+                    },
+                ),
+
+                "caption_length": (
+                    CAPTION_LENGTH_CHOICES,
+                    {
+                        "default": "any",
+                        "tooltip": "Target caption length for caption_template mode. Numeric values are interpreted as word limits.",
+                    },
+                ),
+
+                "extra_option1": (
+                    CAPTIONFORGE_EXTRA_OPTIONS_CHOICES,
+                    {"default": "", "tooltip": "Optional instruction appended to the generated prompt."},
+                ),
+
+                "extra_option2": (
+                    CAPTIONFORGE_EXTRA_OPTIONS_CHOICES,
+                    {"default": "", "tooltip": "Optional instruction appended to the generated prompt.", "advanced": True},
+                ),
+
+                "extra_option3": (
+                    CAPTIONFORGE_EXTRA_OPTIONS_CHOICES,
+                    {"default": "", "tooltip": "Optional instruction appended to the generated prompt.", "advanced": True},
+                ),
+
+                "extra_option4": (
+                    CAPTIONFORGE_EXTRA_OPTIONS_CHOICES,
+                    {"default": "", "tooltip": "Optional instruction appended to the generated prompt.", "advanced": True},
+                ),
+
+                "extra_option5": (
+                    CAPTIONFORGE_EXTRA_OPTIONS_CHOICES,
+                    {"default": "", "tooltip": "Optional instruction appended to the generated prompt.", "advanced": True},
+                ),
+
+                "extra_option6": (
+                    CAPTIONFORGE_EXTRA_OPTIONS_CHOICES,
+                    {"default": "", "tooltip": "Optional instruction appended to the generated prompt.", "advanced": True},
+                ),
+
+                "person_name": (
+                    "STRING",
+                    {"default": "", "multiline": False, "tooltip": "Replacement value for the {name} placeholder in matching extra options.", "advanced": True},
                 ),
 
                 "prompt_preset": (
@@ -744,11 +855,15 @@ class JLC_QwenCaption:
                         ),
                     },
                 ),
+                "extra_options": (
+                    "CAPTIONFORGE_EXTRA_OPTIONS",
+                    {"tooltip": "Optional shared CaptionForge Extra Options payload. Overrides local extra_option widgets when non-empty."},
+                ),
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING")
-    RETURN_NAMES = ("caption", "jsonl_records", "resolved_prompt")
+    RETURN_TYPES = ("CAPTIONFORGE_PIPELINE_PLAN", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("captionforge_run_config_out", "caption", "jsonl_records", "resolved_prompt")
     FUNCTION = "caption"
     CATEGORY = "JLC/Captioning"
 
@@ -764,6 +879,16 @@ class JLC_QwenCaption:
         input_path,
         recursive,
         filename_glob,
+        prompt_mode,
+        caption_type,
+        caption_length,
+        extra_option1,
+        extra_option2,
+        extra_option3,
+        extra_option4,
+        extra_option5,
+        extra_option6,
+        person_name,
         prompt_preset,
         custom_prompt,
         prompt_file,
@@ -795,16 +920,36 @@ class JLC_QwenCaption:
         download_probe_only,
         image=None,
         captionforge_run_config=None,
+        extra_options=None,
     ):
         if download_probe_only:
             result = probe_registry_model_download(model, JLC_QWEN_MODEL_ROOT)
-            return (result, "", "")
+            return (captionforge_run_config, result, "", "")
 
-        prompt = resolve_prompt(
-            prompt=custom_prompt,
-            prompt_file=prompt_file,
-            prompt_preset=prompt_preset,
+        local_extra_options = _extra_options_from_widgets(
+            extra_option1, extra_option2, extra_option3, extra_option4, extra_option5, extra_option6
         )
+        effective_extra_options, effective_person_name, extra_options_metadata = resolve_effective_extra_options(
+            payload=extra_options,
+            local_options=local_extra_options,
+            local_name=person_name,
+        )
+        use_caption_template = prompt_mode == "caption_template"
+
+        if use_caption_template:
+            prompt = build_caption_prompt(
+                caption_type=caption_type,
+                caption_length=caption_length,
+                extra_options=effective_extra_options,
+                name_input=effective_person_name,
+                dialect="qwen",
+            )
+        else:
+            prompt = resolve_prompt(
+                prompt=custom_prompt,
+                prompt_file=prompt_file,
+                prompt_preset=prompt_preset,
+            )
 
         run_plan = expand_captionforge_runs(
             captionforge_run_config,
@@ -827,7 +972,7 @@ class JLC_QwenCaption:
         if run_plan_connected and not run_plan:
             status = "[CaptionForge] Qwen Caption disabled by Pipeline Planner."
             print(status)
-            return (status, "", prompt)
+            return (captionforge_run_config, status, "", prompt)
 
         first_run = run_plan[0]
 
@@ -886,6 +1031,7 @@ class JLC_QwenCaption:
         input_path = (input_path or "").strip()
         output_dir = (output_dir or "").strip()
         jsonl_filename = (jsonl_filename or "captions.jsonl").strip() or "captions.jsonl"
+        planned_caption_jsonl_path = _planned_caption_jsonl_path(captionforge_run_config) if run_plan_connected else None
 
         if first_run.output_dir:
             output_dir = first_run.output_dir
@@ -894,6 +1040,9 @@ class JLC_QwenCaption:
         if run_plan_connected:
             recursive = bool(first_run.recursive)
             filename_glob = first_run.filename_glob or "*"
+            if planned_caption_jsonl_path is not None:
+                output_dir = str(planned_caption_jsonl_path.parent)
+                jsonl_filename = planned_caption_jsonl_path.name
 
         use_jsonl = bool(write_jsonl or also_jsonl)
 
@@ -1070,7 +1219,7 @@ class JLC_QwenCaption:
         caption_string = "\n\n".join(r.caption for r in all_records if r.status == "ok")
         jsonl_string = _make_jsonl_string(all_records)
 
-        return (caption_string, jsonl_string, prompt)
+        return (captionforge_run_config, caption_string, jsonl_string, prompt)
 
 
 NODE_CLASS_MAPPINGS = {

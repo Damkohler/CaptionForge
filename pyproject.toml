@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "captionforge"
+version = "0.9.0"
+description = "CaptionForge generates stronger local dataset image captions by combining multiple raw caption witnesses, structured claim extraction, and deterministic semantic synthesis."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+authors = [
+    { name = "J. L. Córdova" }
+]
+maintainers = [
+    { name = "J. L. Córdova" }
+]
+keywords = [
+    "comfyui",
+    "captioning",
+    "lora",
+    "image-captioning",
+    "dataset-preparation",
+    "vision-language-models",
+    "qwen",
+    "joycaption",
+    "jsonl",
+    "local-ai",
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "torch",
+    "transformers",
+    "accelerate",
+    "huggingface-hub",
+    "pillow",
+    "numpy",
+    "safetensors",
+    "qwen-vl-utils",
+]
+
+[project.optional-dependencies]
+quantization = [
+    "bitsandbytes",
+]
+
+dev = [
+    "ruff",
+    "black",
+]
+
+[project.urls]
+Homepage = "https://github.com/Damkohler/CaptionForge"
+Repository = "https://github.com/Damkohler/CaptionForge"
+Issues = "https://github.com/Damkohler/CaptionForge/issues"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "engines*",
+    "nodes*",
+]
+
+[tool.setuptools.package-data]
+"*" = [
+    "semantic_profiles/*.json",
+    "semantic_profiles/**/*.json",
+    "web/**/*",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+]
+ignore = [
+    "E501",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

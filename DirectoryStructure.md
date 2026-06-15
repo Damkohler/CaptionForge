@@ -8,13 +8,15 @@ CaptionForge/
 │
 ├─ nodes/
 │  ├─ __init__.py
-│  ├─ jlc_captionforge_claim_extractor_CUI_node.py
+│  ├─ captionforge_extra_options_CUI_node.py
+│  ├─ jlc_captionforge_node.py
 │  ├─ jlc_captionforge_pipeline_planner_node.py
-│  ├─ jlc_captionforge_run_plan_node.py
 │  ├─ jlc_joy_caption_CUI_node.py
 │  ├─ jlc_joy_caption_lite_CUI_node.py
 │  ├─ jlc_qwen_caption_CUI_node.py
 │  ├─ jlc_qwen_caption_lite_CUI_node.py
+│  ├─ jlc_smolvlm_caption_CUI_node.py
+│  ├─ jlc_smolvlm_caption_lite_CUI_node.py
 │
 ├─ engines/
 │  ├─ __init__.py

@@ -1,185 +1,51 @@
 """
 CaptionForge Pipeline Planner Engine
 
-- CaptionForge
-  - This engine is part of **CaptionForge**, a model-agnostic captioning
-    framework for ComfyUI developed by **J. L. Córdova**.
+Semantic-strategy-free v0.4 planner for the current CaptionForge pipeline:
 
-  - Repository
-    https://github.com/Damkohler/CaptionForge
+    Pipeline Planner
+      -> Pass A caption witness nodes
+      -> JLC CaptionForge capstone node
+          -> Distiller Engine (B_DISTILL)
+          -> VLM Validator Engine (C_VLM_VALIDATED)
+          -> deterministic final export
 
-  - CaptionForge focuses on practical dataset-captioning infrastructure for:
-        • LoRA dataset preparation
-        • multi-engine caption generation
-        • JSONL audit trails
-        • claim extraction and refinement
-        • consensus-oriented caption improvement
+This engine deliberately contains no semantic-profile, deterministic claim-table,
+final-polish, or deprecated Pass C semantic synthesis configuration.
 
-- Engine Purpose
-    - The **CaptionForge Pipeline Planner Engine** provides the reusable backend
-      planning logic for coordinated CaptionForge captioning workflows.
-
-    - This file is the **reusable planner engine**, not the ComfyUI-facing node
-      wrapper. It is responsible for:
-            • normalizing CaptionForge pipeline-plan dictionaries
-            • building typed CAPTIONFORGE_PIPELINE_PLAN objects
-            • parsing comma-separated sampling schedules
-            • expanding per-caption-instance sampling settings
-            • deriving per-caption-instance seeds
-            • resolving shared input/output routing
-            • resolving shared image-size and token-budget guards
-            • resolving shared LoRA trigger-word policy
-            • resolving raw-caption run counts by model family
-            • normalizing optional model-family participation
-            • exposing model-family plan accessors for captioning nodes
-            • returning immutable per-run planning records for caption engines
-            • preserving temporary compatibility aliases during development
-
-    - The ComfyUI-facing planner node lives in:
-            captionforge_pipeline_planner_node.py
-
-      That node handles:
-            • ComfyUI INPUT_TYPES / widget definitions
-            • user-facing planner labels
-            • output-folder and input-path widgets
-            • raw-caption witness-count widgets
-            • optional validator and final-polish widgets
-            • seed and sampling widgets
-            • LoRA trigger-word widget
-            • CAPTIONFORGE_PIPELINE_PLAN socket output
-            • JSON string output for inspection
-            • node display name, category, and mapping registration
-
-- CaptionForge Pipeline Role
-    - This engine creates and interprets the shared pipeline plan used by
-      CaptionForge captioning nodes and downstream processing.
-
-    - Raw caption witnesses generate auditable caption evidence records from one
-      or more captioning engines.
-
-    - The planner engine defines how many raw caption witnesses each model family
-      contributes per image.
-
-    - Current raw-caption family keys include:
-            • joy
-            • qwen
-            • florence
-            • llama_vision
-
-    - Joy and Qwen are treated as foundational raw-caption witnesses in the
-      standard planner design.
-
-    - Optional model families may be disabled or assigned one or more raw-caption
-      witness runs as CaptionForge expands.
-
-- Planning Model
-    - The engine emits a CAPTIONFORGE_PIPELINE_PLAN dictionary that may include:
-            • shared routing fields
-            • raw-caption model-family plan fields
-            • optional validation fields
-            • optional final-polish fields
-            • seed policy fields
-            • sampling schedule fields
-            • image workload guard fields
-            • generation token-budget fields
-            • LoRA trigger-word fields
-
-    - Captioning nodes consume the plan through this engine rather than parsing
-      plan dictionaries independently.
-
-    - Captioning nodes identify themselves by model-family key, such as:
-            • joy
-            • qwen
-            • florence
-            • llama_vision
-
-    - The engine then expands the shared plan into per-caption-instance records
-      that captioning nodes can execute directly.
-
-- Deterministic Final Caption Policy
-    - Deterministic CaptionForge synthesis is mandatory in the downstream final
-      caption stage.
-
-    - This engine does not expose or preserve a deterministic on/off switch.
-
-    - Optional LLM polish, such as GPT-OSS polish, is treated as a post-process
-      after deterministic synthesis rather than a replacement for deterministic
-      claim-grounded caption construction.
-
-- Compatibility Policy
-    - During early CaptionForge development, this engine may expose temporary
-      compatibility aliases so older captioning nodes can continue loading while
-      node wrappers migrate to the new pipeline-plan schema.
-
-    - These compatibility paths are intended to be removed once the pipeline
-      planner, captioning nodes, claim extraction, and final caption synthesis
-      stabilize around the canonical CAPTIONFORGE_PIPELINE_PLAN contract.
-
-    - Compatibility should not become fallback behavior for production schema
-      drift. CaptionForge favors canonical schemas and explicit migration over
-      accumulating permanent alternate logic paths.
-
-- Design Philosophy
-    - This engine keeps CaptionForge pipeline planning separate from individual
-      caption model implementation.
-
-    - CaptionForge is engine-democratic: no single caption model is treated as
-      canonical. The planner engine coordinates multiple caption witnesses so
-      downstream claim extraction, consensus, validation, and final-caption
-      synthesis can work from auditable evidence rather than one model's
-      unverified output.
-
-    - The engine prioritizes reproducibility, auditability, deterministic
-      planning behavior, scalable hardware usage, and clean separation between
-      ComfyUI node wrappers and reusable backend logic.
-
-- ⚠️ Development Status
-    - This is early CaptionForge pipeline-planning engine infrastructure.
-    - The emitted plan schema, model-family list, validator options, polish
-      options, compatibility aliases, and expansion rules may evolve as the
-      multi-pass CaptionForge pipeline matures.
-    - The engine is intended for local dataset preparation and controlled caption
-      audit workflows.
-
-- Attribution & License
-  - Concept and implementation by **J. L. Córdova**
-    with development assistance from **ChatGPT (OpenAI)**.
-
-  - Designed for use with:
-    https://github.com/comfyanonymous/ComfyUI
-
-  - Copyright (c) 2026 J. L. Córdova
-
-  - Released under the **MIT License**.
+Attribution & License
+- Concept and implementation by J. L. Córdova with development assistance from
+  ChatGPT (OpenAI).
+- Copyright (c) 2026 J. L. Córdova
+- Released under the MIT License.
 """
 
 from __future__ import annotations
 
 MANIFEST = {
     "name": "CaptionForge Pipeline Planner Engine",
-    "version": (0, 3, 0),
+    "version": (0, 5, 0),
     "author": "J. L. Córdova",
     "description": (
-        "Reusable backend planning engine for coordinated CaptionForge captioning "
-        "workflows. Builds and normalizes CAPTIONFORGE_PIPELINE_PLAN dictionaries, "
-        "parses sampling schedules, derives per-caption-instance seeds, resolves "
-        "shared routing, image-size guards, token budgets, LoRA trigger-word policy, "
-        "and raw-caption run counts by model family. Exposes model-family accessors "
-        "and per-run expansion records so Joy, Qwen, Florence, Llama Vision, and "
-        "future CaptionForge nodes can execute one auditable shared pipeline plan. "
-        "Deterministic final-caption synthesis is treated as mandatory downstream; "
-        "optional LLM polish is represented only as a post-synthesis polish choice."
+        "Semantic-strategy-free reusable planner engine for the current "
+        "CaptionForge workflow. Builds CAPTIONFORGE_PIPELINE_PLAN dictionaries "
+        "for Pass A caption witnesses and the JLC CaptionForge capstone node. "
+        "Coordinates routing, raw caption counts, Pass A sampling schedules, "
+        "LoRA trigger/anchor text, output paths, and separate distiller/VLM "
+        "validator defaults."
     ),
 }
+
 import json
 import random
+import re
 from dataclasses import dataclass
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 MAX_SEED_32 = 0xFFFFFFFF
 PIPELINE_PLAN_TYPE = "captionforge_pipeline_plan"
-PIPELINE_PLAN_VERSION = 3
+PIPELINE_PLAN_VERSION = 5
 MAX_PASS_A_RUNS_PER_MODEL = 5
 
 
@@ -204,7 +70,6 @@ def _coerce_int(value: Any, default: int, min_value: int | None = None, max_valu
         out = int(value)
     except Exception:
         out = int(default)
-
     if min_value is not None:
         out = max(min_value, out)
     if max_value is not None:
@@ -217,7 +82,6 @@ def _coerce_float(value: Any, default: float, min_value: float | None = None, ma
         out = float(value)
     except Exception:
         out = float(default)
-
     if min_value is not None:
         out = max(min_value, out)
     if max_value is not None:
@@ -238,16 +102,15 @@ def _coerce_bool(value: Any, default: bool = False) -> bool:
     return bool(default)
 
 
-def _parse_schedule(value: Any, cast, default_value):
-    """
-    Parse comma/newline/semicolon separated schedule strings.
+def _clean_name(value: Any, default: str = "captionforge_run") -> str:
+    text = str(value or "").strip() or default
+    text = re.sub(r"[^A-Za-z0-9_.-]+", "_", text).strip("._")
+    return text or default
 
-    Blank schedule means: use one-element fallback [default_value].
-    Short schedules are later expanded by repeating the final value.
-    """
+
+def _parse_schedule(value: Any, cast, default_value):
     if value is None:
         return [default_value]
-
     if isinstance(value, (list, tuple)):
         raw_items = list(value)
     else:
@@ -256,23 +119,19 @@ def _parse_schedule(value: Any, cast, default_value):
             return [default_value]
         text = text.replace("\n", ",").replace(";", ",")
         raw_items = [item.strip() for item in text.split(",") if item.strip()]
-
     values = []
     for item in raw_items:
         try:
             values.append(cast(item))
         except Exception:
             continue
-
     return values or [default_value]
 
 
 def _schedule_value(values: list[Any], index: int):
     if not values:
         return None
-    if index < len(values):
-        return values[index]
-    return values[-1]
+    return values[index] if index < len(values) else values[-1]
 
 
 def _normalize_seed_mode(value: Any) -> str:
@@ -282,46 +141,12 @@ def _normalize_seed_mode(value: Any) -> str:
     return value
 
 
-def _normalize_validator_model(value: Any) -> str:
-    value = str(value or "disabled").strip().lower()
-    allowed = {"disabled", "sam3"}
-    return value if value in allowed else "disabled"
-
-
-def _normalize_polish_model(value: Any) -> str:
-    value = str(value or "disabled").strip().lower()
-    allowed = {"disabled", "gpt_oss"}
-    return value if value in allowed else "disabled"
-
-
-def _normalize_required_runs(value: Any, default: int) -> int:
-    """
-    Required foundation caption families, currently Joy and Qwen.
-    UI should only expose 1..5; this normalizer enforces that invariant too.
-    """
-    return _coerce_int(value, default, 1, MAX_PASS_A_RUNS_PER_MODEL)
-
-
-def _normalize_optional_runs(value: Any) -> tuple[bool, int]:
-    """
-    Optional caption families use one dropdown:
-      Disabled / 1 / 2 / 3 / 4 / 5
-    """
-    text = str(value if value is not None else "Disabled").strip()
-    if not text or text.lower() == "disabled":
-        return False, 0
-    runs = _coerce_int(text, 0, 1, MAX_PASS_A_RUNS_PER_MODEL)
-    return runs > 0, runs
-
-
 def _seed_for_run(base_seed: int, seed_mode: str, index: int) -> int | None:
     if base_seed < 0:
         if seed_mode == "random":
             return random.SystemRandom().randint(0, MAX_SEED_32)
         return None
-
     base_seed = max(0, min(int(base_seed), MAX_SEED_32))
-
     if seed_mode == "fixed":
         return base_seed
     if seed_mode == "increment":
@@ -334,25 +159,37 @@ def _seed_for_run(base_seed: int, seed_mode: str, index: int) -> int | None:
         for _ in range(index + 1):
             out = rng.randint(0, MAX_SEED_32)
         return out
-
     return base_seed
 
 
-def normalize_captionforge_pipeline_plan(config: Any) -> dict[str, Any]:
-    """
-    Accept either:
-    - dict from a connected CAPTIONFORGE_PIPELINE_PLAN socket
-    - JSON string
-    - empty/None
+def _normalize_runs_per_image(value: Any, default: Any = "Disabled") -> int:
+    """Normalize a caption witness run-count widget/value.
 
-    Returns a plain dict.
+    CaptionForge defines Disabled as exactly 0 runs. This applies to every
+    Pass A caption witness family, including Joy, Qwen, Florence, and future
+    model families.
     """
+    text = str(value if value is not None else default).strip()
+    if not text or text.lower() == "disabled":
+        return 0
+    return _coerce_int(text, 0, 0, MAX_PASS_A_RUNS_PER_MODEL)
+
+
+# Compatibility helpers retained for older imports/callers.
+def _normalize_required_runs(value: Any, default: int) -> int:
+    return _normalize_runs_per_image(value, default)
+
+
+def _normalize_optional_runs(value: Any) -> tuple[bool, int]:
+    runs = _normalize_runs_per_image(value, "Disabled")
+    return runs > 0, runs
+
+
+def normalize_captionforge_pipeline_plan(config: Any) -> dict[str, Any]:
     if config is None:
         return {}
-
     if isinstance(config, dict):
         return dict(config)
-
     if isinstance(config, str):
         text = config.strip()
         if not text:
@@ -362,27 +199,20 @@ def normalize_captionforge_pipeline_plan(config: Any) -> dict[str, Any]:
             return parsed if isinstance(parsed, dict) else {}
         except Exception:
             return {}
-
     return {}
 
 
-# TEMP COMPAT: old helper name retained until all node variables/imports are renamed.
+# Compatibility name used by earlier nodes.
 def normalize_captionforge_run_config(config: Any) -> dict[str, Any]:
     return normalize_captionforge_pipeline_plan(config)
 
 
 def _shared_from_plan(cfg: dict[str, Any]) -> dict[str, Any]:
     shared = cfg.get("shared")
-    if isinstance(shared, dict):
-        return dict(shared)
-    return cfg
+    return dict(shared) if isinstance(shared, dict) else cfg
 
 
 def _legacy_captions_per_image(cfg: dict[str, Any], fallback: int) -> int:
-    """
-    TEMP COMPAT: old nodes call expand_captionforge_runs without model_key.
-    This fallback lets them continue to run until Joy/Qwen nodes are updated.
-    """
     shared = _shared_from_plan(cfg)
     if "captions_per_image" in shared:
         return _coerce_int(shared.get("captions_per_image"), fallback, 1, 100)
@@ -391,28 +221,10 @@ def _legacy_captions_per_image(cfg: dict[str, Any], fallback: int) -> int:
     return _coerce_int(fallback, 1, 1, 100)
 
 
-def get_pass_a_model_plan(
-    pipeline_plan: Any,
-    model_key: str,
-    *,
-    widget_captions_per_image: int = 1,
-) -> dict[str, Any]:
-    """
-    Return a normalized Pass A model-family plan.
-
-    model_key examples:
-      joy, qwen, florence, llama_vision
-
-    Joy and Qwen are foundation caption families and normalize to enabled=True
-    with 1..5 runs. Optional families normalize from Disabled/1..5.
-
-    TEMP COMPAT: if a v3 model-specific plan is absent, fall back to the legacy
-    captions_per_image field so older nodes keep working during migration.
-    """
+def get_pass_a_model_plan(pipeline_plan: Any, model_key: str, *, widget_captions_per_image: int = 1) -> dict[str, Any]:
     cfg = normalize_captionforge_pipeline_plan(pipeline_plan)
     pass_a = cfg.get("pass_a") if isinstance(cfg.get("pass_a"), dict) else {}
     raw = pass_a.get(model_key) if isinstance(pass_a.get(model_key), dict) else None
-
     if raw is None:
         legacy_runs = _legacy_captions_per_image(cfg, widget_captions_per_image)
         return {
@@ -421,10 +233,8 @@ def get_pass_a_model_plan(
             "runs_per_image": legacy_runs,
             "source": "legacy_fallback",
         }
-
     enabled = _coerce_bool(raw.get("enabled", True), True)
     runs = _coerce_int(raw.get("runs_per_image", widget_captions_per_image), widget_captions_per_image, 0, 100)
-
     return {
         "model_key": str(raw.get("model_key", model_key) or model_key),
         "enabled": enabled and runs > 0,
@@ -434,102 +244,43 @@ def get_pass_a_model_plan(
     }
 
 
-def _captionforge_root_from_engine_file() -> Path:
-    # engines/captionforge_pipeline_planner_engine.py -> CaptionForge/
-    return Path(__file__).resolve().parents[1]
-
-
-def get_semantic_profiles_dir() -> Path:
-    return _captionforge_root_from_engine_file() / "semantic_profiles"
-
-
-def discover_semantic_profiles() -> list[str]:
-    """
-    Discover user-selectable semantic profiles under CaptionForge/semantic_profiles/.
-
-    Returns relative POSIX-style paths such as:
-        general_v1.semantic_profile.json
-        experimental/female_character_conservative_v1.semantic_profile.json
-    """
-    root = get_semantic_profiles_dir()
-    if not root.exists():
-        return []
-
-    candidates: list[Path] = []
-    candidates.extend(root.rglob("*.semantic_profile.json"))
-    candidates.extend(root.rglob("*.json"))
-
-    # Deduplicate while preserving sorted stability.
-    unique = sorted(set(candidates), key=lambda p: str(p.relative_to(root)).lower())
-
-    return [
-        p.relative_to(root).as_posix()
-        for p in unique
-        if p.is_file()
-    ]
-
-
-def default_semantic_profile() -> str:
-    profiles = discover_semantic_profiles()
-    if not profiles:
-        return "disabled"
-
-    preferred = [
-        "general_v1.semantic_profile.json",
-        "image_v1_minimum.semantic_profile.json",
-    ]
-
-    lower_map = {p.lower(): p for p in profiles}
-    for item in preferred:
-        found = lower_map.get(item.lower())
-        if found:
-            return found
-
-    return profiles[0]
-
-
-def resolve_semantic_profile_path(profile_name: str) -> str:
-    """
-    Resolve a semantic profile relative to CaptionForge/semantic_profiles/.
-
-    Arbitrary filesystem paths are intentionally not supported here. This keeps
-    CaptionForge runs portable, auditable, and repo/package-relative.
-    """
-    profile_name = str(profile_name or "").strip()
-    if not profile_name or profile_name.lower() == "disabled":
-        return ""
-
-    root = get_semantic_profiles_dir()
-    candidate = (root / profile_name).resolve()
-
-    try:
-        candidate.relative_to(root.resolve())
-    except ValueError:
-        raise RuntimeError(
-            "Semantic profile must live under CaptionForge/semantic_profiles/. "
-            f"Rejected path: {profile_name}"
-        )
-
-    if not candidate.exists() or not candidate.is_file():
-        raise RuntimeError(f"Semantic profile not found: {candidate}")
-
-    return str(candidate)
+def _derive_paths(output_dir: str, run_name: str, image_root: str = "") -> dict[str, str]:
+    out = Path(str(output_dir or "").strip())
+    name = _clean_name(run_name)
+    caption_jsonl = out / f"{name}__A_RAW_CAPTIONS.jsonl"
+    return {
+        "output_dir": str(out),
+        "run_name": name,
+        "image_root": str(image_root or "").strip(),
+        "caption_jsonl": str(caption_jsonl),
+        "pass_a_jsonl": str(caption_jsonl),
+        "distiller_jsonl": str(out / f"{name}__B_DISTILL.jsonl"),
+        "distiller_readable_jsonl": str(out / f"{name}__B_DISTILL_readable.jsonl"),
+        "distiller_readable_json": str(out / f"{name}__B_DISTILL_readable.json"),
+        "distiller_prompt_jsonl": str(out / f"{name}__B_DISTILL_prompts.jsonl"),
+        "validator_jsonl": str(out / f"{name}__C_VLM_VALIDATED.jsonl"),
+        "validator_prompt_jsonl": str(out / f"{name}__C_VLM_VALIDATOR_prompts.jsonl"),
+        "validator_readable_dir": str(out / f"{name}__C_VLM_VALIDATED_readable"),
+        "final_jsonl": str(out / f"{name}__D_FINAL_EXPORT.jsonl"),
+        "final_txt_dir": str(out / f"{name}__TXT"),
+        "output_paths_json": str(out / f"{name}__output_paths.json"),
+        "run_config_json": str(out / f"{name}__run_config.json"),
+    }
 
 
 def build_captionforge_pipeline_plan(
     *,
     output_dir: str = "",
     input_path: str = "",
+    single_image_connected: bool = False,
     recursive: bool = True,
     filename_glob: str = "*",
+    run_name: str = "captionforge_run",
+    overwrite_outputs: bool = True,
     joy_runs_per_image: Any = 2,
-    qwen_runs_per_image: Any = 1,
+    qwen_runs_per_image: Any = 2,
     florence_runs_per_image: Any = "Disabled",
     llama_vision_runs_per_image: Any = "Disabled",
-    validator_model: str = "disabled",
-    pass_c_deterministic: bool = True,
-    pass_c_polish_model: str = "disabled",
-    semantic_profile: str = "",
     base_seed: int = -1,
     seed_mode: str = "fixed",
     temperature_schedule: str = "",
@@ -538,106 +289,171 @@ def build_captionforge_pipeline_plan(
     max_size: int = 1024,
     max_new_tokens: int = 512,
     trigger_word: str = "",
+    user_caption_anchor: str = "",
+    distiller_model_family: str = "Llama",
+    distiller_base_seed: int | None = None,
+    distiller_seed_mode: str = "fixed",
+    distiller_strategy: str = "single_pass",
+    distiller_max_caption_chars_for_llm: int = 1536,
+    distiller_num_predict: int = 3096,
+    distiller_temperature: float = 0.24,
+    distiller_top_p: float = 0.90,
+    distiller_top_k: int = 60,
+    distiller_write_prompt_jsonl: bool = False,
+    distiller_preserve_raw_response: bool = False,
+    validator_model_family: str = "Llama Vision",
+    validator_base_seed: int | None = None,
+    validator_seed_mode: str = "fixed",
+    validator_num_predict: int = 2200,
+    validator_temperature: float = 0.0,
+    validator_top_p: float = 0.92,
+    validator_top_k: int = 80,
+    validator_write_prompt_jsonl: bool = False,
+    validator_preserve_raw_vlm_response: bool = False,
+    final_caption_style: str = "narrative",
+    final_write_txt_sidecars: bool = True,
+    final_write_jsonl: bool = True,
+    # Legacy compatibility aliases retained for older callers.
+    distiller_seed: int | None = None,
+    validator_seed: int | None = None,
+    distiller_model: str = "llama3.1:8b",
+    validator_model: str = "llama3.2-vision:11b",
     captions_per_image: int | None = None,
+    # Deprecated compatibility-only parameters. Intentionally ignored.
+    pass_c_deterministic: bool = True,
+    pass_c_polish_model: str = "disabled",
+    semantic_profile: str = "",
 ) -> dict[str, Any]:
-    """
-    Build a v3 CaptionForge Pipeline/Run Planner config.
+    joy_runs = _normalize_runs_per_image(joy_runs_per_image, 2)
+    qwen_runs = _normalize_runs_per_image(qwen_runs_per_image, 2)
+    florence_runs = _normalize_runs_per_image(florence_runs_per_image, "Disabled")
+    llama_runs = _normalize_runs_per_image(llama_vision_runs_per_image, "Disabled")
+    pass_a_total_runs = joy_runs + qwen_runs + florence_runs + llama_runs
 
-    New source of truth:
-      pass_a.<model_family>.runs_per_image
+    if pass_a_total_runs <= 0:
+        raise ValueError(
+            "CaptionForge Pipeline Planner: all caption witness families are disabled. "
+            "Enable at least one captioner, or disable the Pipeline Planner for a "
+            "standalone/non-planned workflow."
+        )
 
-    TEMP COMPAT:
-      shared.captions_per_image is emitted only as a fallback for older caption
-      nodes that have not yet been updated to pass model_key into the expander.
-    """
-    joy_runs = _normalize_required_runs(joy_runs_per_image, 2)
-    qwen_runs = _normalize_required_runs(qwen_runs_per_image, 1)
-    florence_enabled, florence_runs = _normalize_optional_runs(florence_runs_per_image)
-    llama_enabled, llama_runs = _normalize_optional_runs(llama_vision_runs_per_image)
-    semantic_profile = str(semantic_profile or "").strip() or default_semantic_profile()
-    semantic_profile_path = resolve_semantic_profile_path(semantic_profile)
-    
+    base_seed_n = _coerce_int(base_seed, -1, -1, MAX_SEED_32)
+    seed_mode_n = _normalize_seed_mode(seed_mode)
+
+    if distiller_base_seed is None:
+        distiller_base_seed = distiller_seed
+    if validator_base_seed is None:
+        validator_base_seed = validator_seed
+
+    d_seed = base_seed_n if distiller_base_seed is None else _coerce_int(distiller_base_seed, base_seed_n, -1, MAX_SEED_32)
+    v_seed_default = -1 if base_seed_n < 0 else min(MAX_SEED_32, base_seed_n + 1000003)
+    v_seed = v_seed_default if validator_base_seed is None else _coerce_int(validator_base_seed, v_seed_default, -1, MAX_SEED_32)
+
+    run_name_n = _clean_name(run_name)
+    input_path_n = str(input_path or "").strip()
     shared = {
-        "base_seed": _coerce_int(base_seed, -1, -1, MAX_SEED_32),
-        "seed_mode": _normalize_seed_mode(seed_mode),
+        "base_seed": base_seed_n,
+        "seed_mode": seed_mode_n,
         "temperature_schedule": str(temperature_schedule or "").strip(),
         "top_p_schedule": str(top_p_schedule or "").strip(),
         "top_k_schedule": str(top_k_schedule or "").strip(),
         "max_size": _coerce_int(max_size, 1024, 0, 4096),
         "max_new_tokens": _coerce_int(max_new_tokens, 512, 16, 4096),
         "trigger_word": str(trigger_word or "").strip(),
+        "user_caption_anchor": str(user_caption_anchor or "").strip(),
         "output_dir": str(output_dir or "").strip(),
-        "input_path": str(input_path or "").strip(),
+        "input_path": input_path_n,
+        "image_root": input_path_n,
+        "single_image_connected": _coerce_bool(single_image_connected, False),
         "recursive": _coerce_bool(recursive, True),
         "filename_glob": str(filename_glob or "*").strip() or "*",
+        "run_name": run_name_n,
+        "overwrite_outputs": _coerce_bool(overwrite_outputs, True),
     }
+    shared["captions_per_image"] = (
+        _coerce_int(captions_per_image, max(joy_runs, qwen_runs, florence_runs, llama_runs, 1), 1, 100)
+        if captions_per_image is not None
+        else max(joy_runs, qwen_runs, florence_runs, llama_runs, 1)
+    )
 
-    # TEMP COMPAT: no single legacy number can represent per-model counts.
-    # Use the maximum so old unmigrated caption nodes still produce enough
-    # evidence rather than silently under-producing. Remove after nodes pass
-    # model_key into expand_captionforge_runs().
-    if captions_per_image is not None:
-        shared["captions_per_image"] = _coerce_int(captions_per_image, max(joy_runs, qwen_runs, 1), 1, 100)
-    else:
-        shared["captions_per_image"] = max(joy_runs, qwen_runs, florence_runs, llama_runs, 1)
+    paths = _derive_paths(shared["output_dir"], run_name_n, image_root=input_path_n)
 
-    pass_a_total_runs = joy_runs + qwen_runs + florence_runs + llama_runs
+    distiller = {
+        "backend": "ollama",
+        "model_family": str(distiller_model_family or "Llama").strip() or "Llama",
+        "model": str(distiller_model or "llama3.1:8b").strip() or "llama3.1:8b",
+        "base_seed": d_seed,
+        "seed": d_seed,
+        "seed_mode": _normalize_seed_mode(distiller_seed_mode),
+        "strategy": str(distiller_strategy or "single_pass").strip() or "single_pass",
+        "max_caption_chars_for_llm": _coerce_int(distiller_max_caption_chars_for_llm, 1536, 0, 12000),
+        "num_predict": _coerce_int(distiller_num_predict, 3096, 64, 12000),
+        "temperature": _coerce_float(distiller_temperature, 0.24, 0.0, 2.0),
+        "top_p": _coerce_float(distiller_top_p, 0.90, 0.0, 1.0),
+        "top_k": _coerce_int(distiller_top_k, 60, 0, 500),
+        "write_prompt_jsonl": _coerce_bool(distiller_write_prompt_jsonl, False),
+        "preserve_raw_response": _coerce_bool(distiller_preserve_raw_response, False),
+        "role": "text_llm_recall_heavy_distillation",
+    }
+    validator = {
+        "backend": "ollama",
+        "model_family": str(validator_model_family or "Llama Vision").strip() or "Llama Vision",
+        "model": str(validator_model or "llama3.2-vision:11b").strip() or "llama3.2-vision:11b",
+        "base_seed": v_seed,
+        "seed": v_seed,
+        "seed_mode": _normalize_seed_mode(validator_seed_mode),
+        "image_root": input_path_n,
+        "num_predict": _coerce_int(validator_num_predict, 2200, 64, 12000),
+        "temperature": _coerce_float(validator_temperature, 0.0, 0.0, 2.0),
+        "top_p": _coerce_float(validator_top_p, 0.92, 0.0, 1.0),
+        "top_k": _coerce_int(validator_top_k, 80, 0, 500),
+        "write_prompt_jsonl": _coerce_bool(validator_write_prompt_jsonl, False),
+        "preserve_raw_vlm_response": _coerce_bool(validator_preserve_raw_vlm_response, False),
+        "role": "image_aware_precision_validation",
+    }
+    final = {
+        "caption_style": str(final_caption_style or "narrative").strip() or "narrative",
+        "write_txt_sidecars": _coerce_bool(final_write_txt_sidecars, True),
+        "write_jsonl": _coerce_bool(final_write_jsonl, True),
+        "overwrite_outputs": _coerce_bool(overwrite_outputs, True),
+        "role": "deterministic_validated_caption_export",
+        "large_model_passes_after_validator": False,
+    }
 
     return {
         "captionforge_config_type": PIPELINE_PLAN_TYPE,
         "captionforge_config_version": PIPELINE_PLAN_VERSION,
         "shared": shared,
+        "paths": paths,
         "pass_a": {
-            "joy": {
-                "model_key": "joy",
-                "enabled": True,
-                "runs_per_image": joy_runs,
-                "role": "rich_descriptive_caption_witness",
-            },
-            "qwen": {
-                "model_key": "qwen",
-                "enabled": True,
-                "runs_per_image": qwen_runs,
-                "role": "detail_miner_alternate_caption_witness",
-            },
-            "florence": {
-                "model_key": "florence",
-                "enabled": florence_enabled,
-                "runs_per_image": florence_runs,
-                "role": "grounding_task_caption_witness",
-            },
-            "llama_vision": {
-                "model_key": "llama_vision",
-                "enabled": llama_enabled,
-                "runs_per_image": llama_runs,
-                "role": "alternate_vision_language_caption_witness",
-            },
+            "joy": {"model_key": "joy", "enabled": joy_runs > 0, "runs_per_image": joy_runs, "role": "rich_descriptive_caption_witness"},
+            "qwen": {"model_key": "qwen", "enabled": qwen_runs > 0, "runs_per_image": qwen_runs, "role": "detail_miner_alternate_caption_witness"},
+            "florence": {"model_key": "florence", "enabled": florence_runs > 0, "runs_per_image": florence_runs, "role": "optional_grounding_caption_witness"},
+            "llama_vision": {"model_key": "llama_vision", "enabled": llama_runs > 0, "runs_per_image": llama_runs, "role": "optional_vision_language_caption_witness"},
         },
         "pass_a_summary": {
-            "foundation_models": ["joy", "qwen"],
+            "enabled_models": [
+                key for key, runs in {
+                    "joy": joy_runs,
+                    "qwen": qwen_runs,
+                    "florence": florence_runs,
+                    "llama_vision": llama_runs,
+                }.items() if runs > 0
+            ],
             "total_runs_per_image": pass_a_total_runs,
-            "minimum_total_runs_per_image": 2,
-            "minimum_satisfied_by_design": True,
+            "minimum_total_runs_per_image": 1,
+            "minimum_satisfied": pass_a_total_runs >= 1,
         },
-        "pass_ab": {
-            "validator": {
-                "model": _normalize_validator_model(validator_model),
-                "role": "region_object_visibility_claim_validator",
-            }
-        },
-        "pass_b": {
-            "claim_extractor": "llama_ollama_fixed",
-            "role": "schema_guided_claim_extraction",
-        },
-        "pass_c": {
-            "semantic_profile": semantic_profile,
-            "semantic_profile_path": semantic_profile_path,
-            "polish_model": _normalize_polish_model(pass_c_polish_model),
-        },
+        "distiller": distiller,
+        "validator": validator,
+        "final": final,
+        "pass_b_distiller": distiller,
+        "pass_c_vlm_validator": validator,
+        "final_export": final,
     }
 
 
-# TEMP COMPAT: old builder name retained until older imports are gone.
+# Compatibility builder retained for existing caption nodes.
 def build_captionforge_run_config(
     captions_per_image: int = 1,
     base_seed: int = -1,
@@ -660,8 +476,6 @@ def build_captionforge_run_config(
         filename_glob=filename_glob,
         joy_runs_per_image=captions_per_image,
         qwen_runs_per_image=captions_per_image,
-        florence_runs_per_image="Disabled",
-        llama_vision_runs_per_image="Disabled",
         base_seed=base_seed,
         seed_mode=seed_mode,
         temperature_schedule=temperature_schedule,
@@ -691,92 +505,58 @@ def expand_captionforge_runs(
     widget_recursive: bool = True,
     widget_filename_glob: str = "*",
 ) -> list[CaptionForgeRun]:
-    """
-    Expand connected Pipeline Planner + node widget fallbacks into per-caption settings.
-
-    If model_key is provided, the v3 per-model Pass A run count is used.
-    If model_key is omitted, legacy captions_per_image fallback is used.
-    """
     cfg = normalize_captionforge_pipeline_plan(captionforge_run_config)
     shared = _shared_from_plan(cfg)
 
     if model_key and cfg:
-        model_plan = get_pass_a_model_plan(
-            cfg,
-            model_key,
-            widget_captions_per_image=widget_captions_per_image,
-        )
+        model_plan = get_pass_a_model_plan(cfg, model_key, widget_captions_per_image=widget_captions_per_image)
         if not model_plan.get("enabled", False):
             return []
-        captions_per_image = _coerce_int(
-            model_plan.get("runs_per_image", widget_captions_per_image),
-            widget_captions_per_image,
-            0,
-            100,
-        )
+        captions_per_image = _coerce_int(model_plan.get("runs_per_image", widget_captions_per_image), widget_captions_per_image, 0, 100)
     else:
         captions_per_image = _legacy_captions_per_image(cfg, widget_captions_per_image)
 
-    base_seed = _coerce_int(
-        shared.get("base_seed", widget_seed),
-        widget_seed,
-        -1,
-        MAX_SEED_32,
-    )
+    base_seed = _coerce_int(shared.get("base_seed", widget_seed), widget_seed, -1, MAX_SEED_32)
     seed_mode = _normalize_seed_mode(shared.get("seed_mode", "fixed"))
-
-    max_size = _coerce_int(
-        shared.get("max_size", widget_max_size),
-        widget_max_size,
-        0,
-        4096,
-    )
-    max_new_tokens = _coerce_int(
-        shared.get("max_new_tokens", widget_max_new_tokens),
-        widget_max_new_tokens,
-        16,
-        4096,
-    )
-
+    max_size = _coerce_int(shared.get("max_size", widget_max_size), widget_max_size, 0, 4096)
+    max_new_tokens = _coerce_int(shared.get("max_new_tokens", widget_max_new_tokens), widget_max_new_tokens, 16, 4096)
     trigger_word = str(shared.get("trigger_word", widget_trigger_word) or "").strip()
     output_dir = str(shared.get("output_dir", widget_output_dir) or "").strip()
     input_path = str(shared.get("input_path", widget_input_path) or "").strip()
     recursive = _coerce_bool(shared.get("recursive", widget_recursive), bool(widget_recursive))
     filename_glob = str(shared.get("filename_glob", widget_filename_glob) or "*").strip() or "*"
 
-    temperatures = _parse_schedule(
-        shared.get("temperature_schedule", ""),
-        float,
-        _coerce_float(widget_temperature, 0.75, 0.0, 2.0),
-    )
-    top_ps = _parse_schedule(
-        shared.get("top_p_schedule", ""),
-        float,
-        _coerce_float(widget_top_p, 0.90, 0.0, 1.0),
-    )
-    top_ks = _parse_schedule(
-        shared.get("top_k_schedule", ""),
-        int,
-        _coerce_int(widget_top_k, 50, 0, 500),
-    )
+    temperatures = _parse_schedule(shared.get("temperature_schedule", ""), float, _coerce_float(widget_temperature, 0.75, 0.0, 2.0))
+    top_ps = _parse_schedule(shared.get("top_p_schedule", ""), float, _coerce_float(widget_top_p, 0.90, 0.0, 1.0))
+    top_ks = _parse_schedule(shared.get("top_k_schedule", ""), int, _coerce_int(widget_top_k, 50, 0, 500))
 
-    runs: list[CaptionForgeRun] = []
-    for i in range(captions_per_image):
-        runs.append(
-            CaptionForgeRun(
-                ensemble_run_index=i,
-                seed=_seed_for_run(base_seed, seed_mode, i),
-                temperature=_coerce_float(_schedule_value(temperatures, i), widget_temperature, 0.0, 2.0),
-                top_p=_coerce_float(_schedule_value(top_ps, i), widget_top_p, 0.0, 1.0),
-                top_k=_coerce_int(_schedule_value(top_ks, i), widget_top_k, 0, 500),
-                max_new_tokens=max_new_tokens,
-                max_size=max_size,
-                trigger_word=trigger_word,
-                output_dir=output_dir,
-                input_path=input_path,
-                recursive=recursive,
-                filename_glob=filename_glob,
-            )
+    return [
+        CaptionForgeRun(
+            ensemble_run_index=i,
+            seed=_seed_for_run(base_seed, seed_mode, i),
+            temperature=_coerce_float(_schedule_value(temperatures, i), widget_temperature, 0.0, 2.0),
+            top_p=_coerce_float(_schedule_value(top_ps, i), widget_top_p, 0.0, 1.0),
+            top_k=_coerce_int(_schedule_value(top_ks, i), widget_top_k, 0, 500),
+            max_new_tokens=max_new_tokens,
+            max_size=max_size,
+            trigger_word=trigger_word,
+            output_dir=output_dir,
+            input_path=input_path,
+            recursive=recursive,
+            filename_glob=filename_glob,
         )
+        for i in range(captions_per_image)
+    ]
 
-    return runs
+
+# Deprecated semantic-profile helper stubs retained only so old imports do not crash.
+def discover_semantic_profiles() -> list[str]:
+    return []
+
+
+def default_semantic_profile() -> str:
+    return "disabled"
+
+
+def resolve_semantic_profile_path(profile_name: str) -> str:
+    return ""

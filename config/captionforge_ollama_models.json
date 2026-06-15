@@ -1,0 +1,18 @@
+{
+  "distiller_models": [
+    "mistral-small:24b",
+    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
+    "deepseek-r1:32b",
+    "tarruda/neuraldaredevil-8b-abliterated:fp16",
+    "gpt-oss:20b"
+  ],
+  "validator_models": [
+    "gemma4:26b",
+    "qwen3.6:35B-A3B"
+  ],
+  "defaults": {
+    "distiller_model": "mistral-small:24b",
+    "validator_model": "gemma4:26b"
+  },
+  "include_custom": true
+}
