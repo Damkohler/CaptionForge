@@ -1,54 +1,113 @@
-#!/usr/bin/env python
 """
 CaptionForge VLM Validator Engine
 
 - CaptionForge
-  - This module is part of CaptionForge, a model-agnostic captioning and
-    caption-refinement framework for ComfyUI developed by J. L. Córdova.
+  - This engine is part of **CaptionForge**, a model-agnostic captioning
+    framework for ComfyUI developed by **J. L. Córdova**.
 
-- Module Purpose
-  - CLI-first image-aware validation/pruning/correction pass for the updated
-    CaptionForge pipeline.
-  - Consumes CaptionForge Distiller records from captionforge_distiller_engine.py
-    Pass B_DISTILL.
-  - Sends each distilled caption pair plus the source image to a VLM.
-  - Emits clean, validated final-caption candidates without using semantic
-    profiles, deterministic claim extraction, normalized claims, conflict
-    tables, rescue rules, or truth-table reconstruction.
+  - Repository:
+    https://github.com/Damkohler/CaptionForge
 
-- Updated Pipeline Position
-      Pass A raw caption ensemble JSONL
-        -> Pass B_DISTILL text LLM distiller JSONL
-        -> Pass C_VLM_VALIDATED image-aware validation/pruning/correction JSONL
-        -> final CaptionForge node / final-caption export
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
-- Design Notes
-  - The distiller is intentionally recall-heavy and over-complete.
-  - This engine is intentionally precision-oriented: it removes unsupported
-    details, corrects visually wrong details, and keeps trigger/anchor fields
-    separate and auditable.
-  - Trigger words and user caption anchors are user-provided metadata/guidance,
-    not VLM-inferred visible facts.
-  - The trigger word is prepended exactly to both final captions when present.
+- Engine Purpose
+    - The **CaptionForge VLM Validator Engine** is the Pass C image-aware
+      grounding, validation, pruning, correction, and final-caption candidate
+      engine.
+
+    - It consumes CaptionForge Pass B distiller records, resolves the
+      corresponding source image, sends the image plus the distilled evidence to
+      a vision-language model, and emits validated caption candidates.
+
+    - The engine validates:
+            • accepted claims
+            • plausible singleton candidates
+            • rejected or unresolved conflicts
+            • rich narrative draft captions
+            • taggy/comma-style draft captions
+            • trigger-word and user-anchor behavior as auditable metadata
+
+- CaptionForge Pipeline Role
+    - This engine participates in **Pass C_VLM_VALIDATED**.
+
+    - Pipeline position:
+
+            Pass A raw caption witness JSONL
+              -> Pass B_DISTILL text-LLM distillation
+              -> Pass C_VLM_VALIDATED image-aware validation
+              -> Pass D final TXT/JSONL export
+
+    - Pass C is precision-oriented. It checks Pass B evidence against the actual
+      image, removes unsupported details, corrects visible errors, preserves
+      useful supported detail, and can add clearly visible missing details when
+      they improve LoRA training value.
+
+- Execution Model
+    - Primary backend: local Ollama VLM.
+
+    - Additional supported modes include manual JSON and prompt-only workflows
+      for debugging, inspection, or controlled testing.
+
+    - Image files are resolved from CaptionForge record metadata and an optional
+      image-root directory, including loose filename matching for common
+      sanitized-key cases.
+
+    - The engine writes structured JSONL records and optional readable sidecars.
+
+    - The module also contains an experimental cleaner function used by the
+      quarantined reversed-pipeline branch; that path is not the recommended
+      mainline v0.1.0 workflow.
+
+- Design Philosophy
+    - The distiller is recall-oriented; the VLM validator is grounding-oriented.
+
+    - The validator should not summarize away useful LoRA details merely for
+      brevity.
+
+    - Trigger words are training metadata and should be preserved exactly when
+      provided.
+
+    - User caption anchors are user-supplied training guidance and should be
+      retained unless the VLM explicitly rejects or corrects that anchor.
+
+    - Final candidate captions should remain rich, visually grounded, and
+      auditable.
+
+- Development Status
+    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
+    - Prompt contracts, parser behavior, image-resolution heuristics, and audit
+      fields may evolve before a stable CaptionForge release.
 
 - Attribution & License
-  - Concept and implementation by J. L. Córdova with development assistance from
-    ChatGPT (OpenAI).
+  - Concept and implementation by **J. L. Córdova**
+    with development assistance from **ChatGPT (OpenAI)**.
+
+  - Designed for use with:
+    https://github.com/comfyanonymous/ComfyUI
+
   - Copyright (c) 2026 J. L. Córdova
-  - Released under the MIT License.
+
+  - Released under the **MIT License**.
 """
 
 from __future__ import annotations
 
+from ..captionforge_version import CAPTIONFORGE_VERSION
+
 MANIFEST = {
     "name": "CaptionForge VLM Validator Engine",
-    "version": (0, 2, 0),
+    "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
-        "CLI-first CaptionForge VLM validation/pruning/correction engine. "
-        "Consumes B_DISTILL pollster records, validates accepted and singleton "
-        "claims against the source image, and writes rich validated final "
-        "caption candidates without deterministic semantic profiles."
+        "CaptionForge Pass C image-aware VLM validation engine. Consumes Pass B "
+        "distiller records, resolves source images, validates accepted and "
+        "singleton claims against the image, removes unsupported details, "
+        "corrects visible errors, preserves supported LoRA-relevant detail, "
+        "and writes rich validated final-caption candidates."
     ),
 }
 

@@ -1,40 +1,110 @@
 """
 CaptionForge Pipeline Planner Engine
 
-Semantic-strategy-free v0.4 planner for the current CaptionForge pipeline:
+- CaptionForge
+  - This engine is part of **CaptionForge**, a model-agnostic captioning
+    framework for ComfyUI developed by **J. L. Córdova**.
 
-    Pipeline Planner
-      -> Pass A caption witness nodes
-      -> JLC CaptionForge capstone node
-          -> Distiller Engine (B_DISTILL)
-          -> VLM Validator Engine (C_VLM_VALIDATED)
-          -> deterministic final export
+  - Repository:
+    https://github.com/Damkohler/CaptionForge
 
-This engine deliberately contains no semantic-profile, deterministic claim-table,
-final-polish, or deprecated Pass C semantic synthesis configuration.
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
-Attribution & License
-- Concept and implementation by J. L. Córdova with development assistance from
-  ChatGPT (OpenAI).
-- Copyright (c) 2026 J. L. Córdova
-- Released under the MIT License.
+- Engine Purpose
+    - The **CaptionForge Pipeline Planner Engine** builds reusable
+      `CAPTIONFORGE_PIPELINE_PLAN` dictionaries for CaptionForge nodes.
+
+    - It centralizes shared run configuration so individual node wrappers do not
+      each need to solve routing, output-path derivation, Pass A run counts,
+      seed scheduling, sampling schedules, or downstream engine defaults.
+
+    - The planner coordinates:
+            • input image path and optional single-image passthrough state
+            • recursive folder traversal
+            • filename glob filtering
+            • output directory and run name
+            • overwrite policy
+            • Pass A witness run counts
+            • per-run seed values
+            • temperature, top-p, and top-k schedules
+            • shared max image size and token budget
+            • LoRA trigger word
+            • user caption anchor
+            • Pass B distiller defaults
+            • Pass C VLM validator defaults
+            • Pass D final export options
+            • derived JSONL, TXT, readable-sidecar, prompt-log, and config paths
+
+- CaptionForge Pipeline Role
+    - This engine supports the full active CaptionForge workflow:
+
+            Pipeline Planner
+              -> Pass A caption witness nodes
+              -> Pass B_DISTILL text-LLM distillation
+              -> Pass C_VLM_VALIDATED image-aware validation
+              -> Pass D final TXT/JSONL export
+
+    - The planner does not caption images by itself. It creates the shared plan
+      consumed by the node wrappers and capstone orchestration.
+
+- Execution Model
+    - The planner emits plain Python dictionaries that can also be serialized as
+      JSON for auditability and debugging.
+
+    - Existing helper functions normalize plan payloads, extract per-model Pass A
+      plans, expand repeated witness runs, and preserve compatibility aliases
+      used by older internal callers.
+
+    - `PIPELINE_PLAN_VERSION` is a schema/version marker for the plan payload,
+      separate from the project release version.
+
+- Design Philosophy
+    - CaptionForge should have one owner for run shape and path derivation.
+
+    - Caption witness nodes should focus on caption generation, not on inventing
+      their own folder layout, sampling schedules, or downstream pass settings.
+
+    - The planner favors explicit dictionaries, predictable filenames, and
+      auditable JSONL-oriented handoff between passes.
+
+- Development Status
+    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
+    - Plan schema, supported witness families, and downstream defaults may evolve
+      before a stable CaptionForge release.
+
+- Attribution & License
+  - Concept and implementation by **J. L. Córdova**
+    with development assistance from **ChatGPT (OpenAI)**.
+
+  - Designed for use with:
+    https://github.com/comfyanonymous/ComfyUI
+
+  - Copyright (c) 2026 J. L. Córdova
+
+  - Released under the **MIT License**.
 """
 
 from __future__ import annotations
 
+from ..captionforge_version import CAPTIONFORGE_VERSION
+
 MANIFEST = {
     "name": "CaptionForge Pipeline Planner Engine",
-    "version": (0, 5, 0),
+    "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
-        "Semantic-strategy-free reusable planner engine for the current "
-        "CaptionForge workflow. Builds CAPTIONFORGE_PIPELINE_PLAN dictionaries "
-        "for Pass A caption witnesses and the JLC CaptionForge capstone node. "
-        "Coordinates routing, raw caption counts, Pass A sampling schedules, "
-        "LoRA trigger/anchor text, output paths, and separate distiller/VLM "
-        "validator defaults."
+        "Reusable CaptionForge planner engine that builds "
+        "CAPTIONFORGE_PIPELINE_PLAN dictionaries for the active multi-pass "
+        "workflow. Coordinates image routing, output paths, Pass A witness run "
+        "counts, seed and sampling schedules, LoRA trigger and anchor text, "
+        "distiller defaults, VLM validator defaults, and final export options."
     ),
 }
+
 
 import json
 import random

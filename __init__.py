@@ -8,12 +8,11 @@ CaptionForge — ComfyUI Package Entry Point
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-  - CaptionForge focuses on practical dataset-captioning infrastructure for:
-        • LoRA dataset preparation
-        • multi-engine caption generation
-        • JSONL audit trails
-        • claim extraction and refinement
-        • consensus-oriented caption improvement
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
 - Package Purpose
     - This file is the ComfyUI registration entry point for the CaptionForge
@@ -85,81 +84,28 @@ from .nodes.jlc_captionforge_template_options import (
     NODE_DISPLAY_NAME_MAPPINGS as CAPTIONFORGE_EXTRA_OPTIONS_DISPLAY_NAME_MAPPINGS,
 )
 
-# # BLIP-2
-# from .nodes.jlc_blip_caption_CUI_node import (
-#     NODE_CLASS_MAPPINGS as BLIP_NODE_CLASS_MAPPINGS, 
-#     NODE_DISPLAY_NAME_MAPPINGS as BLIP_NODE_DISPLAY_NAME_MAPPINGS,
-# )
-
-# from .nodes.jlc_blip_caption_lite_CUI_node import (
-#     NODE_CLASS_MAPPINGS as BLIP_LITE_NODE_CLASS_MAPPINGS,
-#     NODE_DISPLAY_NAME_MAPPINGS as BLIP_LITE_DISPLAY_NAME_MAPPINGS,
-# )
-
-# # Florence
-# from .nodes.jlc_florence_caption_CUI_node import (
-#     NODE_CLASS_MAPPINGS as FLORENCE_NODE_CLASS_MAPPINGS,
-#     NODE_DISPLAY_NAME_MAPPINGS as FLORENCE_NODE_DISPLAY_NAME_MAPPINGS,
-# ) 
-
-# from .nodes.jlc_florence_caption_lite_CUI_node import (
-#     NODE_CLASS_MAPPINGS as FLORENCE_LITE_CLASS_MAPPINGS,
-#     NODE_DISPLAY_NAME_MAPPINGS as FLORENCE_LITE_DISPLAY_NAME_MAPPINGS,
-# )
-
-# #InternVL
-# from .nodes.jlc_internvl_caption_CUI_node import (
-#     NODE_CLASS_MAPPINGS as INTERNVL_NODE_CLASS_MAPPINGS,
-#     NODE_DISPLAY_NAME_MAPPINGS as INTERNVL_NODE_DISPLAY_NAME_MAPPINGS,
-# )
-
-# from .nodes.jlc_internvl_caption_lite_CUI_node import (
-#     NODE_CLASS_MAPPINGS as INTERNVL_LITE_CLASS_MAPPINGS,
-#     NODE_DISPLAY_NAME_MAPPINGS as INTERNVL_LITE_DISPLAY_NAME_MAPPINGS,
-# )
-
 # Joy
-from .nodes.jlc_joy_caption_CUI_node import (
+from .nodes.caption_nodes.jlc_captionforge_joy_caption_node import (
     NODE_CLASS_MAPPINGS as JOY_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as JOY_NODE_DISPLAY_NAME_MAPPINGS,
 )
 
-from .nodes.caption_nodes.jlc_joy_caption_lite_CUI_node import (
-    NODE_CLASS_MAPPINGS as JOY_LITE_CLASS_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as JOY_LITE_DISPLAY_NAME_MAPPINGS,
+# Ollama Caption Models
+from .nodes.caption_nodes.jlc_captionforge_ollama_caption_node import (
+    NODE_CLASS_MAPPINGS as OLLAMA_NODE_CLASS_MAPPINGS,
+    NODE_DISPLAY_NAME_MAPPINGS as OLLAMA_NODE_DISPLAY_NAME_MAPPINGS,
 )
 
 #Qwen
-from .nodes.jlc_qwen_caption_CUI_node import (
+from .nodes.caption_nodes.jlc_captionforge_qwen_caption_node import (
     NODE_CLASS_MAPPINGS as QWEN_NODE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as QWEN_NODE_DISPLAY_NAME_MAPPINGS,
 )
-
-from .nodes.caption_nodes.jlc_qwen_caption_lite_CUI_node import (
-    NODE_CLASS_MAPPINGS as QWEN_LITE_CLASS_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as QWEN_LITE_DISPLAY_NAME_MAPPINGS,
-)
-
-#SmolVLM
-# from .nodes.jlc_smolvlm_caption_CUI_node import (
-#     NODE_CLASS_MAPPINGS as SMOLVLM_NODE_CLASS_MAPPINGS,
-#     NODE_DISPLAY_NAME_MAPPINGS as SMOLVLM_NODE_DISPLAY_NAME_MAPPINGS,
-# )
-
-# from .nodes.caption_nodes.jlc_smolvlm_caption_lite_CUI_node import (
-#     NODE_CLASS_MAPPINGS as SMOLVLM_LITE_CLASS_MAPPINGS,
-#     NODE_DISPLAY_NAME_MAPPINGS as SMOLVLM_LITE_DISPLAY_NAME_MAPPINGS,
-# )
 
 
 # ######################
 # CaptionForge node
 # ######################
-from .nodes.jlc_captionforge_reversed_node import (
-    NODE_CLASS_MAPPINGS as CAPTIONFORGE_REVERSED_CLASS_MAPPINGS,
-    NODE_DISPLAY_NAME_MAPPINGS as CAPTIONFORGE_REVERSED_DISPLAY_NAME_MAPPINGS,
-)
-
 from .nodes.jlc_captionforge_node import (
     NODE_CLASS_MAPPINGS as CAPTIONFORGE_CLASS_MAPPINGS,
     NODE_DISPLAY_NAME_MAPPINGS as CAPTIONFORGE_DISPLAY_NAME_MAPPINGS,
@@ -171,19 +117,9 @@ from .nodes.jlc_captionforge_node import (
 NODE_CLASS_MAPPINGS = {}
 NODE_CLASS_MAPPINGS.update(PIPELINE_PLANNER_CLASS_MAPPINGS)
 NODE_CLASS_MAPPINGS.update(CAPTIONFORGE_EXTRA_OPTIONS_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(BLIP_NODE_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(BLIP_LITE_NODE_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(FLORENCE_NODE_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(FLORENCE_LITE_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(INTERNVL_NODE_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(INTERNVL_LITE_CLASS_MAPPINGS)  
 NODE_CLASS_MAPPINGS.update(JOY_NODE_CLASS_MAPPINGS)
-NODE_CLASS_MAPPINGS.update(JOY_LITE_CLASS_MAPPINGS)
+NODE_CLASS_MAPPINGS.update(OLLAMA_NODE_CLASS_MAPPINGS)
 NODE_CLASS_MAPPINGS.update(QWEN_NODE_CLASS_MAPPINGS)
-NODE_CLASS_MAPPINGS.update(QWEN_LITE_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(SMOLVLM_NODE_CLASS_MAPPINGS)
-# NODE_CLASS_MAPPINGS.update(SMOLVLM_LITE_CLASS_MAPPINGS)
-NODE_CLASS_MAPPINGS.update(CAPTIONFORGE_REVERSED_CLASS_MAPPINGS)
 NODE_CLASS_MAPPINGS.update(CAPTIONFORGE_CLASS_MAPPINGS)
 
 # ######################
@@ -192,17 +128,9 @@ NODE_CLASS_MAPPINGS.update(CAPTIONFORGE_CLASS_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS.update(CAPTIONFORGE_EXTRA_OPTIONS_DISPLAY_NAME_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS.update(PIPELINE_PLANNER_DISPLAY_NAME_MAPPINGS)
-# NODE_DISPLAY_NAME_MAPPINGS.update(BLIP_NODE_DISPLAY_NAME_MAPPINGS)
-# NODE_DISPLAY_NAME_MAPPINGS.update(BLIP_LITE_DISPLAY_NAME_MAPPINGS)
-# NODE_DISPLAY_NAME_MAPPINGS.update(FLORENCE_NODE_DISPLAY_NAME_MAPPINGS)
-# NODE_DISPLAY_NAME_MAPPINGS.update(FLORENCE_LITE_DISPLAY_NAME_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS.update(JOY_NODE_DISPLAY_NAME_MAPPINGS)
-NODE_DISPLAY_NAME_MAPPINGS.update(JOY_LITE_DISPLAY_NAME_MAPPINGS)
+NODE_DISPLAY_NAME_MAPPINGS.update(OLLAMA_NODE_DISPLAY_NAME_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS.update(QWEN_NODE_DISPLAY_NAME_MAPPINGS)
-NODE_DISPLAY_NAME_MAPPINGS.update(QWEN_LITE_DISPLAY_NAME_MAPPINGS)
-# NODE_DISPLAY_NAME_MAPPINGS.update(SMOLVLM_NODE_DISPLAY_NAME_MAPPINGS)
-#NODE_DISPLAY_NAME_MAPPINGS.update(SMOLVLM_LITE_DISPLAY_NAME_MAPPINGS)
-NODE_DISPLAY_NAME_MAPPINGS.update(CAPTIONFORGE_REVERSED_DISPLAY_NAME_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS.update(CAPTIONFORGE_DISPLAY_NAME_MAPPINGS)
 
 

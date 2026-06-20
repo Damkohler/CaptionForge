@@ -1,135 +1,159 @@
 """
-JLC CaptionForge — ComfyUI Capstone Node Wrapper
+JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
 
 - CaptionForge
-  - This node is part of CaptionForge, a model-agnostic captioning and
-    caption-refinement framework for ComfyUI developed by J. L. Córdova.
+  - This node is part of **CaptionForge**, a model-agnostic captioning
+    framework for ComfyUI developed by **J. L. Córdova**.
 
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-  - CaptionForge focuses on practical dataset-captioning infrastructure for:
-        • LoRA dataset preparation
-        • multi-engine raw caption generation
-        • JSONL audit trails
-        • text-LLM caption distillation
-        • image-aware VLM validation
-        • final TXT sidecar export for training datasets
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
 - Node Purpose
-    - The JLC CaptionForge capstone node orchestrates the current final pipeline:
-            A_RAW_CAPTIONS JSONL
-              -> CaptionForge Distiller Engine
-              -> CaptionForge VLM Validator Engine
-              -> deterministic final TXT/JSONL export
+    - The **JLC CaptionForge Node** is the production capstone for the current
+      CaptionForge mainline.
 
-    - This file is the ComfyUI-facing wrapper, not the reusable distiller or VLM
-      validator engine. It is responsible for:
+    - This file is the **ComfyUI-facing wrapper**, not a caption model. It is
+      responsible for:
             • ComfyUI INPUT_TYPES / widget definitions
             • standalone captions JSONL + image-root execution
-            • CAPTIONFORGE_PIPELINE_PLAN consumption
+            • CAPTIONFORGE_PIPELINE_PLAN consumption through `pipeline_plan`
             • planner-owned override resolution
             • optional direct IMAGE tensor handoff for validator resolution
-            • Distiller config construction
-            • VLM Validator config construction
-            • final caption selection and TXT/JSONL export
+            • Pass A raw caption selection and grouping by image
+            • Pass B fat-draft construction with a text-only Ollama LLM
+            • Pass C natural-caption validation with an image-aware Ollama VLM
+            • Pass D taggy-format construction with a text-only Ollama LLM
+            • final natural/taggy TXT and JSONL export
             • output path derivation and run audit status strings
-
-    - The reusable implementation stages live in:
-            captionforge_distiller_engine.py
-            captionforge_vlm_validator_engine.py
-            captionforge_pipeline_planner_engine.py
-
-- Ollama Model Dropdowns
-    - Distiller and Validator dropdown values are explicit Ollama model tags.
-    - Family aliases and shorthand substitutions are intentionally not used.
-    - Dropdown choices are loaded at node-import time from:
-            config/captionforge_ollama_models.json
-    - If the JSON file is missing or malformed, the node falls back to:
-            Distiller: llama3.1:8b
-            Validator: gemma4:e4b
-    - The optional custom choice lets users enter any installed Ollama model tag
-      without editing Python.
 
 - CaptionForge Pipeline Role
     - In planned mode, this node consumes the Pipeline Planner object and lets
       planner-owned values override matching visible widgets.
+
     - In standalone mode, it can run directly from a Pass A captions JSONL and
       an image file/folder root.
-    - Final TXT sidecars preserve user-facing source filename stems when
-      possible, while intermediate audit keys may remain sanitized.
+
+    - The mainline flow is:
+
+            A_RAW_CAPTIONS
+              -> B_FAT_DRAFT                  text-only LLM
+              -> C_VLM_VALIDATED_FINAL        image-aware VLM natural caption
+              -> D_FORMAT_TAGGY               text-only formatter
+              -> final TXT/JSONL export
+
+    - The VLM-validated natural paragraph is the natural final caption. The
+      formatter pass must not rewrite that natural paragraph; it only derives a
+      comma-separated taggy caption from it.
+
+- Ollama Model Dropdowns
+    - Fat Draft, Validator, and Formatter dropdown values are explicit Ollama
+      model tags.
+
+    - Family aliases and shorthand substitutions are intentionally not used.
+
+    - Dropdown choices are loaded at node-import time from:
+            config/captionforge_ollama_models.json
+
+    - Supported config keys:
+            distiller_models / defaults.distiller_model
+            validator_models / defaults.validator_model
+            format_models    / defaults.format_model
+
+    - The optional Custom choice lets users enter any installed Ollama model tag
+      without editing Python.
+
+- Prompting Model
+    - The Fat Draft LLM does not see the image. It merges multiple raw captions
+      into one deliberately over-complete draft.
+
+    - The Validator VLM sees the actual image and the fat draft. It returns one
+      corrected natural paragraph.
+
+    - The Formatter LLM sees only the validated paragraph. It returns one taggy
+      comma-separated caption.
+
+- Model and Dependency Notes
+    - This node talks to a local Ollama server over HTTP.
+
+    - Large Ollama models may take significant time to load or respond. The
+      `Ollama - request timeout seconds` widget controls network patience only;
+      it does not change caption quality.
+
+    - The node sends top-level `think: false` to Ollama requests so thinking
+      models do not spend the entire token budget in hidden reasoning before
+      producing visible caption text.
 
 - Design Philosophy
     - CaptionForge is an original concept and implementation, not derived from
       or based on another ComfyUI workflow.
-    - The capstone node keeps orchestration and ComfyUI UI concerns separate
-      from reusable engine logic.
+
+    - The capstone keeps orchestration and ComfyUI UI concerns separate from
+      model-specific caption generation.
+
     - The node prioritizes auditable local caption refinement, explicit model
-      selection, deterministic output paths, and user-editable validation policy.
+      selection, deterministic output paths, and high-value LoRA captions.
 
 - ⚠️ Development Status
     - This is release-candidate CaptionForge capstone infrastructure.
-    - Validator backend reliability and output schema details may evolve as the
-      release candidate is tested across local Ollama/VLM installations.
+    - Output schema details may evolve as the release candidate is tested across
+      local Ollama/VLM installations.
 
 - Attribution & License
-  - Concept and implementation by J. L. Córdova
-    with development assistance from ChatGPT (OpenAI).
+  - Concept and implementation by **J. L. Córdova**
+    with development assistance from **ChatGPT (OpenAI)**.
+
   - Designed for use with:
     https://github.com/comfyanonymous/ComfyUI
+
   - Copyright (c) 2026 J. L. Córdova
-  - Released under the MIT License.
+
+  - Released under the **MIT License**.
 """
 
 from __future__ import annotations
+from ..captionforge_version import CAPTIONFORGE_VERSION
 
 MANIFEST = {
     "name": "JLC CaptionForge Node",
-    "version": (0, 1, 7),
+    "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
-        "Heavy ComfyUI capstone node for CaptionForge. Consumes the optional "
-        "pipeline_plan pin when connected, then runs captions JSONL "
-        "through the pollster/copywriter distiller engine, VLM validator engine, "
-        "and deterministic final export. Loads explicit Ollama Distiller/Validator dropdown tags "
-        "from config/captionforge_ollama_models.json, with no family aliases "
-        "or shorthand model substitutions."
+        "Release-candidate CaptionForge capstone node. Consumes Pass A raw caption "
+        "JSONL directly or through a CAPTIONFORGE_PIPELINE_PLAN, builds a text-only "
+        "fat draft with an Ollama LLM, validates it against the image with an Ollama "
+        "VLM to produce the natural final caption, derives a taggy comma-list with a "
+        "format model, and exports deterministic TXT/JSONL artifacts. The natural "
+        "caption is the VLM-validated output directly; the formatter pass does not "
+        "rewrite the natural paragraph."
     ),
 }
 
+import base64
+import io
 import json
 import random
 import re
+import urllib.error
+import urllib.request
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path, PureWindowsPath
+from typing import Any
 
 import numpy as np
 import torch
 from PIL import Image
-from typing import Any
-
-try:
-    from .captionforge_ollama_model_dropdowns import load_ollama_model_dropdowns
-except Exception:  # pragma: no cover - useful for direct local smoke tests
-    from captionforge_ollama_model_dropdowns import load_ollama_model_dropdowns
 
 try:
     import folder_paths
-except Exception:  # pragma: no cover - useful outside ComfyUI tests
+except Exception:  # pragma: no cover - useful outside ComfyUI smoke tests
     folder_paths = None
-
-from ..engines.captionforge_distiller_engine import (
-    BatchConfig as DistillerBatchConfig,
-    DEFAULT_DISTILLER_INSTRUCTIONS,
-    DistillerConfig,
-    process_batch as run_distiller_batch,
-)
-from ..engines.captionforge_vlm_validator_engine import (
-    BatchVLMValidatorConfig,
-    VLMValidatorConfig,
-    extract_validate_batch,
-    read_jsonl as read_validator_jsonl,
-)
 
 try:
     from ..engines.captionforge_pipeline_planner_engine import (
@@ -151,40 +175,113 @@ except Exception:  # pragma: no cover
         return {}
 
 
-CAPTIONFORGE_NODE_VERSION = "0.1.7"
+CAPTIONFORGE_NODE_VERSION = "0.2.0"
 SEED_MODES = ["fixed", "increment", "decrement", "random"]
+TXT_EXPORT_FORMATS = ["natural", "taggy", "both_separate"]
 
-_MODEL_DROPDOWNS = load_ollama_model_dropdowns(__file__)
-DISTILLER_MODEL_CHOICES = _MODEL_DROPDOWNS["distiller_models"]
-VALIDATOR_MODEL_CHOICES = _MODEL_DROPDOWNS["validator_models"]
-DEFAULT_DISTILLER_MODEL = _MODEL_DROPDOWNS["distiller_default"]
-DEFAULT_VALIDATOR_MODEL = _MODEL_DROPDOWNS["validator_default"]
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
+CONFIG_RELATIVE_PATH = Path("config") / "captionforge_ollama_models.json"
 
-DISTILLER_STRATEGIES = ["single_pass", "by_model_then_global"]
-FINAL_CAPTION_STYLES = ["narrative", "comma", "both"]
+DEFAULT_DISTILLER_MODELS = [
+    "mistral-small:24b",
+    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
+    "deepseek-r1:32b",
+    "tarruda/neuraldaredevil-8b-abliterated:fp16",
+    "gpt-oss:20b",
+]
+DEFAULT_VALIDATOR_MODELS = ["gemma4:26b", "qwen3.6:35B-A3B"]
+DEFAULT_FORMAT_MODELS = ["mistral-small:24b", "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored", "gpt-oss:20b", "deepseek-r1:32b"]
+DEFAULT_DISTILLER_MODEL = "mistral-small:24b"
+DEFAULT_VALIDATOR_MODEL = "gemma4:26b"
+DEFAULT_FORMAT_MODEL = "mistral-small:24b"
 
-DEFAULT_VALIDATOR_PROMPT = (
-    "You are CaptionForge Pass C: an image-grounded rich-caption validator and copywriter. "
-    "You see the actual image and a Pass B pollster record. Pass B contains accepted claims, "
-    "plausible singleton candidates, rejected or unresolved conflicts, and rich/taggy draft captions. "
-    "Your job is not to summarize. Your job is to ground the evidence against the image, keep all "
-    "supported useful details, correct visibly wrong details, visually confirm useful singletons when "
-    "possible, add clearly visible missing details when they improve LoRA training value, and write a "
-    "rich final caption. Use no deterministic semantic taxonomy. Judge natural-language claims only. "
-    "Reject details only when they are visibly false, contradicted, not visible enough, or inappropriate "
-    "as a training caption claim. Preserve accurate outfit construction, materials, jewelry, accessories, "
-    "makeup, hair, eye details, body pose, hand placement, crop, lighting, background, and visible texture. "
-    "Do not over-prune. Do not compress detailed jewelry, makeup, fabric, pose, or material evidence into "
-    "generic phrases. Treat trigger words as metadata and do not prepend them yourself; the engine will "
-    "prepend trigger and anchor after parsing. Treat the user caption anchor as training guidance: preserve "
-    "it when compatible with the image and reject it only when clearly contradicted. The final narrative "
-    "caption should be rich LoRA-training prose. The final comma caption should be a dense taggy caption "
-    "with nearly the same visual content."
+DEFAULT_FAT_DRAFT_INSTRUCTIONS = """/no_think
+
+You are a detail-preserving caption merger for LoRA dataset preparation.
+
+You receive multiple captions of the same image. You do NOT see the image.
+
+Task:
+Merge all non-contradictory caption details into one deliberately over-complete draft caption.
+
+Rules:
+- Do not validate against the image.
+- Do not decide that details are false just because they appear once.
+- Do not summarize aggressively.
+- Preserve concrete details from all captions.
+- Split contradictions by choosing cautious wording or listing the alternative only when needed.
+- Prefer specific visual language over generic language.
+- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.
+- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.
+- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.
+- Do not add details absent from the captions.
+- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.
+- Output only one paragraph, no notes, no JSON."""
+
+DEFAULT_VALIDATOR_SYSTEM_PROMPT = (
+    "/no_think\n"
+    "You are a direct image validation engine. Inspect the image and answer only with the requested caption."
 )
+
+DEFAULT_VALIDATOR_INSTRUCTIONS = """/no_think
+
+Look at the image and validate this draft caption.
+
+Task:
+Return a corrected caption paragraph that keeps only image-supported details.
+
+Rules:
+- Output only the corrected caption.
+- One paragraph.
+- No reasoning, no notes, no JSON.
+- Keep all true visible details from the draft.
+- Delete unsupported details.
+- Correct small visible errors.
+- Do not add new details unless needed to correct an error already present.
+- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.
+- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.
+- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image."""
+
+DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS = """/no_think
+
+You are a LoRA caption format converter.
+
+The validated paragraph is already the natural-language final caption. Do not rewrite it.
+
+Task:
+Create one TAGGY caption from the validated paragraph.
+
+Rules:
+- Output only the taggy comma-separated caption.
+- Use only details already present in the validated paragraph.
+- Preserve concrete LoRA-useful details.
+- Do not add new details.
+- Do not mention this process.
+- Do not output markdown.
+- Do not include a TAGGY: label.
+- Keep the result as a comma-separated list, not full prose."""
+
+_SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+@dataclass
+class StageRecord:
+    captionforge_pass: str
+    engine: str
+    engine_version: str
+    image_key: str
+    image: str
+    status: str
+    text: str
+    model: str
+    prompt: str
+    params: dict[str, Any]
+    source: dict[str, Any]
+    timestamp: str
 
 
 # -----------------------------------------------------------------------------
-# Generic helpers
+# Path, JSON, and config helpers
 # -----------------------------------------------------------------------------
 
 
@@ -201,14 +298,83 @@ def _default_output_dir() -> str:
     return str(Path.cwd() / "output" / "CaptionForge")
 
 
-def _normalize_text(value: Any) -> str:
-    return re.sub(r"\s+", " ", str(value or "").replace("\n", " ")).strip()
+def _find_repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for candidate in [here.parent, *here.parents]:
+        if (candidate / CONFIG_RELATIVE_PATH).exists():
+            return candidate
+    # Expected when this file lives in CaptionForge/nodes/.
+    try:
+        return here.parents[1]
+    except Exception:
+        return Path.cwd()
+
+
+def _config_path() -> Path:
+    return _find_repo_root() / CONFIG_RELATIVE_PATH
+
+
+def _load_ollama_model_dropdowns() -> dict[str, Any]:
+    data: dict[str, Any] = {}
+    path = _config_path()
+    try:
+        if path.exists():
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                data = loaded
+    except Exception as exc:
+        print(f"[JLC CaptionForge Node] Could not read Ollama model config {path}: {exc}", flush=True)
+
+    defaults = data.get("defaults") if isinstance(data.get("defaults"), dict) else {}
+    include_custom = bool(data.get("include_custom", True))
+
+    def choices(key: str, fallback: list[str], default_key: str, default_value: str) -> tuple[list[str], str]:
+        raw = data.get(key)
+        models = [str(x).strip() for x in raw if str(x).strip()] if isinstance(raw, list) else list(fallback)
+        default = str(defaults.get(default_key) or default_value).strip() or default_value
+        if default not in models:
+            models.insert(0, default)
+        out = list(dict.fromkeys(models))
+        if include_custom and "Custom" not in out:
+            out.append("Custom")
+        return out, default
+
+    distiller_models, distiller_default = choices(
+        "distiller_models", DEFAULT_DISTILLER_MODELS, "distiller_model", DEFAULT_DISTILLER_MODEL
+    )
+    validator_models, validator_default = choices(
+        "validator_models", DEFAULT_VALIDATOR_MODELS, "validator_model", DEFAULT_VALIDATOR_MODEL
+    )
+    format_models, format_default = choices(
+        "format_models", DEFAULT_FORMAT_MODELS, "format_model", DEFAULT_FORMAT_MODEL
+    )
+    return {
+        "distiller_models": distiller_models,
+        "validator_models": validator_models,
+        "format_models": format_models,
+        "distiller_default": distiller_default,
+        "validator_default": validator_default,
+        "format_default": format_default,
+    }
+
+
+_MODEL_DROPDOWNS = _load_ollama_model_dropdowns()
+DISTILLER_MODEL_CHOICES = _MODEL_DROPDOWNS["distiller_models"]
+VALIDATOR_MODEL_CHOICES = _MODEL_DROPDOWNS["validator_models"]
+FORMAT_MODEL_CHOICES = _MODEL_DROPDOWNS["format_models"]
+DEFAULT_DISTILLER_MODEL = _MODEL_DROPDOWNS["distiller_default"]
+DEFAULT_VALIDATOR_MODEL = _MODEL_DROPDOWNS["validator_default"]
+DEFAULT_FORMAT_MODEL = _MODEL_DROPDOWNS["format_default"]
 
 
 def _clean_run_name(value: Any) -> str:
     text = str(value or "captionforge_run").strip()
     text = re.sub(r"[^A-Za-z0-9_.-]+", "_", text).strip("._")
     return text or "captionforge_run"
+
+
+def _normalize_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").replace("\n", " ")).strip()
 
 
 def _safe_bool(value: Any, default: bool = False) -> bool:
@@ -234,6 +400,48 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as f:
+        for line_no, line in enumerate(f, start=1):
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                obj = json.loads(text)
+            except Exception as exc:
+                raise RuntimeError(f"Invalid JSONL at {path}:{line_no}: {exc}") from exc
+            if isinstance(obj, dict):
+                records.append(obj)
+    return records
+
+
+def _write_jsonl(path: Path, records: list[dict[str, Any]] | list[StageRecord], *, append: bool = True) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = "a" if append else "w"
+    with path.open(mode, encoding="utf-8", newline="\n") as f:
+        for record in records:
+            obj = asdict(record) if hasattr(record, "__dataclass_fields__") else record
+            f.write(json.dumps(_json_safe(obj), ensure_ascii=False) + "\n")
+
+
+def _write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(str(text or "").rstrip() + "\n", encoding="utf-8")
+
+
+def _truncate_for_prompt(text: str, max_chars: int) -> str:
+    text = str(text or "").strip()
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    return text[: max(0, max_chars)].rstrip() + " …"
+
+
+# -----------------------------------------------------------------------------
+# Planner/setting resolution
+# -----------------------------------------------------------------------------
+
+
 def _deep_get(data: Any, dotted_key: str, default: Any = None) -> Any:
     cur = data
     for part in dotted_key.split("."):
@@ -247,10 +455,7 @@ def _plan_get(plan: dict[str, Any], *keys: str, default: Any = None) -> Any:
     if not isinstance(plan, dict):
         return default
     for key in keys:
-        if "." in key:
-            value = _deep_get(plan, key, default=None)
-        else:
-            value = plan.get(key)
+        value = _deep_get(plan, key, None) if "." in key else plan.get(key)
         if value not in (None, ""):
             return value
     return default
@@ -258,6 +463,22 @@ def _plan_get(plan: dict[str, Any], *keys: str, default: Any = None) -> Any:
 
 def _planner_overrides(plan: dict[str, Any]) -> bool:
     return bool(plan and str(plan.get("captionforge_config_type", "")).lower() in {"captionforge_pipeline_plan", "captionforge_run_config"})
+
+
+def _resolve_setting(plan: dict[str, Any], widget_value: Any, *plan_keys: str, default: Any = None) -> Any:
+    if _planner_overrides(plan):
+        value = _plan_get(plan, *plan_keys, default=None)
+        if value not in (None, ""):
+            return value
+    return widget_value if widget_value not in (None, "") else default
+
+
+def _resolve_ollama_model_name(value: Any, custom_value: Any, fallback: str) -> str:
+    text = str(value or "").strip()
+    custom = str(custom_value or "").strip()
+    if text.lower() == "custom":
+        return custom or fallback
+    return text or custom or fallback
 
 
 def _coerce_int(value: Any, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
@@ -304,129 +525,6 @@ def _seed_for_stage(base_seed: Any, seed_mode: Any, stage_index: int) -> int | N
     return out
 
 
-def _set_if_present(obj: Any, attr_names: tuple[str, ...], value: Any) -> None:
-    if value is None:
-        return
-    for name in attr_names:
-        if hasattr(obj, name):
-            setattr(obj, name, value)
-
-
-def _resolve_ollama_model_name(value: Any, custom_value: Any, fallback: str) -> str:
-    """Resolve a concrete Ollama dropdown value or a custom model tag.
-
-    Dropdown values are explicit Ollama tags and are used exactly as written.
-    No family aliases or shorthand substitutions are applied.
-    """
-    text = str(value or "").strip()
-    custom = str(custom_value or "").strip()
-    if text.lower() == "custom":
-        return custom or fallback
-    return text or custom or fallback
-
-
-def _load_prompt_file_if_path(text: str) -> str:
-    """Treat a non-empty existing file path as prompt-file shorthand; otherwise return text."""
-    text = str(text or "")
-    stripped = text.strip()
-    if not stripped:
-        return ""
-    try:
-        p = Path(stripped)
-        if p.exists() and p.is_file():
-            return p.read_text(encoding="utf-8")
-    except Exception:
-        pass
-    return text
-
-
-def _upgrade_legacy_distiller_prompt(text: str) -> str:
-    """Replace old saved default prompt text with the current pollster contract.
-
-    ComfyUI workflows persist widget text. Without this guard, an old dropped
-    CaptionForge node can keep using the pre-v0.2 summarizing distiller prompt
-    even after the Python default changes.
-    """
-    value = str(text or "")
-    legacy_markers = (
-        "two deliberately over-complete captions",
-        "distilled_caption_narrative",
-        "distilled_caption_comma",
-    )
-    if all(marker in value for marker in legacy_markers):
-        return DEFAULT_DISTILLER_INSTRUCTIONS
-    return value
-
-
-def _upgrade_legacy_validator_prompt(text: str) -> str:
-    """Replace old saved default validator prompt text with the current rich validator contract."""
-    value = str(text or "")
-    legacy_markers = (
-        "two over-complete draft captions produced by a text distiller",
-        "clean, useful final caption candidates",
-        "removed_or_rejected_details field",
-    )
-    if all(marker in value for marker in legacy_markers):
-        return DEFAULT_VALIDATOR_PROMPT
-    return value
-
-
-def _tensor_to_pil_images(image_tensor: Any) -> list[Image.Image]:
-    """Convert an optional ComfyUI IMAGE tensor to PIL RGB images for validator file handoff."""
-    if image_tensor is None:
-        return []
-    if isinstance(image_tensor, torch.Tensor):
-        image_tensor = image_tensor.detach().cpu()
-    if getattr(image_tensor, "ndim", 0) == 3:
-        image_tensor = image_tensor.unsqueeze(0)
-    images: list[Image.Image] = []
-    try:
-        for img in image_tensor:
-            arr = img.numpy()
-            arr = np.clip(arr * 255.0, 0, 255).astype(np.uint8)
-            images.append(Image.fromarray(arr).convert("RGB"))
-    except Exception:
-        return []
-    return images
-
-
-def _save_single_image_inputs_for_validator(image_tensor: Any, output_dir: Path, run_name: str) -> str:
-    """
-    Save optional ComfyUI IMAGE input(s) into the run output folder so the
-    file-based VLM validator can resolve direct-IMAGE Pass A records.
-
-    Current Joy/Qwen direct tensor records use image/image_key values like
-    ``comfy_image_0000``. The validator resolves exact basenames under
-    ``image_root``, so this helper writes an extensionless PNG payload with
-    that exact stem for compatibility, plus a human-viewable .png sibling.
-
-    Only the extensionless file is required for resolver compatibility; the
-    .png file is an audit/convenience copy.
-    """
-    images = _tensor_to_pil_images(image_tensor)
-    if not images:
-        return ""
-
-    image_dir = output_dir / "opt_images"
-    image_dir.mkdir(parents=True, exist_ok=True)
-
-    for index, pil in enumerate(images):
-        stem = f"comfy_image_{index:04d}"
-        resolver_target = image_dir / stem
-        audit_target = image_dir / f"{stem}.png"
-        pil.save(resolver_target, format="PNG")
-        pil.save(audit_target, format="PNG")
-
-    print(f"[JLC CaptionForge Node] Saved optional IMAGE input(s) for VLM validator: {image_dir}", flush=True)
-    return str(image_dir)
-
-
-
-# -----------------------------------------------------------------------------
-# Plan resolution helpers
-# -----------------------------------------------------------------------------
-
-
 def _resolve_output_dir(widget_value: str, plan: dict[str, Any]) -> Path:
     if _planner_overrides(plan):
         planned = _plan_get(plan, "paths.output_dir", "shared.output_dir", "output_dir", default="")
@@ -448,25 +546,28 @@ def _derive_paths(output_dir: Path, run_name: str, plan: dict[str, Any]) -> dict
     planned_paths = _plan_get(plan, "paths", default={}) if _planner_overrides(plan) else {}
     planned_paths = planned_paths if isinstance(planned_paths, dict) else {}
 
-    def pick(name: str, fallback: Path) -> str:
-        value = planned_paths.get(name)
-        return str(value).strip() if str(value or "").strip() else str(fallback)
+    def pick(names: tuple[str, ...], fallback: Path) -> str:
+        for name in names:
+            value = planned_paths.get(name)
+            if str(value or "").strip():
+                return str(value).strip()
+        return str(fallback)
 
     return {
-        "output_dir": pick("output_dir", output_dir),
+        "output_dir": pick(("output_dir",), output_dir),
         "run_name": run_name,
-        "caption_jsonl": pick("caption_jsonl", output_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
-        "pass_a_jsonl": pick("pass_a_jsonl", output_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
-        "distiller_jsonl": pick("distiller_jsonl", output_dir / f"{run_name}__B_DISTILL.jsonl"),
-        "distiller_readable_jsonl": pick("distiller_readable_jsonl", output_dir / f"{run_name}__B_DISTILL_readable.jsonl"),
-        "distiller_readable_json": pick("distiller_readable_json", output_dir / f"{run_name}__B_DISTILL_readable.json"),
-        "distiller_prompt_jsonl": pick("distiller_prompt_jsonl", output_dir / f"{run_name}__B_DISTILL_prompts.jsonl"),
-        "validator_jsonl": pick("validator_jsonl", output_dir / f"{run_name}__C_VLM_VALIDATED.jsonl"),
-        "validator_prompt_jsonl": pick("validator_prompt_jsonl", output_dir / f"{run_name}__C_VLM_VALIDATOR_prompts.jsonl"),
-        "validator_readable_dir": pick("validator_readable_dir", output_dir / f"{run_name}__C_VLM_VALIDATED_readable"),
-        "final_jsonl": pick("final_jsonl", output_dir / f"{run_name}__D_FINAL_EXPORT.jsonl"),
-        "final_txt_dir": pick("final_txt_dir", output_dir / f"{run_name}__TXT"),
-        "output_paths_json": pick("output_paths_json", output_dir / f"{run_name}__output_paths.json"),
+        "caption_jsonl": pick(("caption_jsonl", "pass_a_jsonl"), output_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
+        "pass_a_jsonl": pick(("pass_a_jsonl", "caption_jsonl"), output_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
+        "fat_draft_jsonl": pick(("fat_draft_jsonl", "distiller_jsonl"), output_dir / f"{run_name}__B_FAT_DRAFT.jsonl"),
+        "fat_draft_prompt_jsonl": pick(("fat_draft_prompt_jsonl", "distiller_prompt_jsonl"), output_dir / f"{run_name}__B_FAT_DRAFT_prompts.jsonl"),
+        "validator_jsonl": pick(("validator_jsonl",), output_dir / f"{run_name}__C_VLM_VALIDATED_FINAL.jsonl"),
+        "validator_prompt_jsonl": pick(("validator_prompt_jsonl",), output_dir / f"{run_name}__C_VLM_VALIDATOR_prompts.jsonl"),
+        "taggy_jsonl": pick(("taggy_jsonl", "formatter_jsonl"), output_dir / f"{run_name}__D_FORMAT_TAGGY.jsonl"),
+        "taggy_prompt_jsonl": pick(("taggy_prompt_jsonl", "formatter_prompt_jsonl"), output_dir / f"{run_name}__D_FORMAT_TAGGY_prompts.jsonl"),
+        "final_jsonl": pick(("final_jsonl",), output_dir / f"{run_name}__E_FINAL_EXPORT.jsonl"),
+        "final_txt_dir": pick(("final_txt_dir",), output_dir / f"{run_name}__TXT"),
+        "output_paths_json": pick(("output_paths_json",), output_dir / f"{run_name}__output_paths.json"),
+        "raw_response_dir": pick(("raw_response_dir",), output_dir / f"{run_name}__raw_responses"),
     }
 
 
@@ -484,24 +585,16 @@ def _resolve_caption_jsonl(widget_value: str, plan: dict[str, Any], paths: dict[
             return str(planned).strip()
     widget_value = str(widget_value or "").strip()
     if widget_value:
-        widget_path = Path(widget_value)
-        if widget_path.is_absolute():
-            return str(widget_path)
-        output_root = Path(str(paths.get("output_dir") or "").strip() or ".")
-        return str(output_root / widget_path)
+        p = Path(widget_value)
+        if p.is_absolute():
+            return str(p)
+        return str(Path(str(paths.get("output_dir") or ".")) / p)
     return paths["caption_jsonl"] or paths["pass_a_jsonl"]
 
 
 def _resolve_image_root(widget_value: str, plan: dict[str, Any], caption_jsonl: str) -> str:
     if _planner_overrides(plan):
-        planned = _plan_get(
-            plan,
-            "paths.image_root",
-            "shared.image_root",
-            "shared.input_path",
-            "input_path",
-            default="",
-        )
+        planned = _plan_get(plan, "paths.image_root", "shared.image_root", "shared.input_path", "input_path", default="")
         if str(planned or "").strip():
             return str(planned).strip()
     widget_value = str(widget_value or "").strip()
@@ -513,26 +606,43 @@ def _resolve_image_root(widget_value: str, plan: dict[str, Any], caption_jsonl: 
         return ""
 
 
-def _resolve_prompt(widget_value: str, plan: dict[str, Any], plan_keys: tuple[str, ...], default_prompt: str) -> str:
-    if _planner_overrides(plan):
-        planned = _plan_get(plan, *plan_keys, default="")
-        if str(planned or "").strip():
-            return _load_prompt_file_if_path(str(planned))
-    widget_prompt = _load_prompt_file_if_path(str(widget_value or ""))
-    return widget_prompt if widget_prompt.strip() else default_prompt
-
-
-def _resolve_setting(plan: dict[str, Any], widget_value: Any, *plan_keys: str, default: Any = None) -> Any:
-    if _planner_overrides(plan):
-        value = _plan_get(plan, *plan_keys, default=None)
-        if value not in (None, ""):
-            return value
-    return widget_value if widget_value not in (None, "") else default
-
-
 # -----------------------------------------------------------------------------
-# Final export helpers
+# Image helpers
 # -----------------------------------------------------------------------------
+
+
+def _tensor_to_pil_images(image_tensor: Any) -> list[Image.Image]:
+    if image_tensor is None:
+        return []
+    if isinstance(image_tensor, torch.Tensor):
+        image_tensor = image_tensor.detach().cpu()
+    if getattr(image_tensor, "ndim", 0) == 3:
+        image_tensor = image_tensor.unsqueeze(0)
+    images: list[Image.Image] = []
+    try:
+        for img in image_tensor:
+            arr = img.numpy()
+            arr = np.clip(arr * 255.0, 0, 255).astype(np.uint8)
+            images.append(Image.fromarray(arr).convert("RGB"))
+    except Exception:
+        return []
+    return images
+
+
+def _save_single_image_inputs_for_validator(image_tensor: Any, output_dir: Path) -> str:
+    images = _tensor_to_pil_images(image_tensor)
+    if not images:
+        return ""
+    image_dir = output_dir / "opt_images"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    for index, pil in enumerate(images):
+        stem = f"comfy_image_{index:04d}"
+        resolver_target = image_dir / stem
+        audit_target = image_dir / f"{stem}.png"
+        pil.save(resolver_target, format="PNG")
+        pil.save(audit_target, format="PNG")
+    print(f"[JLC CaptionForge Node] Saved optional IMAGE input(s) for validator: {image_dir}", flush=True)
+    return str(image_dir)
 
 
 def _basename_cross_platform(value: Any) -> str:
@@ -542,125 +652,406 @@ def _basename_cross_platform(value: Any) -> str:
     return PureWindowsPath(text).name if "\\" in text else Path(text).name
 
 
-
-def _safe_txt_stem_for_source_filename(stem: Any) -> str:
-    """
-    Preserve ordinary user filename stems for LoRA TXT sidecars.
-
-    Spaces, commas, parentheses, and similar common filename characters are kept
-    so final TXT sidecars can match source image stems. Only Windows-forbidden
-    path characters/control characters are replaced.
-    """
-    text = str(stem or "").strip()
+def _safe_txt_stem(value: Any) -> str:
+    text = str(value or "").strip()
     if not text:
         return "image"
-    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", text)
-    text = text.rstrip(" .")
-    return text or "image"
+    base = _basename_cross_platform(text)
+    stem = Path(base).stem or base
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).rstrip(" .")
+    return stem or "image"
 
 
-def _txt_stem_from_record(record: dict[str, Any]) -> str:
-    candidates = [
-        record.get("image_resolved_path"),
-        record.get("image"),
-        record.get("image_key"),
-    ]
-    source = record.get("source_distiller")
-    if isinstance(source, dict):
-        candidates.extend([source.get("image"), source.get("image_key")])
-    for candidate in candidates:
-        base = _basename_cross_platform(candidate)
-        if base:
-            stem = Path(base).stem or base
-            clean = _safe_txt_stem_for_source_filename(stem)
-            if clean:
-                return clean
-    return "image"
+def _record_image_key(record: dict[str, Any], fallback_index: int = 0) -> str:
+    for key in ("image_key", "image", "source_image", "filename"):
+        value = str(record.get(key) or "").strip()
+        if value:
+            base = _basename_cross_platform(value)
+            if base:
+                return Path(base).stem or base
+            return value
+    return f"image_{fallback_index:04d}"
 
 
-def _select_validated_caption(record: dict[str, Any], caption_style: str) -> str:
-    narrative = _normalize_text(record.get("validated_caption_narrative"))
-    comma = _normalize_text(record.get("validated_caption_comma"))
-    style = str(caption_style or "narrative").strip().lower()
-    if style == "comma":
-        return comma or narrative
-    if style == "both":
-        if narrative and comma and narrative != comma:
-            return f"{narrative}\n{comma}"
-        return narrative or comma
-    return narrative or comma
+def _candidate_image_paths(image_root: str, value: Any) -> list[Path]:
+    text = str(value or "").strip()
+    if not text:
+        return []
+    root = Path(str(image_root or "").strip()) if str(image_root or "").strip() else None
+    candidates: list[Path] = []
+
+    raw_path = Path(text)
+    if raw_path.is_absolute():
+        candidates.append(raw_path)
+    elif root is not None:
+        candidates.append(root / text)
+
+    base = _basename_cross_platform(text)
+    stem = Path(base).stem if base else text
+    names = [base, stem]
+    for name in list(names):
+        if name:
+            for suffix in _SUPPORTED_IMAGE_SUFFIXES:
+                names.append(str(Path(name).with_suffix(suffix)))
+    seen: set[str] = set()
+    for name in names:
+        if not name:
+            continue
+        if root is not None:
+            p = root / name
+            marker = str(p)
+            if marker not in seen:
+                candidates.append(p)
+                seen.add(marker)
+    return candidates
 
 
-def _write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(str(text).rstrip() + "\n", encoding="utf-8")
+def _resolve_image_path_for_group(records: list[dict[str, Any]], image_root: str) -> Path | None:
+    values: list[Any] = []
+    for record in records:
+        values.extend([
+            record.get("image_resolved_path"),
+            record.get("image_path"),
+            record.get("source_path"),
+            record.get("image"),
+            record.get("image_key"),
+        ])
+    for value in values:
+        for candidate in _candidate_image_paths(image_root, value):
+            if candidate.exists() and candidate.is_file():
+                return candidate
+    return None
 
 
-def _write_final_outputs(
+def _pil_to_base64_png(path: Path) -> str:
+    with Image.open(path) as img:
+        rgb = img.convert("RGB")
+        buf = io.BytesIO()
+        rgb.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+# -----------------------------------------------------------------------------
+# Prompt and caption helpers
+# -----------------------------------------------------------------------------
+
+
+def _field(record: dict[str, Any], names: tuple[str, ...]) -> str:
+    for name in names:
+        value = record.get(name)
+        if value not in (None, ""):
+            return str(value).strip()
+    return ""
+
+
+def _group_records_by_image(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for index, record in enumerate(records):
+        key = _record_image_key(record, index)
+        grouped.setdefault(key, []).append(record)
+    return grouped
+
+
+def _family_of(record: dict[str, Any]) -> str:
+    return _field(record, ("model_family", "family", "backend", "model_name")).lower()
+
+
+def _caption_of(record: dict[str, Any]) -> str:
+    return _field(record, ("caption", "raw_caption", "text", "final_caption"))
+
+
+def _select_caption_records(
+    records: list[dict[str, Any]],
     *,
-    validator_jsonl: Path,
-    final_jsonl: Path,
-    final_txt_dir: Path,
-    caption_style: str,
-    write_txt: bool,
-    write_final_jsonl: bool,
-) -> tuple[list[dict[str, Any]], str, int, int]:
-    records = read_validator_jsonl(validator_jsonl)
-    final_records: list[dict[str, Any]] = []
-    final_caption_blocks: list[str] = []
-    ok = 0
-    failed = 0
-
-    if write_final_jsonl:
-        final_jsonl.parent.mkdir(parents=True, exist_ok=True)
-        final_jsonl.write_text("", encoding="utf-8")
+    include_families: str,
+    max_per_family: int,
+    max_total: int,
+) -> list[dict[str, Any]]:
+    include = [x.strip().lower() for x in str(include_families or "").split(",") if x.strip()]
+    include_all = not include or "all" in include or "*" in include
+    per_family_counts: dict[str, int] = {}
+    selected: list[dict[str, Any]] = []
 
     for record in records:
-        status = str(record.get("status") or "").lower()
-        image_key = str(record.get("image_key") or record.get("image") or "image")
-        final_caption = _select_validated_caption(record, caption_style)
-        is_ok = status in {"ok", "prompt_only"} and bool(final_caption)
-        ok += int(is_ok)
-        failed += int(not is_ok)
+        status = str(record.get("status") or "ok").strip().lower()
+        if status not in {"", "ok", "prompt_only"}:
+            continue
+        caption = _caption_of(record)
+        if not caption:
+            continue
+        family = _family_of(record) or "unknown"
+        if not include_all and family not in include:
+            continue
+        if max_per_family > 0 and per_family_counts.get(family, 0) >= max_per_family:
+            continue
+        per_family_counts[family] = per_family_counts.get(family, 0) + 1
+        selected.append(record)
+        if max_total > 0 and len(selected) >= max_total:
+            break
+    return selected
 
-        out_record = {
-            "captionforge_pass": "D_FINAL_EXPORT",
-            "engine": "jlc_captionforge_node",
-            "engine_version": CAPTIONFORGE_NODE_VERSION,
-            "image_key": image_key,
-            "image": record.get("image", image_key),
-            "status": "ok" if is_ok else "error",
-            "caption_style": caption_style,
-            "final_caption": final_caption if is_ok else "",
-            "validated_caption_narrative": record.get("validated_caption_narrative", ""),
-            "validated_caption_comma": record.get("validated_caption_comma", ""),
-            "trigger_word": record.get("trigger_word", ""),
-            "user_caption_anchor": record.get("user_caption_anchor", ""),
-            "source_vlm_validator": {
-                "captionforge_pass": record.get("captionforge_pass", ""),
-                "status": record.get("status", ""),
-                "image_resolved_path": record.get("image_resolved_path", ""),
-                "removed_or_rejected_details": record.get("removed_or_rejected_details", []),
-                "corrected_details": record.get("corrected_details", []),
-                "uncertain_details": record.get("uncertain_details", []),
-                "visual_validation_notes": record.get("visual_validation_notes", []),
-                "params": record.get("params", {}),
-                "metrics": record.get("metrics", {}),
-            },
-            "timestamp": datetime.now().isoformat(timespec="seconds"),
-        }
-        final_records.append(out_record)
 
-        if is_ok:
-            final_caption_blocks.append(final_caption)
-            if write_txt:
-                _write_text(final_txt_dir / f"{_txt_stem_from_record(record)}.txt", final_caption)
+def _build_caption_blocks(records: list[dict[str, Any]], max_caption_chars: int) -> str:
+    blocks: list[str] = []
+    for i, record in enumerate(records, start=1):
+        family = _family_of(record) or "unknown"
+        run = _field(record, ("ensemble_run_index", "run_index"))
+        caption = _truncate_for_prompt(_caption_of(record), max_caption_chars)
+        if not caption:
+            continue
+        blocks.append(f"[{i}] family={family} run={run}\n{caption}")
+    return "\n\n".join(blocks).strip()
 
-        if write_final_jsonl:
-            with final_jsonl.open("a", encoding="utf-8", newline="\n") as f:
-                f.write(json.dumps(_json_safe(out_record), ensure_ascii=False) + "\n")
 
-    return final_records, "\n\n".join(final_caption_blocks), ok, failed
+def _append_optional_lora_guidance(prompt: str, trigger_word: str, user_caption_anchor: str) -> str:
+    additions: list[str] = []
+    if str(trigger_word or "").strip():
+        additions.append(f"Configured LoRA trigger word: {str(trigger_word).strip()}")
+    if str(user_caption_anchor or "").strip():
+        additions.append(f"Configured user caption anchor: {str(user_caption_anchor).strip()}")
+    if not additions:
+        return prompt
+    return prompt.rstrip() + "\n\nPipeline metadata:\n" + "\n".join(f"- {x}" for x in additions)
+
+
+def _build_fat_draft_prompt(instructions: str, caption_blocks: str, trigger_word: str, user_caption_anchor: str) -> str:
+    instr = _append_optional_lora_guidance(str(instructions or DEFAULT_FAT_DRAFT_INSTRUCTIONS), trigger_word, user_caption_anchor)
+    return f"{instr}\n\nCaptions:\n{caption_blocks}\n\nOver-complete merged draft:"
+
+
+def _build_validator_prompt(instructions: str, draft_caption: str, trigger_word: str, user_caption_anchor: str) -> str:
+    instr = _append_optional_lora_guidance(str(instructions or DEFAULT_VALIDATOR_INSTRUCTIONS), trigger_word, user_caption_anchor)
+    return f"{instr}\n\nDraft caption to validate:\n{draft_caption}\n\nCorrected caption only:"
+
+
+def _build_taggy_prompt(instructions: str, validated_caption: str, trigger_word: str, user_caption_anchor: str) -> str:
+    instr = _append_optional_lora_guidance(str(instructions or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS), trigger_word, user_caption_anchor)
+    return f"{instr}\n\nValidated paragraph:\n{validated_caption}\n\nTaggy comma-list only:"
+
+
+def _cleanup_single_paragraph(text: str) -> str:
+    text = str(text or "").strip().strip('"').strip()
+    text = re.sub(r"(?is)^\s*(corrected caption only:|final caption:|caption:)\s*", "", text).strip()
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def _cleanup_taggy(text: str) -> str:
+    text = str(text or "").strip().strip('"').strip()
+    match = re.search(r"(?is)TAGGY:\s*(.*?)(?:\n\s*(?:SHORT:|NATURAL:|$)|\Z)", text)
+    if match:
+        text = match.group(1).strip()
+    text = re.sub(r"(?is)^\s*(taggy comma-list only:|taggy:|caption:)\s*", "", text).strip()
+    text = text.replace("\n", ", ")
+    text = re.sub(r"\s*,\s*", ", ", text)
+    text = re.sub(r",\s*,+", ", ", text)
+    return text.strip(" ,")
+
+
+def _prepend_metadata(text: str, trigger_word: str, user_caption_anchor: str) -> str:
+    caption = str(text or "").strip()
+    pieces: list[str] = []
+    for value in (trigger_word, user_caption_anchor):
+        v = str(value or "").strip().strip(",")
+        if v and v.lower() not in caption[: max(80, len(v) + 5)].lower():
+            pieces.append(v)
+    if pieces and caption:
+        return ", ".join(pieces + [caption])
+    return caption or ", ".join(pieces)
+
+
+# -----------------------------------------------------------------------------
+# Ollama HTTP helpers
+# -----------------------------------------------------------------------------
+
+
+def _normalize_ollama_url(value: str) -> str:
+    return (str(value or DEFAULT_OLLAMA_URL).strip() or DEFAULT_OLLAMA_URL).rstrip("/")
+
+
+def _http_json(method: str, url: str, payload: dict[str, Any] | None = None, timeout: float = 900.0) -> dict[str, Any]:
+    data = None
+    headers = {"Accept": "application/json"}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+    try:
+        with urllib.request.urlopen(req, timeout=float(timeout)) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            return json.loads(raw) if raw.strip() else {}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+        raise RuntimeError(f"HTTP {exc.code} from {url}: {body or exc.reason}") from exc
+    except urllib.error.URLError as exc:
+        reason = getattr(exc, "reason", exc)
+        raise RuntimeError(f"Could not reach Ollama at {url}: {reason}") from exc
+
+
+def _ollama_options(num_predict: int, temperature: float, top_p: float, top_k: int, seed: int | None) -> dict[str, Any]:
+    options: dict[str, Any] = {
+        "num_predict": int(num_predict),
+        "temperature": float(temperature),
+        "top_p": float(top_p),
+        "top_k": int(top_k),
+    }
+    if seed is not None and int(seed) >= 0:
+        options["seed"] = int(seed)
+    return options
+
+
+def _extract_generate_text(data: dict[str, Any]) -> str:
+    if not isinstance(data, dict):
+        return ""
+    return str(data.get("response") or data.get("thinking") or "").strip()
+
+
+def _extract_chat_text(data: dict[str, Any]) -> str:
+    if not isinstance(data, dict):
+        return ""
+    message = data.get("message") if isinstance(data.get("message"), dict) else {}
+    return str(message.get("content") or data.get("response") or data.get("thinking") or "").strip()
+
+
+def _summarize_ollama_response(data: Any) -> str:
+    if not isinstance(data, dict):
+        return str(type(data))
+    parts = [f"keys={sorted(data.keys())}"]
+    if "done_reason" in data:
+        parts.append(f"done_reason={data.get('done_reason')}")
+    if isinstance(data.get("message"), dict):
+        msg = data["message"]
+        parts.append(f"message_keys={sorted(msg.keys())}")
+        parts.append(f"message_content_len={len(str(msg.get('content') or ''))}")
+        if "thinking" in msg:
+            parts.append(f"message_thinking_len={len(str(msg.get('thinking') or ''))}")
+    if "response" in data:
+        parts.append(f"response_len={len(str(data.get('response') or ''))}")
+    if "eval_count" in data:
+        parts.append(f"eval_count={data.get('eval_count')}")
+    if "prompt_eval_count" in data:
+        parts.append(f"prompt_eval_count={data.get('prompt_eval_count')}")
+    return "; ".join(parts)
+
+
+def _save_raw_response(raw_dir: Path | None, image_key: str, stage: str, data: dict[str, Any]) -> str:
+    if raw_dir is None:
+        return ""
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    path = raw_dir / f"{_safe_txt_stem(image_key)}__{stage}.json"
+    path.write_text(json.dumps(_json_safe(data), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return str(path)
+
+
+def _ollama_generate_text(
+    *,
+    ollama_url: str,
+    model: str,
+    prompt: str,
+    num_predict: int,
+    temperature: float,
+    top_p: float,
+    top_k: int,
+    seed: int | None,
+    keep_loaded: bool,
+    timeout: float,
+) -> tuple[str, dict[str, Any]]:
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "think": False,
+        "options": _ollama_options(num_predict, temperature, top_p, top_k, seed),
+        "keep_alive": "5m" if bool(keep_loaded) else "0s",
+    }
+    data = _http_json("POST", f"{ollama_url}/api/generate", payload=payload, timeout=timeout)
+    text = _extract_generate_text(data)
+    if not text:
+        raise RuntimeError(
+            f"Ollama returned empty text for '{model}' via /api/generate. "
+            f"max_new_tokens maps to num_predict; current value: {num_predict}. "
+            f"{_summarize_ollama_response(data)}"
+        )
+    return text, data
+
+
+def _ollama_chat_image(
+    *,
+    ollama_url: str,
+    model: str,
+    system_prompt: str,
+    user_prompt: str,
+    image_b64: str,
+    num_predict: int,
+    temperature: float,
+    top_p: float,
+    top_k: int,
+    seed: int | None,
+    keep_loaded: bool,
+    timeout: float,
+) -> tuple[str, dict[str, Any]]:
+    payload = {
+        "model": model,
+        "stream": False,
+        "messages": [
+            {"role": "system", "content": str(system_prompt or "")},
+            {"role": "user", "content": str(user_prompt or ""), "images": [image_b64]},
+        ],
+        "think": False,
+        "options": _ollama_options(num_predict, temperature, top_p, top_k, seed),
+        "keep_alive": "5m" if bool(keep_loaded) else "0s",
+    }
+    chat_data = _http_json("POST", f"{ollama_url}/api/chat", payload=payload, timeout=timeout)
+    text = _extract_chat_text(chat_data)
+    if text:
+        return text, chat_data
+
+    print(
+        f"[JLC CaptionForge Node] /api/chat returned empty text for '{model}'. Trying /api/generate fallback. "
+        f"{_summarize_ollama_response(chat_data)}",
+        flush=True,
+    )
+    full_prompt = f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}" if str(system_prompt or "").strip() else user_prompt
+    generate_payload = {
+        "model": model,
+        "prompt": full_prompt,
+        "stream": False,
+        "images": [image_b64],
+        "think": False,
+        "options": _ollama_options(num_predict, temperature, top_p, top_k, seed),
+        "keep_alive": "5m" if bool(keep_loaded) else "0s",
+    }
+    gen_data = _http_json("POST", f"{ollama_url}/api/generate", payload=generate_payload, timeout=timeout)
+    text = _extract_generate_text(gen_data)
+    if text:
+        combined = {"chat_response": chat_data, "generate_response": gen_data}
+        return text, combined
+    raise RuntimeError(
+        f"Ollama returned empty text for '{model}' via both /api/chat and /api/generate. "
+        f"max_new_tokens maps to num_predict; current value: {num_predict}. "
+        f"chat_response: {_summarize_ollama_response(chat_data)} generate_response: {_summarize_ollama_response(gen_data)}"
+    )
+
+
+# -----------------------------------------------------------------------------
+# Final export helpers
+# -----------------------------------------------------------------------------
+
+
+def _selected_export_caption(natural: str, taggy: str, export_format: str) -> str:
+    fmt = str(export_format or "natural").strip().lower()
+    if fmt == "taggy":
+        return taggy or natural
+    return natural or taggy
+
+
+def _reset_outputs(paths: dict[str, str], overwrite: bool) -> None:
+    if not overwrite:
+        return
+    for key in ("fat_draft_jsonl", "fat_draft_prompt_jsonl", "validator_jsonl", "validator_prompt_jsonl", "taggy_jsonl", "taggy_prompt_jsonl", "final_jsonl"):
+        p = Path(paths[key])
+        if p.exists() and p.is_file():
+            p.unlink()
 
 
 # -----------------------------------------------------------------------------
@@ -669,241 +1060,136 @@ def _write_final_outputs(
 
 
 class JLC_CaptionForge:
-    """Heavy CaptionForge capstone node."""
+    """CaptionForge capstone node: fat draft -> VLM natural final -> taggy formatter."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                # Inputs first.
                 "Input - captions JSONL": (
                     "STRING",
-                    {
-                        "default": "",
-                        "multiline": False,
-                        "tooltip": "Raw caption JSONL produced by CaptionForge captioning nodes.",
-                    },
+                    {"default": "", "multiline": False, "tooltip": "Pass A raw caption JSONL produced by CaptionForge Caption nodes."},
                 ),
                 "Input - image path": (
                     "STRING",
-                    {
-                        "default": "",
-                        "multiline": False,
-                        "tooltip": "Image file/folder root used by the VLM validator to resolve source images.",
-                    },
+                    {"default": "", "multiline": False, "tooltip": "Image file/folder root used by the VLM validator to resolve source images."},
                 ),
-
-
-                # Outputs next.
+                "Input - include caption families": (
+                    "STRING",
+                    {"default": "joy,qwen,ollama", "multiline": False, "tooltip": "Comma-separated model_family values to use from Pass A. Use all or * to include everything."},
+                ),
+                "Input - max captions per family": (
+                    "INT",
+                    {"default": 5, "min": 0, "max": 50, "step": 1, "tooltip": "Maximum selected Pass A captions per model family. 0 means no per-family cap."},
+                ),
+                "Input - max total captions": (
+                    "INT",
+                    {"default": 20, "min": 0, "max": 100, "step": 1, "tooltip": "Maximum selected Pass A captions per image. 0 means no total cap."},
+                ),
                 "Output - folder": (
                     "STRING",
-                    {
-                        "default": "",
-                        "multiline": False,
-                        "tooltip": "Output folder. Planner value overrides this when pipeline_plan is connected.",
-                    },
+                    {"default": "", "multiline": False, "tooltip": "Output folder. Planner value overrides this when pipeline_plan is connected."},
                 ),
                 "Output - run name": (
                     "STRING",
-                    {
-                        "default": "captionforge_run",
-                        "multiline": False,
-                        "tooltip": "Run-root used for B/C/D JSONL and prompt/output path files.",
-                    },
+                    {"default": "captionforge_run", "multiline": False, "tooltip": "Run-root used for B/C/D/E JSONL and TXT artifacts."},
                 ),
-                "Output - overwrite outputs": (
-                    "BOOLEAN",
-                    {"default": True},
-                ),
-
-                # LoRA metadata.
-                "LoRA - trigger word": (
+                "Output - overwrite outputs": ("BOOLEAN", {"default": True}),
+                "Ollama - URL": (
                     "STRING",
-                    {"default": "", "multiline": False},
+                    {"default": DEFAULT_OLLAMA_URL, "multiline": False, "tooltip": "Local Ollama server URL."},
                 ),
-                "LoRA - user caption anchor": (
+                "Ollama - keep loaded": (
+                    "BOOLEAN",
+                    {"default": True, "tooltip": "Pass keep_alive to Ollama. Ollama ultimately owns model residency."},
+                ),
+                "Ollama - request timeout seconds": (
+                    "INT",
+                    {"default": 1800, "min": 10, "max": 7200, "step": 10, "tooltip": "HTTP patience for Ollama calls. This does not affect caption quality."},
+                ),
+                "LoRA - trigger word": ("STRING", {"default": "", "multiline": False}),
+                "LoRA - user caption anchor": ("STRING", {"default": "", "multiline": False}),
+                "Fat Draft - model": (DISTILLER_MODEL_CHOICES, {"default": DEFAULT_DISTILLER_MODEL}),
+                "Fat Draft - custom Ollama model": (
                     "STRING",
-                    {"default": "", "multiline": False},
+                    {"default": "", "multiline": False, "tooltip": "Used only when Fat Draft - model is Custom."},
                 ),
-
-                # Distiller controls.
-                "Distiller - enabled": (
-                    "BOOLEAN",
-                    {
-                        "default": True,
-                        "tooltip": (
-                            "Run the Distiller stage. Disable this to reuse an existing "
-                            "<run>__B_DISTILL.jsonl from the current Output folder and run name."
-                        ),
-                    },
-                ),
-                "Distiller - model": (
-                    DISTILLER_MODEL_CHOICES,
-                    {"default": DEFAULT_DISTILLER_MODEL},
-                ),
-                "Distiller - custom Ollama model": (
+                "Fat Draft - prompt": (
                     "STRING",
-                    {
-                        "default": "",
-                        "multiline": False,
-                        "tooltip": "Used only when Distiller - model is custom. Enter an installed Ollama text model tag, for example gpt-oss:20b.",
-                    },
+                    {"default": DEFAULT_FAT_DRAFT_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the text-only fat draft LLM. Captions are appended automatically."},
                 ),
-                "Distiller - base seed": (
+                "Fat Draft - base seed": ("INT", {"default": 1, "min": -1, "max": MAX_SEED_32, "step": 1}),
+                "Fat Draft - seed mode": (SEED_MODES, {"default": "fixed"}),
+                "Fat Draft - max caption chars": ("INT", {"default": 1536, "min": 0, "max": 12000, "step": 64}),
+                "Fat Draft - max new tokens": (
                     "INT",
-                    {"default": -1, "min": -1, "max": MAX_SEED_32, "step": 1},
+                    {"default": 5000, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
                 ),
-                "Distiller - seed mode": (
-                    SEED_MODES,
-                    {"default": "fixed"},
-                ),
-                "Distiller - strategy": (
-                    DISTILLER_STRATEGIES,
-                    {"default": "single_pass"},
-                ),
-                "Distiller - prompt": (
-                    "STRING",
-                    {
-                        "default": DEFAULT_DISTILLER_INSTRUCTIONS,
-                        "multiline": True,
-                        "tooltip": "Distiller prompt/instructions. Existing file path is also accepted as shorthand.",
-                    },
-                ),
-                "Distiller - max caption chars for LLM": (
-                    "INT",
-                    {"default": 1536, "min": 0, "max": 12000, "step": 64},
-                ),
-                "Distiller - num predict": (
-                    "INT",
-                    {"default": 3096, "min": 64, "max": 12000, "step": 64},
-                ),
-                "Distiller - temperature": (
-                    "FLOAT",
-                    {"default": 0.24, "min": 0.0, "max": 2.0, "step": 0.01},
-                ),
-                "Distiller - top p": (
-                    "FLOAT",
-                    {"default": 0.90, "min": 0.0, "max": 1.0, "step": 0.01},
-                ),
-                "Distiller - top k": (
-                    "INT",
-                    {"default": 60, "min": 0, "max": 500, "step": 1},
-                ),
-                "Distiller - write prompt JSONL": (
-                    "BOOLEAN",
-                    {"default": False},
-                ),
-                "Distiller - preserve raw response": (
-                    "BOOLEAN",
-                    {"default": False},
-                ),
-
-                # Validator controls, same order pattern.
-                "Validator - enabled": (
-                    "BOOLEAN",
-                    {
-                        "default": True,
-                        "tooltip": (
-                            "Run the image-aware Validator stage. Disable this to stop after the "
-                            "Distiller stage without producing final validated TXT/JSONL output."
-                        ),
-                    },
-                ),
-                "Validator - model": (
-                    VALIDATOR_MODEL_CHOICES,
-                    {"default": DEFAULT_VALIDATOR_MODEL},
-                ),
+                "Fat Draft - temperature": ("FLOAT", {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "Fat Draft - top p": ("FLOAT", {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "Fat Draft - top k": ("INT", {"default": 50, "min": 0, "max": 500, "step": 1}),
+                "Validator - model": (VALIDATOR_MODEL_CHOICES, {"default": DEFAULT_VALIDATOR_MODEL}),
                 "Validator - custom Ollama model": (
                     "STRING",
-                    {
-                        "default": "",
-                        "multiline": False,
-                        "tooltip": "Used only when Validator - model is custom. Enter an installed Ollama vision model tag, for example gemma4:e4b.",
-                    },
+                    {"default": "", "multiline": False, "tooltip": "Used only when Validator - model is Custom."},
                 ),
-
-                "Validator - base seed": (
-                    "INT",
-                    {"default": -1, "min": -1, "max": MAX_SEED_32, "step": 1},
-                ),
-                "Validator - seed mode": (
-                    SEED_MODES,
-                    {"default": "fixed"},
+                "Validator - system prompt": (
+                    "STRING",
+                    {"default": DEFAULT_VALIDATOR_SYSTEM_PROMPT, "multiline": True, "tooltip": "System prompt for the image-aware VLM validator."},
                 ),
                 "Validator - prompt": (
                     "STRING",
-                    {
-                        "default": DEFAULT_VALIDATOR_PROMPT,
-                        "multiline": True,
-                        "tooltip": "Image-aware validator prompt. Existing file path is also accepted as shorthand.",
-                    },
+                    {"default": DEFAULT_VALIDATOR_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the image-aware VLM validator. The fat draft is appended automatically."},
                 ),
-                "Validator - num predict": (
+                "Validator - base seed": ("INT", {"default": 1, "min": -1, "max": MAX_SEED_32, "step": 1}),
+                "Validator - seed mode": (SEED_MODES, {"default": "fixed"}),
+                "Validator - max new tokens": (
                     "INT",
-                    {"default": 2200, "min": 64, "max": 12000, "step": 64},
+                    {"default": 5000, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
                 ),
-                "Validator - temperature": (
-                    "FLOAT",
-                    {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01},
+                "Validator - temperature": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "Validator - top p": ("FLOAT", {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "Validator - top k": ("INT", {"default": 50, "min": 0, "max": 500, "step": 1}),
+                "Formatter - model": (FORMAT_MODEL_CHOICES, {"default": DEFAULT_FORMAT_MODEL}),
+                "Formatter - custom Ollama model": (
+                    "STRING",
+                    {"default": "", "multiline": False, "tooltip": "Used only when Formatter - model is Custom."},
                 ),
-                "Validator - top p": (
-                    "FLOAT",
-                    {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01},
+                "Formatter - prompt": (
+                    "STRING",
+                    {"default": DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the text-only taggy formatter. The validated paragraph is appended automatically."},
                 ),
-                "Validator - top k": (
+                "Formatter - base seed": ("INT", {"default": 1, "min": -1, "max": MAX_SEED_32, "step": 1}),
+                "Formatter - seed mode": (SEED_MODES, {"default": "fixed"}),
+                "Formatter - max new tokens": (
                     "INT",
-                    {"default": 80, "min": 0, "max": 500, "step": 1},
+                    {"default": 3200, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
                 ),
-                "Validator - write prompt JSONL": (
-                    "BOOLEAN",
-                    {"default": False},
-                ),
-                "Validator - preserve raw VLM response": (
-                    "BOOLEAN",
-                    {"default": False},
-                ),
-
-                # Final export controls.
-                "Final - caption style": (
-                    FINAL_CAPTION_STYLES,
-                    {"default": "narrative"},
-                ),
-                "Final - write TXT sidecars": (
-                    "BOOLEAN",
-                    {"default": True},
-                ),
-                "Final - write JSONL": (
-                    "BOOLEAN",
-                    {"default": True},
-                ),
+                "Formatter - temperature": ("FLOAT", {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "Formatter - top p": ("FLOAT", {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "Formatter - top k": ("INT", {"default": 50, "min": 0, "max": 500, "step": 1}),
+                "Audit - write prompt JSONL": ("BOOLEAN", {"default": False}),
+                "Audit - preserve raw responses": ("BOOLEAN", {"default": False}),
+                "Final - TXT export format": (TXT_EXPORT_FORMATS, {"default": "natural"}),
+                "Final - write TXT sidecars": ("BOOLEAN", {"default": True}),
+                "Final - write JSONL": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "Input - single image": (
                     "IMAGE",
-                    {
-                        "tooltip": (
-                            "Optional quick-workflow IMAGE passthrough/reference. In planned single-image "
-                            "runs, wire the Planner single_image output here so the file-based VLM validator "
-                            "can resolve direct IMAGE caption records."
-                        ),
-                    },
+                    {"tooltip": "Optional IMAGE passthrough/reference for planned single-image workflows."},
                 ),
                 "pipeline_plan": (
                     "CAPTIONFORGE_PIPELINE_PLAN",
-                    {
-                        "tooltip": (
-                            "Connect the CaptionForge Pipeline Planner pipeline_plan output here. "
-                            "When connected, planner-owned settings override matching widgets."
-                        ),
-                    },
+                    {"tooltip": "Connect the CaptionForge Pipeline Planner pipeline_plan output here."},
                 ),
             },
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("final_captions", "final_jsonl_records", "output_paths_json", "status")
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("natural_captions", "taggy_captions", "final_jsonl_records", "output_paths_json", "status")
     FUNCTION = "forge"
-    CATEGORY = "JLC/Captioning"
+    CATEGORY = "Captioning/CaptionForge"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -916,243 +1202,314 @@ class JLC_CaptionForge:
         output_dir.mkdir(parents=True, exist_ok=True)
         run_name = _resolve_run_name(str(kwargs.get("Output - run name", "captionforge_run") or "captionforge_run"), plan)
         paths = _derive_paths(output_dir, run_name, plan)
-
-        distiller_enabled = _safe_bool(
-            _resolve_setting(
-                plan,
-                kwargs.get("Distiller - enabled"),
-                "distiller.enabled",
-                "pass_b.enabled",
-                "pass_b_distiller.enabled",
-                default=True,
-            ),
+        overwrite = _safe_bool(
+            _resolve_setting(plan, kwargs.get("Output - overwrite outputs"), "final.overwrite_outputs", "output.overwrite_outputs", "shared.overwrite_outputs", default=True),
             True,
         )
-        validator_enabled = _safe_bool(
-            _resolve_setting(
-                plan,
-                kwargs.get("Validator - enabled"),
-                "validator.enabled",
-                "pass_c.enabled",
-                "pass_c_vlm_validator.enabled",
-                default=True,
-            ),
-            True,
-        )
-        if not distiller_enabled and not validator_enabled:
-            raise RuntimeError(
-                "JLC CaptionForge Node has nothing to do: both Distiller and Validator are disabled."
-            )
+        _reset_outputs(paths, overwrite)
 
         caption_jsonl = _resolve_caption_jsonl(str(kwargs.get("Input - captions JSONL", "") or ""), plan, paths)
-        if distiller_enabled:
-            if not caption_jsonl:
-                raise RuntimeError("JLC CaptionForge Node requires Input - captions JSONL or a planner path when Distiller is enabled.")
-
-            caption_path = Path(caption_jsonl)
-            if not caption_path.exists() or caption_path.is_dir():
-                raise FileNotFoundError(f"Caption JSONL not found: {caption_path}")
-            if not caption_path.read_text(encoding="utf-8").strip():
-                raise FileNotFoundError(f"Caption JSONL is empty: {caption_path}")
-        else:
-            # In validator-only reuse mode, Pass A input is not required. The
-            # existing B_DISTILL file is keyed entirely by Output folder + run name.
-            caption_jsonl = caption_jsonl or paths["caption_jsonl"] or paths["pass_a_jsonl"]
-            distiller_path = Path(paths["distiller_jsonl"])
-            if not distiller_path.exists() or distiller_path.is_dir():
-                raise FileNotFoundError(
-                    "Distiller is disabled, but the expected B_DISTILL JSONL was not found: "
-                    f"{distiller_path}"
-                )
-            if not distiller_path.read_text(encoding="utf-8").strip():
-                raise FileNotFoundError(
-                    "Distiller is disabled, but the expected B_DISTILL JSONL is empty: "
-                    f"{distiller_path}"
-                )
+        caption_path = Path(caption_jsonl)
+        if not caption_path.exists() or caption_path.is_dir():
+            raise FileNotFoundError(f"Caption JSONL not found: {caption_path}")
+        if not caption_path.read_text(encoding="utf-8").strip():
+            raise FileNotFoundError(f"Caption JSONL is empty: {caption_path}")
 
         image_root = _resolve_image_root(str(kwargs.get("Input - image path", "") or ""), plan, caption_jsonl)
-        single_image_root = _save_single_image_inputs_for_validator(
-            kwargs.get("Input - single image"),
-            output_dir,
-            run_name,
-        )
+        single_image_root = _save_single_image_inputs_for_validator(kwargs.get("Input - single image"), output_dir)
         if single_image_root:
             image_root = single_image_root
 
-        overwrite = _safe_bool(_resolve_setting(plan, kwargs.get("Output - overwrite outputs"), "final.overwrite_outputs", "output.overwrite_outputs", "shared.overwrite_outputs", default=True), True)
+        ollama_url = _normalize_ollama_url(str(kwargs.get("Ollama - URL", DEFAULT_OLLAMA_URL)))
+        keep_loaded = _safe_bool(kwargs.get("Ollama - keep loaded", True), True)
+        timeout = float(_coerce_int(kwargs.get("Ollama - request timeout seconds", 1800), 1800, 10, 7200))
+        write_prompts = _safe_bool(kwargs.get("Audit - write prompt JSONL", False), False)
+        preserve_raw = _safe_bool(kwargs.get("Audit - preserve raw responses", False), False)
+        raw_dir = Path(paths["raw_response_dir"]) if preserve_raw else None
+
         trigger_word = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - trigger word"), "shared.trigger_word", "lora.trigger_word", "trigger_word", default=""))
         user_caption_anchor = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - user caption anchor"), "shared.user_caption_anchor", "lora.user_caption_anchor", "user_caption_anchor", default=""))
 
-        # Distiller settings. Planner-owned values override widgets.
-        distiller_choice = _resolve_setting(
+        fat_model_choice = _resolve_setting(
             plan,
-            kwargs.get("Distiller - model"),
+            kwargs.get("Fat Draft - model"),
             "distiller.model",
             "pass_b.model",
             "distiller.ollama_model",
             "pass_b.ollama_model",
-            "distiller.model_family",
-            "pass_b.model_family",
             default=DEFAULT_DISTILLER_MODEL,
         )
-        distiller_model = _resolve_ollama_model_name(
-            distiller_choice,
-            kwargs.get("Distiller - custom Ollama model"),
-            DEFAULT_DISTILLER_MODEL,
-        )
-        distiller_seed = _seed_for_stage(
-            _resolve_setting(plan, kwargs.get("Distiller - base seed"), "distiller.base_seed", "pass_b.base_seed", default=-1),
-            _resolve_setting(plan, kwargs.get("Distiller - seed mode"), "distiller.seed_mode", "pass_b.seed_mode", default="fixed"),
+        fat_model = _resolve_ollama_model_name(fat_model_choice, kwargs.get("Fat Draft - custom Ollama model"), DEFAULT_DISTILLER_MODEL)
+        fat_seed = _seed_for_stage(
+            _resolve_setting(plan, kwargs.get("Fat Draft - base seed"), "distiller.base_seed", "pass_b.base_seed", default=1),
+            _resolve_setting(plan, kwargs.get("Fat Draft - seed mode"), "distiller.seed_mode", "pass_b.seed_mode", default="fixed"),
             0,
         )
-        distiller_prompt = _resolve_prompt(
-            str(kwargs.get("Distiller - prompt", "") or ""),
-            plan,
-            ("distiller.prompt", "distiller.instructions", "pass_b.prompt", "pass_b.instructions"),
-            DEFAULT_DISTILLER_INSTRUCTIONS,
-        )
-        distiller_prompt = _upgrade_legacy_distiller_prompt(distiller_prompt)
-        distiller_strategy = str(_resolve_setting(plan, kwargs.get("Distiller - strategy"), "distiller.strategy", "pass_b.strategy", default="pollster_then_copywriter") or "pollster_then_copywriter")
-        distiller_max_chars = _coerce_int(_resolve_setting(plan, kwargs.get("Distiller - max caption chars for LLM"), "distiller.max_caption_chars_for_llm", "pass_b.max_caption_chars_for_llm", default=1536), 1536, 0, 12000)
-        distiller_num_predict = _coerce_int(_resolve_setting(plan, kwargs.get("Distiller - num predict"), "distiller.num_predict", "distiller.ollama_num_predict", "pass_b.num_predict", default=3096), 3096, 64, 12000)
-        distiller_temperature = _coerce_float(_resolve_setting(plan, kwargs.get("Distiller - temperature"), "distiller.temperature", "distiller.ollama_temperature", "pass_b.temperature", default=0.24), 0.24, 0.0, 2.0)
-        distiller_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Distiller - top p"), "distiller.top_p", "distiller.ollama_top_p", "pass_b.top_p", default=0.90), 0.90, 0.0, 1.0)
-        distiller_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Distiller - top k"), "distiller.top_k", "distiller.ollama_top_k", "pass_b.top_k", default=60), 60, 0, 500)
-        distiller_write_prompt = _safe_bool(_resolve_setting(plan, kwargs.get("Distiller - write prompt JSONL"), "distiller.write_prompt_jsonl", "pass_b.write_prompt_jsonl", default=False), False)
-        distiller_preserve_raw = _safe_bool(_resolve_setting(plan, kwargs.get("Distiller - preserve raw response"), "distiller.preserve_raw_response", "pass_b.preserve_raw_response", default=False), False)
+        fat_num = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - max new tokens"), "distiller.num_predict", "pass_b.num_predict", default=5000), 5000, 64, 12000)
+        fat_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - temperature"), "distiller.temperature", "pass_b.temperature", default=0.12), 0.12, 0.0, 2.0)
+        fat_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - top p"), "distiller.top_p", "pass_b.top_p", default=0.88), 0.88, 0.0, 1.0)
+        fat_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - top k"), "distiller.top_k", "pass_b.top_k", default=50), 50, 0, 500)
+        fat_prompt_instructions = str(kwargs.get("Fat Draft - prompt") or DEFAULT_FAT_DRAFT_INSTRUCTIONS)
+        max_caption_chars = _coerce_int(kwargs.get("Fat Draft - max caption chars", 1536), 1536, 0, 12000)
 
-        if distiller_enabled:
-            distiller_config = DistillerConfig(
-                llm_backend="ollama",
-                llm_model=distiller_model,
-                instructions=distiller_prompt,
-                strategy=distiller_strategy,
-                max_caption_chars_for_llm=distiller_max_chars,
-                ollama_num_predict=distiller_num_predict,
-                ollama_temperature=distiller_temperature,
-                ollama_top_p=distiller_top_p,
-                ollama_top_k=distiller_top_k,
-                preserve_raw_response=distiller_preserve_raw,
-                trigger_word=trigger_word,
-                user_caption_anchor=user_caption_anchor,
-            )
-            _set_if_present(distiller_config, ("ollama_seed", "seed"), distiller_seed)
-
-            distiller_batch = DistillerBatchConfig(
-                input_jsonl=caption_jsonl,
-                output_jsonl=paths["distiller_jsonl"],
-                readable_jsonl=paths["distiller_readable_jsonl"],
-                readable_json=paths["distiller_readable_json"],
-                prompt_jsonl=paths["distiller_prompt_jsonl"],
-                dry_run=False,
-                append_output=not overwrite,
-                skip_existing=False,
-                no_readable_sidecars=False,
-                write_prompt_jsonl=distiller_write_prompt,
-            )
-            distiller_rc: int | str = run_distiller_batch(distiller_batch, distiller_config)
-        else:
-            distiller_rc = "skipped_existing_b_distill"
-            print(
-                f"[JLC CaptionForge Node] Distiller disabled; using existing B_DISTILL JSONL: {paths['distiller_jsonl']}",
-                flush=True,
-            )
-
-        # Validator settings. Planner-owned values override widgets.
-        validator_choice = _resolve_setting(
+        val_model_choice = _resolve_setting(
             plan,
             kwargs.get("Validator - model"),
             "validator.model",
             "pass_c.model",
             "validator.ollama_model",
             "pass_c.ollama_model",
-            "validator.model_family",
-            "pass_c.model_family",
             default=DEFAULT_VALIDATOR_MODEL,
         )
-        validator_model = _resolve_ollama_model_name(
-            validator_choice,
-            kwargs.get("Validator - custom Ollama model"),
-            DEFAULT_VALIDATOR_MODEL,
-        )
-        validator_seed = _seed_for_stage(
-            _resolve_setting(plan, kwargs.get("Validator - base seed"), "validator.base_seed", "pass_c.base_seed", default=-1),
+        val_model = _resolve_ollama_model_name(val_model_choice, kwargs.get("Validator - custom Ollama model"), DEFAULT_VALIDATOR_MODEL)
+        val_seed = _seed_for_stage(
+            _resolve_setting(plan, kwargs.get("Validator - base seed"), "validator.base_seed", "pass_c.base_seed", default=1),
             _resolve_setting(plan, kwargs.get("Validator - seed mode"), "validator.seed_mode", "pass_c.seed_mode", default="fixed"),
-            0,
+            1,
         )
-        validator_prompt = _resolve_prompt(
-            str(kwargs.get("Validator - prompt", "") or ""),
+        val_num = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - max new tokens"), "validator.num_predict", "pass_c.num_predict", default=5000), 5000, 64, 12000)
+        val_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - temperature"), "validator.temperature", "pass_c.temperature", default=0.05), 0.05, 0.0, 2.0)
+        val_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - top p"), "validator.top_p", "pass_c.top_p", default=0.88), 0.88, 0.0, 1.0)
+        val_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - top k"), "validator.top_k", "pass_c.top_k", default=50), 50, 0, 500)
+        val_system = str(kwargs.get("Validator - system prompt") or DEFAULT_VALIDATOR_SYSTEM_PROMPT)
+        val_prompt_instructions = str(kwargs.get("Validator - prompt") or DEFAULT_VALIDATOR_INSTRUCTIONS)
+
+        fmt_model_choice = _resolve_setting(
             plan,
-            ("validator.prompt", "validator.vlm_validator_prompt", "pass_c.prompt", "pass_c.vlm_validator_prompt"),
-            DEFAULT_VALIDATOR_PROMPT,
+            kwargs.get("Formatter - model"),
+            "formatter.model",
+            "format.model",
+            "pass_d.model",
+            "formatter.ollama_model",
+            "format.ollama_model",
+            default=DEFAULT_FORMAT_MODEL,
         )
-        validator_prompt = _upgrade_legacy_validator_prompt(validator_prompt)
-        validator_num_predict = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - num predict"), "validator.num_predict", "validator.ollama_num_predict", "pass_c.num_predict", default=2200), 2200, 64, 12000)
-        validator_temperature = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - temperature"), "validator.temperature", "validator.ollama_temperature", "pass_c.temperature", default=0.0), 0.0, 0.0, 2.0)
-        validator_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - top p"), "validator.top_p", "validator.ollama_top_p", "pass_c.top_p", default=0.92), 0.92, 0.0, 1.0)
-        validator_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - top k"), "validator.top_k", "validator.ollama_top_k", "pass_c.top_k", default=80), 80, 0, 500)
-        validator_write_prompt = _safe_bool(_resolve_setting(plan, kwargs.get("Validator - write prompt JSONL"), "validator.write_prompt_jsonl", "pass_c.write_prompt_jsonl", default=False), False)
-        validator_preserve_raw = _safe_bool(_resolve_setting(plan, kwargs.get("Validator - preserve raw VLM response"), "validator.preserve_raw_vlm_response", "pass_c.preserve_raw_vlm_response", default=False), False)
+        fmt_model = _resolve_ollama_model_name(fmt_model_choice, kwargs.get("Formatter - custom Ollama model"), DEFAULT_FORMAT_MODEL)
+        fmt_seed = _seed_for_stage(
+            _resolve_setting(plan, kwargs.get("Formatter - base seed"), "formatter.base_seed", "format.base_seed", "pass_d.base_seed", default=1),
+            _resolve_setting(plan, kwargs.get("Formatter - seed mode"), "formatter.seed_mode", "format.seed_mode", "pass_d.seed_mode", default="fixed"),
+            2,
+        )
+        fmt_num = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - max new tokens"), "formatter.num_predict", "format.num_predict", "pass_d.num_predict", default=3200), 3200, 64, 12000)
+        fmt_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Formatter - temperature"), "formatter.temperature", "format.temperature", "pass_d.temperature", default=0.12), 0.12, 0.0, 2.0)
+        fmt_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Formatter - top p"), "formatter.top_p", "format.top_p", "pass_d.top_p", default=0.88), 0.88, 0.0, 1.0)
+        fmt_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - top k"), "formatter.top_k", "format.top_k", "pass_d.top_k", default=50), 50, 0, 500)
+        fmt_prompt_instructions = str(kwargs.get("Formatter - prompt") or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
 
-        if validator_enabled:
-            validator_config = VLMValidatorConfig(
-                vlm_backend="ollama",
-                vlm_model=validator_model,
-                vlm_validator_prompt=validator_prompt,
-                trigger_word=trigger_word,
-                user_caption_anchor=user_caption_anchor,
-                preserve_raw_vlm_response=validator_preserve_raw,
-                ollama_num_predict=validator_num_predict,
-                ollama_temperature=validator_temperature,
-                ollama_top_p=validator_top_p,
-                ollama_top_k=validator_top_k,
-                ollama_format_mode="schema",
+        txt_export_format = str(_resolve_setting(plan, kwargs.get("Final - TXT export format"), "final.txt_export_format", "final.caption_style", default="natural") or "natural")
+        if txt_export_format == "comma":
+            txt_export_format = "taggy"
+        write_txt = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write TXT sidecars"), "final.write_txt_sidecars", default=True), True)
+        write_jsonl = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write JSONL"), "final.write_jsonl", default=True), True)
+
+        records = _read_jsonl(caption_path)
+        grouped = _group_records_by_image(records)
+        include_families = str(kwargs.get("Input - include caption families", "joy,qwen,ollama") or "joy,qwen,ollama")
+        max_per_family = _coerce_int(kwargs.get("Input - max captions per family", 5), 5, 0, 50)
+        max_total = _coerce_int(kwargs.get("Input - max total captions", 20), 20, 0, 100)
+
+        final_records: list[dict[str, Any]] = []
+        natural_blocks: list[str] = []
+        taggy_blocks: list[str] = []
+        ok = 0
+        failed = 0
+
+        if write_jsonl:
+            Path(paths["final_jsonl"]).parent.mkdir(parents=True, exist_ok=True)
+            if overwrite:
+                Path(paths["final_jsonl"]).write_text("", encoding="utf-8")
+
+        for image_index, (image_key, image_records) in enumerate(grouped.items(), start=1):
+            selected = _select_caption_records(
+                image_records,
+                include_families=include_families,
+                max_per_family=max_per_family,
+                max_total=max_total,
             )
-            _set_if_present(validator_config, ("ollama_seed", "seed"), validator_seed)
+            if not selected:
+                failed += 1
+                print(f"[JLC CaptionForge Node] No usable captions selected for image_key={image_key}", flush=True)
+                continue
+            image_path = _resolve_image_path_for_group(selected, image_root)
+            if image_path is None:
+                failed += 1
+                print(f"[JLC CaptionForge Node] Could not resolve image path for image_key={image_key} under {image_root}", flush=True)
+                continue
 
-            validator_batch = BatchVLMValidatorConfig(
-                input_jsonl=paths["distiller_jsonl"],
-                image_root=image_root,
-                output_jsonl=paths["validator_jsonl"],
-                readable_sidecar_dir=paths["validator_readable_dir"],
-                write_jsonl=True,
-                write_readable_sidecars=True,
-                dry_run=False,
-                overwrite=overwrite,
-                resume=False,
-                write_prompt_jsonl=validator_write_prompt,
-                prompt_jsonl=paths["validator_prompt_jsonl"],
+            caption_blocks = _build_caption_blocks(selected, max_caption_chars)
+            fat_prompt = _build_fat_draft_prompt(fat_prompt_instructions, caption_blocks, trigger_word, user_caption_anchor)
+            if write_prompts:
+                _write_jsonl(Path(paths["fat_draft_prompt_jsonl"]), [{"image_key": image_key, "prompt": fat_prompt, "model": fat_model, "stage": "B_FAT_DRAFT"}], append=True)
+
+            fat_text, fat_raw = _ollama_generate_text(
+                ollama_url=ollama_url,
+                model=fat_model,
+                prompt=fat_prompt,
+                num_predict=fat_num,
+                temperature=fat_temp,
+                top_p=fat_top_p,
+                top_k=fat_top_k,
+                seed=fat_seed,
+                keep_loaded=keep_loaded,
+                timeout=timeout,
             )
-            validator_result = extract_validate_batch(validator_batch, validator_config)
-
-            caption_style = str(_resolve_setting(plan, kwargs.get("Final - caption style"), "final.caption_style", "final_caption_style", default="narrative") or "narrative")
-            write_txt = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write TXT sidecars"), "final.write_txt_sidecars", "final.final_write_txt_sidecars", default=True), True)
-            write_jsonl = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write JSONL"), "final.write_jsonl", "final.final_write_jsonl", default=True), True)
-
-            final_records, final_captions, final_ok, final_failed = _write_final_outputs(
-                validator_jsonl=Path(paths["validator_jsonl"]),
-                final_jsonl=Path(paths["final_jsonl"]),
-                final_txt_dir=Path(paths["final_txt_dir"]),
-                caption_style=caption_style,
-                write_txt=write_txt,
-                write_final_jsonl=write_jsonl,
+            fat_text = _cleanup_single_paragraph(fat_text)
+            fat_raw_path = _save_raw_response(raw_dir, image_key, "01_fat_draft_raw", fat_raw)
+            _write_jsonl(
+                Path(paths["fat_draft_jsonl"]),
+                [
+                    asdict(
+                        StageRecord(
+                            captionforge_pass="B_FAT_DRAFT",
+                            engine="jlc_captionforge_node",
+                            engine_version=CAPTIONFORGE_NODE_VERSION,
+                            image_key=image_key,
+                            image=str(image_path),
+                            status="ok" if fat_text else "empty",
+                            text=fat_text,
+                            model=fat_model,
+                            prompt=fat_prompt if write_prompts else "",
+                            params={"max_new_tokens": fat_num, "temperature": fat_temp, "top_p": fat_top_p, "top_k": fat_top_k, "seed": fat_seed},
+                            source={"selected_caption_count": len(selected), "raw_response_path": fat_raw_path},
+                            timestamp=datetime.now().isoformat(timespec="seconds"),
+                        )
+                    )
+                ],
+                append=True,
             )
-            validator_processed = validator_result.processed
-            validator_failed = validator_result.failed
-            validator_skipped = validator_result.skipped
-        else:
+
+            image_b64 = _pil_to_base64_png(image_path)
+            val_prompt = _build_validator_prompt(val_prompt_instructions, fat_text, trigger_word, user_caption_anchor)
+            if write_prompts:
+                _write_jsonl(Path(paths["validator_prompt_jsonl"]), [{"image_key": image_key, "prompt": val_prompt, "system_prompt": val_system, "model": val_model, "stage": "C_VLM_VALIDATED_FINAL"}], append=True)
+
+            natural, val_raw = _ollama_chat_image(
+                ollama_url=ollama_url,
+                model=val_model,
+                system_prompt=val_system,
+                user_prompt=val_prompt,
+                image_b64=image_b64,
+                num_predict=val_num,
+                temperature=val_temp,
+                top_p=val_top_p,
+                top_k=val_top_k,
+                seed=val_seed,
+                keep_loaded=keep_loaded,
+                timeout=timeout,
+            )
+            natural = _prepend_metadata(_cleanup_single_paragraph(natural), trigger_word, user_caption_anchor)
+            val_raw_path = _save_raw_response(raw_dir, image_key, "02_validator_raw", val_raw)
+            _write_jsonl(
+                Path(paths["validator_jsonl"]),
+                [
+                    asdict(
+                        StageRecord(
+                            captionforge_pass="C_VLM_VALIDATED_FINAL",
+                            engine="jlc_captionforge_node",
+                            engine_version=CAPTIONFORGE_NODE_VERSION,
+                            image_key=image_key,
+                            image=str(image_path),
+                            status="ok" if natural else "empty",
+                            text=natural,
+                            model=val_model,
+                            prompt=val_prompt if write_prompts else "",
+                            params={"max_new_tokens": val_num, "temperature": val_temp, "top_p": val_top_p, "top_k": val_top_k, "seed": val_seed},
+                            source={"fat_draft": fat_text, "raw_response_path": val_raw_path},
+                            timestamp=datetime.now().isoformat(timespec="seconds"),
+                        )
+                    )
+                ],
+                append=True,
+            )
+
+            fmt_prompt = _build_taggy_prompt(fmt_prompt_instructions, natural, trigger_word, user_caption_anchor)
+            if write_prompts:
+                _write_jsonl(Path(paths["taggy_prompt_jsonl"]), [{"image_key": image_key, "prompt": fmt_prompt, "model": fmt_model, "stage": "D_FORMAT_TAGGY"}], append=True)
+
+            taggy, fmt_raw = _ollama_generate_text(
+                ollama_url=ollama_url,
+                model=fmt_model,
+                prompt=fmt_prompt,
+                num_predict=fmt_num,
+                temperature=fmt_temp,
+                top_p=fmt_top_p,
+                top_k=fmt_top_k,
+                seed=fmt_seed,
+                keep_loaded=keep_loaded,
+                timeout=timeout,
+            )
+            taggy = _prepend_metadata(_cleanup_taggy(taggy), trigger_word, user_caption_anchor)
+            fmt_raw_path = _save_raw_response(raw_dir, image_key, "03_taggy_raw", fmt_raw)
+            _write_jsonl(
+                Path(paths["taggy_jsonl"]),
+                [
+                    asdict(
+                        StageRecord(
+                            captionforge_pass="D_FORMAT_TAGGY",
+                            engine="jlc_captionforge_node",
+                            engine_version=CAPTIONFORGE_NODE_VERSION,
+                            image_key=image_key,
+                            image=str(image_path),
+                            status="ok" if taggy else "empty",
+                            text=taggy,
+                            model=fmt_model,
+                            prompt=fmt_prompt if write_prompts else "",
+                            params={"max_new_tokens": fmt_num, "temperature": fmt_temp, "top_p": fmt_top_p, "top_k": fmt_top_k, "seed": fmt_seed},
+                            source={"validated_natural": natural, "raw_response_path": fmt_raw_path},
+                            timestamp=datetime.now().isoformat(timespec="seconds"),
+                        )
+                    )
+                ],
+                append=True,
+            )
+
+            export_caption = _selected_export_caption(natural, taggy, txt_export_format)
+            is_ok = bool(natural and taggy)
+            ok += int(is_ok)
+            failed += int(not is_ok)
+            if natural:
+                natural_blocks.append(natural)
+            if taggy:
+                taggy_blocks.append(taggy)
+
+            final_record = {
+                "captionforge_pass": "E_FINAL_EXPORT",
+                "engine": "jlc_captionforge_node",
+                "engine_version": CAPTIONFORGE_NODE_VERSION,
+                "image_key": image_key,
+                "image": str(image_path),
+                "status": "ok" if is_ok else "error",
+                "export_format": txt_export_format,
+                "final_caption": export_caption,
+                "final_caption_natural": natural,
+                "final_caption_taggy": taggy,
+                "fat_draft": fat_text,
+                "trigger_word": trigger_word,
+                "user_caption_anchor": user_caption_anchor,
+                "models": {"fat_draft": fat_model, "validator": val_model, "formatter": fmt_model},
+                "selected_caption_count": len(selected),
+                "source_caption_families": sorted({(_family_of(r) or "unknown") for r in selected}),
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+            }
+            final_records.append(final_record)
+
+            if write_txt and export_caption:
+                stem = _safe_txt_stem(image_path)
+                txt_dir = Path(paths["final_txt_dir"])
+                if txt_export_format == "both_separate":
+                    _write_text(txt_dir / f"{stem}.txt", natural)
+                    _write_text(txt_dir / f"{stem}.taggy.txt", taggy)
+                else:
+                    _write_text(txt_dir / f"{stem}.txt", export_caption)
+
+            if write_jsonl:
+                _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
+
             print(
-                "[JLC CaptionForge Node] Validator disabled; stopping after Distiller stage. "
-                "No final validated TXT/JSONL export was produced.",
+                f"[JLC CaptionForge Node] processed {image_index}/{len(grouped)} image_key={image_key} "
+                f"captions={len(selected)} natural_len={len(natural)} taggy_len={len(taggy)}",
                 flush=True,
             )
-            final_records = []
-            final_captions = ""
-            final_ok = 0
-            final_failed = 0
-            validator_processed = 0
-            validator_failed = 0
-            validator_skipped = "skipped_by_user"
 
         output_paths = dict(paths)
         output_paths.update(
@@ -1161,15 +1518,15 @@ class JLC_CaptionForge:
                 "pass_a_jsonl": caption_jsonl,
                 "image_root": image_root,
                 "planner_connected": _planner_overrides(plan),
-                "distiller_enabled": distiller_enabled,
-                "validator_enabled": validator_enabled,
-                "distiller_model_resolved": distiller_model,
-                "validator_model_resolved": validator_model,
-                "distiller_seed_resolved": distiller_seed,
-                "validator_seed_resolved": validator_seed,
+                "fat_draft_model_resolved": fat_model,
+                "validator_model_resolved": val_model,
+                "formatter_model_resolved": fmt_model,
+                "txt_export_format": txt_export_format,
+                "final_ok": ok,
+                "final_failed": failed,
             }
         )
-        output_paths_json = json.dumps(output_paths, ensure_ascii=False, indent=2)
+        output_paths_json = json.dumps(_json_safe(output_paths), ensure_ascii=False, indent=2)
         try:
             Path(paths["output_paths_json"]).parent.mkdir(parents=True, exist_ok=True)
             Path(paths["output_paths_json"]).write_text(output_paths_json + "\n", encoding="utf-8")
@@ -1179,20 +1536,13 @@ class JLC_CaptionForge:
         final_jsonl_records = "\n".join(json.dumps(_json_safe(r), ensure_ascii=False) for r in final_records)
         status = (
             f"[JLC CaptionForge Node v{CAPTIONFORGE_NODE_VERSION}] complete | "
-            f"planner_connected={_planner_overrides(plan)} | "
-            f"distiller_enabled={distiller_enabled} "
-            f"validator_enabled={validator_enabled} | "
-            f"distiller_rc={distiller_rc} | "
-            f"validator_processed={validator_processed} "
-            f"validator_failed={validator_failed} "
-            f"validator_skipped={validator_skipped} | "
-            f"final_ok={final_ok} final_failed={final_failed} | "
+            f"planner_connected={_planner_overrides(plan)} | images={len(grouped)} | "
+            f"final_ok={ok} final_failed={failed} | "
+            f"models fat={fat_model} validator={val_model} formatter={fmt_model} | "
             f"run={run_name} output={output_dir}"
         )
         print(status, flush=True)
-
-        return (final_captions, final_jsonl_records, output_paths_json, status)
-
+        return ("\n\n".join(natural_blocks), "\n\n".join(taggy_blocks), final_jsonl_records, output_paths_json, status)
 
 
 NODE_CLASS_MAPPINGS = {

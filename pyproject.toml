@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "captionforge"
-version = "0.9.0"
-description = "CaptionForge generates stronger local dataset image captions by combining multiple raw caption witnesses, structured claim extraction, and deterministic semantic synthesis."
+version = "0.1.0"
+description = "Experimental ComfyUI captioning framework for LoRA dataset preparation using multi-engine caption witnesses, JSONL audit trails, text-LLM distillation, image-aware VLM validation, and grounded final-caption export."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
@@ -19,9 +19,12 @@ keywords = [
     "comfyui",
     "captioning",
     "lora",
-    "image-captioning",
     "dataset-preparation",
+    "image-captioning",
     "vision-language-models",
+    "vlm",
+    "llm",
+    "ollama",
     "qwen",
     "joycaption",
     "jsonl",
@@ -29,7 +32,7 @@ keywords = [
 ]
 
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Multimedia :: Graphics",
@@ -79,8 +82,9 @@ include = [
 
 [tool.setuptools.package-data]
 "*" = [
-    "semantic_profiles/*.json",
-    "semantic_profiles/**/*.json",
+    "config/*.json",
+    "config/**/*.json",
+    "assets/**/*",
     "web/**/*",
 ]
 

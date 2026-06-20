@@ -1,44 +1,116 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 CaptionForge Distiller Engine
-=============================
 
-CaptionForge v0.2.0 pollster/copywriter engine.
+- CaptionForge
+  - This engine is part of **CaptionForge**, a model-agnostic captioning
+    framework for ComfyUI developed by **J. L. Córdova**.
 
-Purpose
--------
-This CLI-first engine consumes Pass A caption JSONL records from one or more
-captioning models, groups records by image, and asks a text LLM to distill the
-source captions into two over-complete caption forms:
+  - Repository:
+    https://github.com/Damkohler/CaptionForge
 
-    1. distilled_caption_narrative
-       A rich, readable narrative caption.
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
-    2. distilled_caption_comma
-       A dense comma-separated LoRA-style caption.
+- Engine Purpose
+    - The **CaptionForge Distiller Engine** is the Pass B text-LLM
+      pollster/copywriter stage of the CaptionForge pipeline.
 
-A later VLM pass is expected to inspect the image and prune, correct, and ground
-these over-complete captions. This engine intentionally does not perform
-semantic-profile claim extraction, deterministic normalization, conflict tables,
-or rescue rules.
+    - It consumes Pass A raw caption JSONL records from one or more caption
+      witness engines, groups records by image, and asks a text LLM to organize
+      the captions as imperfect witness ballots.
 
-Design position
----------------
-    Pass A caption engines (Joy, Qwen, etc.)
-        -> CaptionForge Distiller Engine (this file)
-        -> future VLM grounding / pruning engine
-        -> final CaptionForge node orchestration
+    - The engine emits:
+            • accepted visual claims
+            • plausible singleton candidates
+            • rejected or unresolved conflicting claims
+            • a human-readable claim vote summary
+            • a rich narrative caption draft
+            • a dense taggy/comma-style caption draft
+            • audit metadata and optional raw LLM responses
 
-Attribution & License
----------------------
-Concept and implementation by J. L. Córdova with development assistance from
-ChatGPT (OpenAI).
-Copyright (c) 2026 J. L. Córdova.
-Released under the MIT License.
+- CaptionForge Pipeline Role
+    - This engine participates in **Pass B_DISTILL**.
+
+    - Pipeline position:
+
+            Pass A raw caption witness JSONL
+              -> Pass B_DISTILL text-LLM distillation
+              -> Pass C_VLM_VALIDATED image-aware validation
+              -> Pass D final TXT/JSONL export
+
+    - Pass B is intentionally recall-oriented. It preserves useful candidate
+      details for later image-aware validation instead of aggressively pruning
+      the caption down to a short summary.
+
+- Execution Model
+    - Primary backend: local Ollama text LLM.
+
+    - Additional supported modes include manual JSON and prompt-only workflows
+      for debugging, inspection, or controlled testing.
+
+    - Input records are grouped by `image_key`, and each image group produces
+      one distillation record.
+
+    - Trigger words and user caption anchors are treated as training metadata
+      and caption guidance, not as facts inferred by the text LLM.
+
+- Design Philosophy
+    - The distiller acts first as a ballot pollster, then as a copywriter.
+
+    - Repeated agreement across captions and model families should be promoted.
+
+    - Plausible one-off details should be preserved as singleton candidates when
+      they are not contradicted, because the VLM validator will inspect the
+      image later.
+
+    - Contradictory, weak, tied, vague, or mutually exclusive details should not
+      be promoted as accepted evidence.
+
+    - Draft captions should be rich enough for LoRA dataset preparation while
+      remaining auditable through their source claims and metadata.
+
+- Development Status
+    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
+    - Prompt contracts, audit fields, and parser behavior may evolve before a
+      stable CaptionForge release.
+
+- Attribution & License
+  - Concept and implementation by **J. L. Córdova**
+    with development assistance from **ChatGPT (OpenAI)**.
+
+  - Designed for use with:
+    https://github.com/comfyanonymous/ComfyUI
+
+  - Copyright (c) 2026 J. L. Córdova
+
+  - Released under the **MIT License**.
 """
 
 from __future__ import annotations
+
+from ..captionforge_version import CAPTIONFORGE_VERSION
+
+ENGINE_NAME = "captionforge_distiller_engine"
+ENGINE_VERSION = CAPTIONFORGE_VERSION
+CAPTIONFORGE_PASS = "B_DISTILL"
+DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+
+MANIFEST = {
+    "name": "CaptionForge Distiller Engine",
+    "version": CAPTIONFORGE_VERSION,
+    "author": "J. L. Córdova",
+    "description": (
+        "CaptionForge Pass B text-LLM distiller. Consumes Pass A caption JSONL "
+        "records, groups captions by image, treats them as imperfect witness "
+        "ballots, emits accepted claims, singleton candidates, rejected or "
+        "unresolved conflicts, and produces rich narrative plus dense taggy "
+        "caption drafts for later image-aware VLM validation."
+    ),
+}
+
 
 import argparse
 import dataclasses

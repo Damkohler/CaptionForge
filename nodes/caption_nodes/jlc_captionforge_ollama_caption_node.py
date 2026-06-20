@@ -169,7 +169,7 @@ JLC CaptionForge Ollama Caption — ComfyUI Node Wrapper
 """
 
 from __future__ import annotations
-from ..captionforge_version import CAPTIONFORGE_VERSION
+from ...captionforge_version import CAPTIONFORGE_VERSION
 
 MANIFEST = {
     "name": "JLC CaptionForge Ollama Caption",

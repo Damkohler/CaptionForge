@@ -1,5 +1,5 @@
 """
-JLC CaptionForge Qwen (Lite) — ComfyUI Node Wrapper
+JLC CaptionForge Qwen Caption — ComfyUI Node Wrapper
 
 - CaptionForge
   - This node is part of **CaptionForge**, a model-agnostic captioning
@@ -8,61 +8,45 @@ JLC CaptionForge Qwen (Lite) — ComfyUI Node Wrapper
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-  - CaptionForge focuses on practical dataset-captioning infrastructure for:
-        • LoRA dataset preparation
-        • multi-engine caption generation
-        • JSONL audit trails
-        • claim extraction and refinement
-        • consensus-oriented caption improvement
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
 - Node Purpose
-    - The **JLC CaptionForge Qwen (Lite)** node provides a compact ComfyUI
-      frontend for Qwen-family vision-language captioning inside CaptionForge.
+    - The **JLC CaptionForge Qwen Caption** node provides a ComfyUI
+      frontend for Qwen-family Hugging Face vision-language image captioning
+      inside CaptionForge.
 
-    - This file is the **ComfyUI-facing wrapper**, not the reusable captioning
-      engine. It is responsible for:
-            • compact ComfyUI INPUT_TYPES / widget definitions
+    - This file is the **ComfyUI-facing wrapper**, not the Qwen model
+      implementation. It is responsible for:
+            • ComfyUI INPUT_TYPES / widget definitions
             • optional direct IMAGE tensor input
             • IMAGE tensor conversion to PIL images
             • optional Pipeline Planner file/folder `input_path` routing
-            • fixed model-root integration under `models/LLM/`
-            • minimal model and quantization controls
+            • Qwen model dropdown and local model-root handling
+            • optional model download probing
             • clear template-vs-custom prompt controls
             • CaptionForge Pipeline Planner consumption through `pipeline_plan`
             • CaptionForge Template Options consumption through `template_options`
             • TXT audit sidecar writing in planned runs
             • shared JSONL audit output in planned runs
-            • ComfyUI output strings for captions and JSONL records
+            • direct ComfyUI caption and resolved-prompt string outputs
+            • IMAGE and pipeline-plan passthrough for clean graph chaining
             • node display name, category, and mapping registration
-            • passing user settings into the shared Qwen caption engine
 
-    - The actual reusable captioning implementation lives in:
-            jlc_qwen_caption_engine.py
-
-      That engine handles:
-            • Qwen model registry lookup
-            • Hugging Face model probing/downloading
-            • processor and model loading
-            • Qwen2 / Qwen2.5 model-class selection
-            • CaptionForge shared model-cache integration
-            • optional bitsandbytes 8-bit loading
-            • Accelerate-aware unload behavior
-            • compatibility patching for selected Qwen variants
-            • generation settings
-            • caption cleanup
-            • TXT sidecar writing
-            • JSONL audit output
-            • run-configuration export
+    - Model loading and generation are delegated to the reusable
+      `jlc_qwen_caption_engine.py` engine.
 
 - CaptionForge Pipeline Role
-    - This node participates as a **raw-caption witness** in the CaptionForge
-      pipeline.
+    - This node participates in **Pass A** of the CaptionForge pipeline.
 
-    - Raw-caption witnesses generate auditable caption evidence records from one
-      or more captioning engines.
+    - Pass A generates auditable caption evidence records from one or more
+      captioning engines.
 
-    - The Qwen Lite node contributes Qwen-family caption evidence compatible
-      with downstream CaptionForge claim extraction, semantic synthesis, and
+    - The Qwen Caption node contributes Qwen-family raw caption evidence
+      compatible with downstream CaptionForge distillation, validation, and
       final caption construction.
 
     - CaptionForge audit fields include:
@@ -83,15 +67,17 @@ JLC CaptionForge Qwen (Lite) — ComfyUI Node Wrapper
 
     - These may be used independently or together.
 
-    - In standalone mode, the node behaves as a compact direct-IMAGE captioning
-      node and writes to:
-            ComfyUI/output/jlc_captionforge_qwen_lite/
+    - In standalone mode, the node behaves as a direct IMAGE captioning node:
+            • captions the connected IMAGE or IMAGE batch
+            • returns caption text and resolved prompt text
+            • remains file-silent from the user's point of view
+            • passes the IMAGE through unchanged
 
     - When connected to the CaptionForge Pipeline Planner, this node consumes
       the shared CAPTIONFORGE_PIPELINE_PLAN through the `pipeline_plan` pin and
-      uses the Qwen model-family plan to determine:
+      uses the Qwen caption family plan to determine:
             • whether Qwen captioning participates in the run
-            • how many Qwen raw-caption witnesses to generate per image
+            • how many Qwen raw-caption records to generate per image
             • shared output directory
             • optional shared input path
             • recursive folder traversal
@@ -102,14 +88,13 @@ JLC CaptionForge Qwen (Lite) — ComfyUI Node Wrapper
             • shared max token budget
             • shared LoRA trigger word
 
-    - The node can write:
+    - In planned mode, the node can write:
             • TXT audit sidecar captions
             • JSONL audit records
             • run-configuration JSON files
-            • direct ComfyUI string outputs
 
 - Prompting Model
-    - The Lite node supports two explicit prompt modes:
+    - The node supports two explicit prompt modes:
             • caption_template_mode
             • custom_prompt_mode
 
@@ -122,34 +107,34 @@ JLC CaptionForge Qwen (Lite) — ComfyUI Node Wrapper
     - If both booleans are enabled, custom_prompt_mode intentionally takes
       precedence. If both are disabled, the node falls back to template mode.
 
-    - Local extra-option widgets have been removed. Shared template modifiers
-      now live only in the CaptionForge Template Options sidecar node.
+    - Local extra-option widgets are not duplicated. Shared template modifiers
+      live only in the CaptionForge Template Options sidecar node.
 
 - Model and Dependency Notes
-    - Qwen VLM repositories are multi-file Hugging Face model directories, not
-      single checkpoint files.
+    - Qwen model choices refer to Hugging Face-style model directories under:
+      ComfyUI/models/LLM/JLC_QwenCaption/
 
-    - Runtime behavior depends on the active ComfyUI Python environment,
-      PyTorch, Transformers, Accelerate, Pillow, qwen-vl-utils, bitsandbytes
-      when 8-bit mode is selected, and Hugging Face Hub dependencies.
+    - The node supports CaptionForge's Qwen quantization selector, including
+      the Balanced 8-bit mode used to reduce VRAM pressure.
+
+    - Runtime behavior depends on PyTorch, Transformers, Pillow, NumPy,
+      optional bitsandbytes support, and the local Qwen model files.
 
 - Design Philosophy
-    - The Lite node is intended to be a compact production-friendly raw-caption
-      witness node.
-
-    - It keeps model-family configuration local to the caption node while taking
-      shared workflow policy from the CaptionForge Pipeline Planner.
+    - This node keeps Qwen-family captioning as one independent captioning
+      voice inside CaptionForge while presenting the same workflow shape as
+      the Joy and Ollama Caption nodes.
 
     - CaptionForge is engine-democratic: Qwen captions contribute evidence to
-      the broader audit and consensus pipeline alongside Joy, SmolVLM, future
-      local VLMs, cleanup LLMs, validators, or other robustness engines.
+      the broader audit and consensus pipeline alongside Joy, Ollama VLM
+      witnesses, cleanup LLMs, validators, or other robustness engines.
 
     - The node prioritizes reproducibility, auditability, low UI clutter, and
-      clean separation between the ComfyUI interface and the shared
-      model-specific captioning engine.
+      clean separation between the ComfyUI interface and the backend model
+      engine.
 
 - ⚠️ Development Status
-    - This is early CaptionForge raw-caption witness infrastructure.
+    - This is early CaptionForge raw-caption infrastructure.
     - The UI, model registry, prompt behavior, and output audit fields may
       evolve as the multi-pass CaptionForge pipeline matures.
     - The node is intended for local dataset preparation and controlled caption
@@ -158,13 +143,6 @@ JLC CaptionForge Qwen (Lite) — ComfyUI Node Wrapper
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
     with development assistance from **ChatGPT (OpenAI)**.
-
-  - CaptionForge's template-option workflow is locally adapted and was inspired
-    in part by the practical template interface pattern used by the public
-    JoyCaption Beta One Hugging Face Space.
-
-  - Qwen-family model loading is designed around compatible Hugging Face
-    Transformers interfaces and publicly available Qwen-family checkpoints.
 
   - Designed for use with:
     https://github.com/comfyanonymous/ComfyUI
@@ -175,21 +153,21 @@ JLC CaptionForge Qwen (Lite) — ComfyUI Node Wrapper
 """
 
 from __future__ import annotations
+from ...captionforge_version import CAPTIONFORGE_VERSION
 
 MANIFEST = {
-    "name": "JLC CaptionForge Qwen (Lite)",
-    "version": (1, 3, 0),
+    "name": "JLC CaptionForge Qwen Caption",
+    "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
-        "Compact CaptionForge frontend for Qwen-family vision-language captioning. "
-        "Provides direct IMAGE captioning while also consuming CAPTIONFORGE_PIPELINE_PLAN "
-        "objects from the CaptionForge Pipeline Planner through the pipeline_plan input. "
-        "Template extras are no longer duplicated as local widgets; they are consumed only "
-        "through the template_options input from the CaptionForge Template Options sidecar. "
-        "The UI now separates caption_template_mode and custom_prompt_mode for clearer prompt "
-        "routing while delegating reusable Qwen-family model loading, generation, optional "
-        "8-bit loading, cleanup, cache integration, and audit-record creation to "
-        "jlc_qwen_caption_engine.py."
+        "Qwen-family CaptionForge frontend for local Hugging Face vision-language "
+        "image captioning. Provides direct IMAGE captioning while also consuming "
+        "CAPTIONFORGE_PIPELINE_PLAN objects from the CaptionForge Pipeline Planner "
+        "through the pipeline_plan input. Template extras are consumed only through "
+        "the template_options input from the CaptionForge Template Options sidecar. "
+        "The UI separates caption_template_mode and custom_prompt_mode for clearer "
+        "prompt routing while delegating model loading, quantization, generation, "
+        "cleanup, TXT sidecars, and JSONL audit records to the Qwen caption engine."
     ),
 }
 
@@ -197,6 +175,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 import time
+from typing import Any
 
 import numpy as np
 import torch
@@ -212,7 +191,7 @@ from ...engines.jlc_qwen_caption_engine import (
     QwenCaptionConfig,
     QwenCaptionEngine,
     append_jsonl_records,
-    record_to_json,
+    probe_registry_model_download,
     timestamp,
     write_run_config_json,
     write_text_sidecar,
@@ -230,38 +209,66 @@ JLC_QWEN_MODEL_ROOT = Path(folder_paths.models_dir) / "LLM" / "JLC_QwenCaption"
 DEFAULT_JSONL_FILENAME = "captions.jsonl"
 _SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 
-DEFAULT_LITE_PROMPT = (
-    "You are an image captioning assistant. Describe the image in a highly "
-    "detailed, literal, and visually grounded way. Focus only on visible details. "
-    "Include subject appearance, clothing, pose, body position, hands, facial "
-    "expression, hairstyle, accessories, lighting, background, textures, colors, "
-    "and spatial relationships. Write a dense descriptive prompt suitable for "
-    "image captioning. Avoid speculation, avoid backstory, avoid opinions, and "
-    "avoid mentioning things not clearly visible."
+DEFAULT_SYSTEM_PROMPT = (
+    "You are a helpful image-captioning assistant. Describe only what is visible "
+    "in the image. Do not invent unseen context."
+)
+
+DEFAULT_QWEN_PROMPT = (
+    "Describe the image in a highly detailed, literal, and visually grounded way. "
+    "Focus only on visible details. Include subject appearance, clothing, pose, "
+    "body position, hands, facial expression, hairstyle, accessories, lighting, "
+    "background, textures, colors, and spatial relationships. Write a dense "
+    "descriptive prompt suitable for image captioning. Avoid speculation, avoid "
+    "backstory, avoid opinions, and avoid mentioning things not clearly visible."
 )
 
 QWEN_PROMPT_PRESETS = {
-    "default_literal": DEFAULT_LITE_PROMPT,
+    "default_literal": DEFAULT_QWEN_PROMPT,
     "dense_lora_literal": (
-        "Describe the image as a dense, literal LoRA dataset caption. Focus only on "
-        "visible facts: subject, clothing, body position, pose, hands, face, hair, "
-        "expression, accessories, background, composition, lighting, colors, textures, "
-        "and spatial relationships. Do not roleplay, continue a conversation, add safety "
-        "commentary, infer backstory, or mention anything not visible."
+        "Describe the image as a dense, literal LoRA dataset caption. Focus only on visible facts: "
+        "subject, clothing, body position, pose, hands, face, hair, expression, accessories, background, "
+        "composition, lighting, colors, textures, and spatial relationships. Do not roleplay, continue "
+        "a conversation, add safety commentary, infer backstory, or mention anything not visible."
     ),
     "concise_literal": (
-        "Describe the image literally and concisely. Include the main visible subject, "
-        "pose, clothing, facial expression, hairstyle, background, lighting, and important "
-        "visual details. Avoid speculation, backstory, opinions, and conversation."
+        "Describe the image literally and concisely. Include the main visible subject, pose, clothing, "
+        "facial expression, hairstyle, background, lighting, and important visual details. Avoid speculation, "
+        "backstory, opinions, and conversation."
     ),
 }
+
+
+def _first_available(preferred: str, fallback: str | None, choices: dict[str, Any]) -> str:
+    if preferred in choices:
+        return preferred
+    if fallback and fallback in choices:
+        return fallback
+    return next(iter(choices.keys()))
 
 
 def _resolve_qwen_prompt(prompt_preset: str, custom_prompt: str) -> str:
     text = str(custom_prompt or "").strip()
     if text:
         return text
-    return QWEN_PROMPT_PRESETS.get(str(prompt_preset or ""), DEFAULT_LITE_PROMPT)
+    return QWEN_PROMPT_PRESETS.get(str(prompt_preset or ""), DEFAULT_QWEN_PROMPT)
+
+
+def _combine_qwen_system_and_prompt(system_prompt: str, prompt: str) -> str:
+    """Qwen engine exposes a single prompt string, so system text is folded in."""
+    system = str(system_prompt or "").strip()
+    user = str(prompt or "").strip()
+    if not system:
+        return user
+    return f"System instruction: {system}\n\nCaption prompt: {user}"
+
+
+def _format_resolved_prompt(system_prompt: str, prompt: str) -> str:
+    system = str(system_prompt or "").strip()
+    user = str(prompt or "").strip()
+    if not system:
+        return user
+    return f"SYSTEM:\n{system}\n\nUSER:\n{user}"
 
 
 def _tensor_to_pil(image_tensor) -> list[Image.Image]:
@@ -357,10 +364,6 @@ def _planned_caption_jsonl_path(pipeline_plan) -> Path | None:
     return None
 
 
-def _make_jsonl_string(records: list[CaptionRecord]) -> str:
-    return "\n".join(json.dumps(record_to_json(r), ensure_ascii=False) for r in records)
-
-
 def _run_txt_path(output_dir: Path, source_name: str, run_count: int, run_index: int) -> Path:
     if run_count <= 1:
         return output_dir / f"{source_name}.txt"
@@ -385,20 +388,58 @@ def _resolve_template_options(template_options):
     return options, name_input, metadata
 
 
-class JLC_QwenCaptionLite:
-    """Compact Qwen witness node for CaptionForge."""
+def _parse_forbidden_lines(value: str) -> list[str]:
+    value = (value or "").strip()
+    if not value:
+        return []
+    return [line.strip() for line in value.splitlines() if line.strip()]
+
+
+def _parse_replace_pairs(value: str) -> list[tuple[str, str]]:
+    """Parse ComfyUI-friendly replacement rules in old=>new form."""
+    value = (value or "").strip()
+    if not value:
+        return []
+
+    rules: list[tuple[str, str]] = []
+    for line in value.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=>" not in line:
+            continue
+        old, new = line.split("=>", 1)
+        old = old.strip()
+        new = new.strip()
+        if old:
+            rules.append((old, new))
+    return rules
+
+
+class JLC_CaptionForgeQwen:
+    """Canonical Qwen raw-caption witness CapNode for CaptionForge."""
 
     @classmethod
     def INPUT_TYPES(cls):
+        qwen_default_model = _first_available(
+            "Qwen2.5-VL-7B-Instruct",
+            "Qwen2.5-VL-3B-Instruct",
+            MODEL_REGISTRY,
+        )
+        caption_type_default = (
+            "LoRA Literal"
+            if "LoRA Literal" in CAPTION_TYPE_CHOICES
+            else CAPTION_TYPE_CHOICES[0]
+        )
+
         return {
             "required": {
                 "model": (
                     list(MODEL_REGISTRY.keys()),
                     {
-                        "default": "Qwen2.5-VL-3B-Instruct",
+                        "default": qwen_default_model,
                         "tooltip": (
-                            "Select the Qwen vision-language model. Models are loaded from "
-                            "ComfyUI/models/LLM/JLC_QwenCaption/."
+                            "Qwen vision-language model. Models are loaded from "
+                            "ComfyUI/models/LLM/JLC_QwenCaption/. Missing models may be "
+                            "downloaded automatically unless download_probe_only is enabled."
                         ),
                     },
                 ),
@@ -407,9 +448,8 @@ class JLC_QwenCaptionLite:
                     {
                         "default": "Balanced (8-bit)",
                         "tooltip": (
-                            "Qwen model load mode. Balanced (8-bit) uses bitsandbytes 8-bit "
-                            "loading to reduce VRAM pressure, especially for Qwen2.5-VL 7B "
-                            "variants."
+                            "Qwen model load mode. Balanced (8-bit) uses bitsandbytes 8-bit loading "
+                            "to reduce VRAM pressure, especially for Qwen2.5-VL 7B variants."
                         ),
                     },
                 ),
@@ -419,26 +459,26 @@ class JLC_QwenCaptionLite:
                         "default": True,
                         "tooltip": (
                             "Keep the model cached after captioning for faster repeated runs. "
-                            "CaptionForge cache policy may still evict it when another caption "
-                            "model must load."
+                            "CaptionForge cache policy may still evict it when another caption model must load."
                         ),
                     },
                 ),
+
                 "caption_template_mode": (
                     "BOOLEAN",
                     {
                         "default": True,
                         "tooltip": (
-                            "Use the structured CaptionForge template path: caption_type, "
-                            "caption_length, and optional Template Options from the template_options pin. "
-                            "If custom_prompt_mode is also enabled, custom_prompt_mode takes precedence."
+                            "Use the structured CaptionForge template path: caption_type, caption_length, "
+                            "and optional Template Options from the template_options pin. If custom_prompt_mode "
+                            "is also enabled, custom_prompt_mode takes precedence."
                         ),
                     },
                 ),
                 "caption_type": (
                     CAPTION_TYPE_CHOICES,
                     {
-                        "default": "LoRA Literal" if "LoRA Literal" in CAPTION_TYPE_CHOICES else CAPTION_TYPE_CHOICES[0],
+                        "default": caption_type_default,
                         "tooltip": "Caption template style used when caption_template_mode is active.",
                     },
                 ),
@@ -449,6 +489,7 @@ class JLC_QwenCaptionLite:
                         "tooltip": "Target caption length used when caption_template_mode is active.",
                     },
                 ),
+
                 "custom_prompt_mode": (
                     "BOOLEAN",
                     {
@@ -466,6 +507,17 @@ class JLC_QwenCaptionLite:
                         "tooltip": "Built-in prompt preset used only in custom_prompt_mode when custom_prompt is blank.",
                     },
                 ),
+                "system_prompt": (
+                    "STRING",
+                    {
+                        "default": DEFAULT_SYSTEM_PROMPT,
+                        "multiline": True,
+                        "tooltip": (
+                            "Qwen engine accepts a single prompt string, so this system instruction is "
+                            "folded above the resolved caption prompt. Kept next to custom_prompt for clarity."
+                        ),
+                    },
+                ),
                 "custom_prompt": (
                     "STRING",
                     {
@@ -474,6 +526,7 @@ class JLC_QwenCaptionLite:
                         "tooltip": "Custom prompt used only when custom_prompt_mode is enabled. Overrides prompt_preset when non-empty.",
                     },
                 ),
+
                 "max_new_tokens": (
                     "INT",
                     {
@@ -482,8 +535,8 @@ class JLC_QwenCaptionLite:
                         "max": 4096,
                         "step": 8,
                         "tooltip": (
-                            "Standalone token budget. When a CaptionForge Pipeline Planner is connected, "
-                            "this is overridden by the Pipeline Planner's shared max_new_tokens."
+                            "Standalone token budget. When a Pipeline Planner is connected, this is "
+                            "overridden by the Planner's shared max_new_tokens."
                         ),
                     },
                 ),
@@ -495,8 +548,8 @@ class JLC_QwenCaptionLite:
                         "max": 2.0,
                         "step": 0.01,
                         "tooltip": (
-                            "Standalone sampling temperature. When a CaptionForge Pipeline Planner is "
-                            "connected, this is overridden by the Pipeline Planner temperature schedule."
+                            "Standalone sampling temperature. When a Pipeline Planner is connected, "
+                            "this is overridden by the Planner temperature schedule."
                         ),
                     },
                 ),
@@ -508,8 +561,8 @@ class JLC_QwenCaptionLite:
                         "max": 1.0,
                         "step": 0.01,
                         "tooltip": (
-                            "Standalone top-p sampling value. When a CaptionForge Pipeline Planner is "
-                            "connected, this is overridden by the Pipeline Planner top-p schedule."
+                            "Standalone top-p sampling value. When a Pipeline Planner is connected, "
+                            "this is overridden by the Planner top-p schedule."
                         ),
                     },
                 ),
@@ -521,8 +574,63 @@ class JLC_QwenCaptionLite:
                         "max": 500,
                         "step": 1,
                         "tooltip": (
-                            "Standalone top-k sampling limit. When a CaptionForge Pipeline Planner is "
-                            "connected, this is overridden by the Pipeline Planner top-k schedule."
+                            "Standalone top-k sampling limit. When a Pipeline Planner is connected, "
+                            "this is overridden by the Planner top-k schedule."
+                        ),
+                    },
+                ),
+                "repetition_penalty": (
+                    "FLOAT",
+                    {
+                        "default": 1.08,
+                        "min": 1.0,
+                        "max": 2.0,
+                        "step": 0.01,
+                        "tooltip": (
+                            "Penalty applied to repeated tokens. Kept with the core captioning parameters. "
+                            "This is not currently overridden by the Pipeline Planner."
+                        ),
+                    },
+                ),
+                "max_size": (
+                    "INT",
+                    {
+                        "default": 1024,
+                        "min": 0,
+                        "max": 4096,
+                        "step": 64,
+                        "tooltip": (
+                            "Maximum longest-side image size for standalone captioning. The image is resized "
+                            "in memory only. Pipeline Planner overrides this in planned runs."
+                        ),
+                    },
+                ),
+
+                "forbidden_phrases": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "advanced": True,
+                        "tooltip": "Optional cleanup filter: remove lines/captions containing any listed phrase, one per line.",
+                    },
+                ),
+                "replace_pairs": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "advanced": True,
+                        "tooltip": "Optional cleanup replacements, one per line: old=>new.",
+                    },
+                ),
+                "download_probe_only": (
+                    "BOOLEAN",
+                    {
+                        "default": False,
+                        "tooltip": (
+                            "At the very bottom by design. Probe/download lightweight model metadata only, "
+                            "then return a status message without captioning."
                         ),
                     },
                 ),
@@ -532,8 +640,8 @@ class JLC_QwenCaptionLite:
                     "IMAGE",
                     {
                         "tooltip": (
-                            "Image or batch of images to caption. When a CaptionForge Pipeline Planner "
-                            "also supplies input_path, both sources are captioned."
+                            "Image or batch of images to caption. The image is passed through unchanged "
+                            "for clean node-to-node pipeline chaining."
                         ),
                     },
                 ),
@@ -541,10 +649,9 @@ class JLC_QwenCaptionLite:
                     "CAPTIONFORGE_PIPELINE_PLAN",
                     {
                         "tooltip": (
-                            "Connect the CaptionForge Pipeline Planner output here. When connected, "
-                            "this node switches into Pass A evidence mode: shared input_path/output_dir, "
-                            "per-run seeds and schedules, TXT audit sidecars, common captions.jsonl, "
-                            "and run config export."
+                            "Connect the CaptionForge Pipeline Planner output here. When connected, this "
+                            "node switches into Pass A evidence mode: Planner image routing, per-run seeds, "
+                            "sampling schedules, shared output paths, and internal JSONL evidence append."
                         ),
                     },
                 ),
@@ -552,9 +659,8 @@ class JLC_QwenCaptionLite:
                     "CAPTIONFORGE_EXTRA_OPTIONS",
                     {
                         "tooltip": (
-                            "Connect the CaptionForge Template Options node here. This supplies shared "
-                            "caption-template modifiers and optional name text. Local extra-option widgets "
-                            "were removed so template modifiers have one source of truth."
+                            "Connect the CaptionForge Template Options node here. Works in standalone and "
+                            "Pipeline modes. This is the only source for template modifiers and name input."
                         ),
                     },
                 ),
@@ -568,10 +674,10 @@ class JLC_QwenCaptionLite:
             },
         }
 
-    RETURN_TYPES = ("CAPTIONFORGE_PIPELINE_PLAN", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("pipeline_plan_out", "caption", "jsonl_records", "resolved_prompt")
+    RETURN_TYPES = ("IMAGE", "CAPTIONFORGE_PIPELINE_PLAN", "STRING", "STRING")
+    RETURN_NAMES = ("image_out", "pipeline_plan_out", "caption", "resolved_prompt")
     FUNCTION = "caption"
-    CATEGORY = "JLC/CaptionForge/Caption Nodes"
+    CATEGORY = "Captioning/CaptionForge/Captioning Nodes"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -587,11 +693,17 @@ class JLC_QwenCaptionLite:
         caption_length,
         custom_prompt_mode,
         prompt_preset,
+        system_prompt,
         custom_prompt,
         max_new_tokens,
         temperature,
         top_p,
         top_k,
+        repetition_penalty,
+        max_size,
+        forbidden_phrases,
+        replace_pairs,
+        download_probe_only,
         image=None,
         pipeline_plan=None,
         template_options=None,
@@ -602,7 +714,7 @@ class JLC_QwenCaptionLite:
         effective_extra_options, effective_person_name, _ = _resolve_template_options(template_options)
 
         if use_caption_template:
-            prompt = build_caption_prompt(
+            user_prompt = build_caption_prompt(
                 caption_type=caption_type,
                 caption_length=caption_length,
                 extra_options=effective_extra_options,
@@ -610,7 +722,14 @@ class JLC_QwenCaptionLite:
                 dialect="qwen",
             )
         else:
-            prompt = _resolve_qwen_prompt(prompt_preset, custom_prompt)
+            user_prompt = _resolve_qwen_prompt(prompt_preset, custom_prompt)
+
+        prompt = _combine_qwen_system_and_prompt(system_prompt, user_prompt)
+        resolved_prompt = _format_resolved_prompt(system_prompt, user_prompt)
+
+        if download_probe_only:
+            result = probe_registry_model_download(model, JLC_QWEN_MODEL_ROOT)
+            return (image, pipeline_plan, result, resolved_prompt)
 
         effective_seed = -1 if seed is None else int(seed)
 
@@ -623,7 +742,7 @@ class JLC_QwenCaptionLite:
             widget_top_p=float(top_p),
             widget_top_k=int(top_k),
             widget_max_new_tokens=int(max_new_tokens),
-            widget_max_size=1024,
+            widget_max_size=int(max_size),
             widget_trigger_word="",
             widget_output_dir="",
             widget_input_path="",
@@ -632,12 +751,11 @@ class JLC_QwenCaptionLite:
         )
 
         if run_plan_connected and not run_plan:
-            status = "[CaptionForge] Qwen Caption Lite disabled by Pipeline Planner."
+            status = "[CaptionForge] Qwen disabled by Pipeline Planner."
             print(status)
-            return (pipeline_plan, status, "", prompt)
+            return (image, pipeline_plan, status, resolved_prompt)
 
         first_run = run_plan[0]
-
         qwen_quantization_value = "bnb_8bit" if qwen_quantization == "Balanced (8-bit)" else "none"
 
         generation = GenerationConfig(
@@ -645,7 +763,7 @@ class JLC_QwenCaptionLite:
             temperature=float(first_run.temperature),
             top_p=float(first_run.top_p),
             top_k=int(first_run.top_k),
-            repetition_penalty=1.08,
+            repetition_penalty=float(repetition_penalty),
             seed=first_run.seed,
         )
 
@@ -653,8 +771,8 @@ class JLC_QwenCaptionLite:
             trigger="",
             prefix=(f"{first_run.trigger_word}," if first_run.trigger_word else ""),
             suffix="",
-            forbidden_phrases=[],
-            replacement_rules=[],
+            forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
+            replacement_rules=_parse_replace_pairs(replace_pairs),
         )
 
         qwen_config = QwenCaptionConfig(
@@ -690,25 +808,28 @@ class JLC_QwenCaptionLite:
 
         if not direct_images and not file_images:
             raise RuntimeError(
-                "No image input found. Connect an IMAGE input or provide input_path in the "
-                "CaptionForge Pipeline Planner."
+                "No image input found. Connect an IMAGE input or provide input_path in the CaptionForge Pipeline Planner."
             )
 
-        planned_caption_jsonl_path = _planned_caption_jsonl_path(pipeline_plan) if run_plan_connected else None
-        output_dir = Path(first_run.output_dir) if first_run.output_dir else Path(folder_paths.get_output_directory()) / "jlc_captionforge_qwen_lite"
-        if planned_caption_jsonl_path is not None:
-            output_dir = planned_caption_jsonl_path.parent
+        output_dir: Path | None = None
+        jsonl_path: Path | None = None
         if run_plan_connected:
+            planned_caption_jsonl_path = _planned_caption_jsonl_path(pipeline_plan)
+            output_dir = (
+                planned_caption_jsonl_path.parent
+                if planned_caption_jsonl_path is not None
+                else Path(first_run.output_dir or (Path(folder_paths.get_output_directory()) / "CaptionForge"))
+            )
             output_dir.mkdir(parents=True, exist_ok=True)
+            jsonl_path = planned_caption_jsonl_path or (output_dir / DEFAULT_JSONL_FILENAME)
 
-        jsonl_path = planned_caption_jsonl_path or (output_dir / DEFAULT_JSONL_FILENAME)
         all_records: list[CaptionRecord] = []
 
         engine.load()
 
-        if run_plan_connected:
+        if run_plan_connected and output_dir is not None:
             write_run_config_json(
-                output_dir / f"jlc_captionforge_qwen_lite_run_config_{timestamp()}.json",
+                output_dir / f"jlc_captionforge_qwen_run_config_{timestamp()}.json",
                 engine.build_run_config(),
                 dry_run=False,
             )
@@ -720,22 +841,22 @@ class JLC_QwenCaptionLite:
                     temperature=float(run.temperature),
                     top_p=float(run.top_p),
                     top_k=int(run.top_k),
-                    repetition_penalty=1.08,
+                    repetition_penalty=float(repetition_penalty),
                     seed=run.seed,
                 )
                 engine.cleanup = CleanupConfig(
                     trigger="",
                     prefix=(f"{run.trigger_word}," if run.trigger_word else ""),
                     suffix="",
-                    forbidden_phrases=[],
-                    replacement_rules=[],
+                    forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
+                    replacement_rules=_parse_replace_pairs(replace_pairs),
                 )
                 engine.config.max_size = int(run.max_size)
 
                 t0 = time.perf_counter()
                 final_caption, raw_caption = engine.caption_pil(pil)
                 dt = time.perf_counter() - t0
-                print(f"[JLC CaptionForge Qwen Lite] Generation time run {run.ensemble_run_index}: {dt:.2f}s")
+                print(f"[JLC CaptionForge Qwen] Generation time run {run.ensemble_run_index}: {dt:.2f}s")
 
                 record = CaptionRecord(
                     image=source_name,
@@ -758,7 +879,7 @@ class JLC_QwenCaptionLite:
                 )
                 all_records.append(record)
 
-                if run_plan_connected:
+                if run_plan_connected and jsonl_path is not None and output_dir is not None:
                     append_jsonl_records(jsonl_path, [record], dry_run=False)
                     write_text_sidecar(
                         _run_txt_path(output_dir, source_name, len(run_plan), run.ensemble_run_index),
@@ -768,7 +889,7 @@ class JLC_QwenCaptionLite:
                         dry_run=False,
                     )
                 print(
-                    f"[JLC CaptionForge Qwen Lite] Captioned {source_name} "
+                    f"[JLC CaptionForge Qwen] Captioned {source_name} "
                     f"run {run.ensemble_run_index + 1}/{len(run_plan)}"
                 )
 
@@ -782,14 +903,13 @@ class JLC_QwenCaptionLite:
             engine.unload()
 
         caption_string = "\n\n".join(r.caption for r in all_records if r.status == "ok")
-        jsonl_string = _make_jsonl_string(all_records)
-        return (pipeline_plan, caption_string, jsonl_string, prompt)
+        return (image, pipeline_plan, caption_string, resolved_prompt)
 
 
 NODE_CLASS_MAPPINGS = {
-    "JLC_QwenCaptionLite": JLC_QwenCaptionLite,
+    "JLC_CaptionForgeQwen": JLC_CaptionForgeQwen,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "JLC_QwenCaptionLite": "\u2003JLC CaptionForge Qwen (Lite)",
+    "JLC_CaptionForgeQwen": "\u2003JLC CaptionForge Qwen",
 }

@@ -1,15 +1,104 @@
-#!/usr/bin/env python
 """
 CaptionForge Caption Prompt Kit
 
-Shared, dependency-free prompt builder for non-Joy CaptionForge caption engines.
+- CaptionForge
+  - This module is part of **CaptionForge**, a model-agnostic captioning
+    framework for ComfyUI developed by **J. L. Córdova**.
 
-This module is intentionally NOT a Joy Space clone.  Joy keeps using
-captionforge_joy_space_prompt_kit.py.  Qwen, SmolVLM, and future lightweight
-caption witnesses can use this generic kit for a common UI vocabulary while
-still selecting model-dialect-specific prompt wording.
+  - Repository:
+    https://github.com/Damkohler/CaptionForge
+
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
+
+- Module Purpose
+    - The **CaptionForge Caption Prompt Kit** is a shared, dependency-free
+      prompt builder for non-Joy CaptionForge caption witnesses.
+
+    - It provides a common caption-prompt vocabulary for Qwen, SmolVLM, and
+      future lightweight or generic caption engines while still allowing
+      model-dialect-specific wording.
+
+    - It defines:
+            • caption length choices
+            • caption type choices
+            • reusable extra-option text
+            • dialect normalization
+            • prompt construction helpers
+            • prompt metadata helpers
+
+- CaptionForge Pipeline Role
+    - This module supports **Pass A** raw caption witness nodes.
+
+    - It does not caption images and does not call a model directly.
+
+    - Caption nodes use this kit to build the text instruction sent to a
+      backend captioning model, then record the resolved prompt and metadata in
+      CaptionForge audit outputs.
+
+- Prompting Model
+    - The kit intentionally provides a generic CaptionForge prompt interface
+      rather than cloning the JoyCaption Space prompt harness.
+
+    - Joy-specific prompt compatibility lives in:
+
+            captionforge_joy_space_prompt_kit.py
+
+    - This separation lets Joy preserve its own practical prompt behavior while
+      Qwen, SmolVLM, Ollama, and future caption witnesses share a simpler
+      CaptionForge-native prompt vocabulary.
+
+    - Supported dialect aliases currently normalize toward generic, Qwen, and
+      SmolVLM-oriented wording.
+
+- Design Philosophy
+    - CaptionForge prompt builders should be small, explicit, auditable, and
+      dependency-free.
+
+    - The generic kit should provide useful LoRA/dataset-captioning defaults
+      without forcing all caption engines to behave identically.
+
+    - Prompt text should remain visible through resolved-prompt outputs and
+      JSONL audit trails so users can understand what each caption witness was
+      asked to do.
+
+- Development Status
+    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
+    - Caption types, extra options, and dialect wording may evolve as additional
+      caption engines are tested.
+
+- Attribution & License
+  - Concept and implementation by **J. L. Córdova**
+    with development assistance from **ChatGPT (OpenAI)**.
+
+  - Designed for use with:
+    https://github.com/comfyanonymous/ComfyUI
+
+  - Copyright (c) 2026 J. L. Córdova
+
+  - Released under the **MIT License**.
 """
+
 from __future__ import annotations
+
+from ..captionforge_version import CAPTIONFORGE_VERSION
+
+MANIFEST = {
+    "name": "CaptionForge Caption Prompt Kit",
+    "version": CAPTIONFORGE_VERSION,
+    "author": "J. L. Córdova",
+    "description": (
+        "Shared dependency-free prompt builder for non-Joy CaptionForge caption "
+        "witnesses. Provides caption length choices, caption type choices, "
+        "extra-option text, dialect normalization, prompt construction helpers, "
+        "and prompt metadata for Qwen, SmolVLM, Ollama, and future generic "
+        "caption engines."
+    ),
+}
+
 
 from dataclasses import asdict, dataclass
 from typing import Any, Iterable

@@ -2,34 +2,31 @@
 JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
 
 - CaptionForge
-  - This node is part of CaptionForge, a model-agnostic captioning and
-    caption-refinement framework for ComfyUI developed by J. L. Córdova.
+  - This node is part of **CaptionForge**, a model-agnostic captioning and
+    caption-refinement framework for ComfyUI developed by **J. L. Córdova**.
 
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-  - CaptionForge focuses on practical dataset-captioning infrastructure for:
-        • LoRA dataset preparation
-        • multi-engine raw caption generation
-        • Pipeline Planner controlled routing
-        • JSONL audit trails
-        • text-LLM caption distillation
-        • image-aware VLM validation
-        • deterministic final TXT/JSONL export
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
 - Node Purpose
-    - The JLC CaptionForge Pipeline Planner is the ordinary-run control center
-      for the current CaptionForge workflow.
+    - The **JLC CaptionForge Pipeline Planner** is the ordinary-run control
+      center for the current CaptionForge workflow.
 
-    - This file is the ComfyUI-facing wrapper for building a
+    - This file is the **ComfyUI-facing wrapper** for building a
       CAPTIONFORGE_PIPELINE_PLAN. It is responsible for:
             • ComfyUI INPUT_TYPES / widget definitions
             • optional IMAGE passthrough for quick single-image workflows
             • shared input path, recursion, and filename-glob routing
             • output folder and run-name policy
             • LoRA trigger word and user caption anchor routing
-            • raw-caption witness counts for Joy, Qwen, and SmolVLM
-            • caption witness seed, sampling, image-size, and token policy
+            • raw-caption run counts for Joy, Qwen, and generic Ollama Caption nodes
+            • caption seed, sampling, image-size, and token policy
             • Distiller model/settings selection
             • Validator model/settings selection
             • final export policy
@@ -40,8 +37,10 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
 
 - Ollama Model Dropdowns
     - Distiller and Validator dropdown values are explicit Ollama model tags.
-    - Family aliases and shorthand substitutions are intentionally not used.
-    - Dropdown choices are loaded at node-import time from:
+    - Caption-stage Ollama models are intentionally selected on each
+      **JLC CaptionForge Ollama Caption** node, not in this Planner.
+    - Dropdown choices for Distiller/Validator are loaded at node-import time
+      from:
             config/captionforge_ollama_models.json
     - If the JSON file is missing or malformed, the node falls back to:
             Distiller: llama3.1:8b
@@ -50,22 +49,28 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
       without editing Python.
 
 - CaptionForge Pipeline Role
-    - The planner emits the CAPTIONFORGE_PIPELINE_PLAN consumed by raw-caption
-      witness nodes and the JLC CaptionForge capstone node.
+    - The planner emits the CAPTIONFORGE_PIPELINE_PLAN consumed by caption
+      nodes and the JLC CaptionForge capstone node.
 
     - The canonical graph flow is:
             Pipeline Planner
-              -> Joy/Qwen/SmolVLM raw-caption witness nodes
+              -> Joy/Qwen/Ollama raw-caption nodes
               -> JLC CaptionForge capstone node
               -> Distiller Engine
               -> VLM Validator Engine
               -> final deterministic TXT/JSONL export
+
+    - SmolVLM is not exposed in the current mainline Planner UI. It may remain
+      available as a standalone/experimental node and can be revisited later.
 
 - Design Philosophy
     - CaptionForge is an original concept and implementation, not derived from
       or based on another ComfyUI workflow.
     - The planner keeps shared workflow policy centralized while leaving model
       execution to reusable engines and model-specific caption nodes.
+    - Caption-stage Ollama model choice remains local to each Ollama Caption
+      node so users can chain one or more Ollama-backed VLM captioners without
+      making the Planner responsible for pulling, probing, or validating model tags.
     - The node prioritizes reproducibility, auditability, explicit model tags,
       low UI ambiguity, and clean separation between ComfyUI UI and reusable
       pipeline logic.
@@ -76,28 +81,31 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
       evolve as CaptionForge matures.
 
 - Attribution & License
-  - Concept and implementation by J. L. Córdova
-    with development assistance from ChatGPT (OpenAI).
+  - Concept and implementation by **J. L. Córdova**
+    with development assistance from **ChatGPT (OpenAI)**.
   - Designed for use with:
     https://github.com/comfyanonymous/ComfyUI
   - Copyright (c) 2026 J. L. Córdova
-  - Released under the MIT License.
+  - Released under the **MIT License**.
 """
 
 from __future__ import annotations
+from ..captionforge_version import CAPTIONFORGE_VERSION
 
 MANIFEST = {
     "name": "JLC CaptionForge Pipeline Planner",
-    "version": (0, 5, 8),
+    "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
         "ComfyUI-facing Pipeline Planner node for CaptionForge. Builds the "
         "CAPTIONFORGE_PIPELINE_PLAN consumed through the pipeline_plan pin by "
-        "captioning nodes and the JLC CaptionForge capstone node. Exposes Joy, Qwen, and SmolVLM caption witness counts for the current supported Pass A set. Loads explicit "
-        "Ollama Distiller/Validator "
-        "dropdown tags from config/captionforge_ollama_models.json, with no "
-        "family aliases or shorthand model substitutions. When overwrite_outputs is true, "
-        "the planner resets the planned Pass A caption JSONL before caption witnesses append fresh records."
+        "caption nodes and the JLC CaptionForge capstone node. Exposes Joy, Qwen, "
+        "and generic Ollama Caption run counts for the current supported Pass A set. "
+        "Caption-stage Ollama model tags are selected directly on each Ollama Caption "
+        "node. Loads explicit Ollama Distiller/Validator dropdown tags from "
+        "config/captionforge_ollama_models.json, with no family aliases or shorthand "
+        "model substitutions. When overwrite_outputs is true, the planner resets the "
+        "planned Pass A caption JSONL before caption nodes append fresh records."
     ),
 }
 
@@ -124,6 +132,15 @@ from ..engines.captionforge_pipeline_planner_engine import (
 
 CAPTION_RUNS = ["Disabled", "1", "2", "3", "4", "5"]
 SEED_MODES = ["fixed", "increment", "decrement", "random"]
+
+# Current production-caption defaults favor the tested Ollama VLM path. These
+# values are also consumed by Joy/Qwen in planned mode through the shared
+# CaptionForge run expansion.
+DEFAULT_CAPTION_TEMPERATURE_SCHEDULE = "0.90"
+DEFAULT_CAPTION_TOP_P_SCHEDULE = "0.60"
+DEFAULT_CAPTION_TOP_K_SCHEDULE = "80"
+DEFAULT_CAPTION_MAX_IMAGE_SIZE = 1024
+DEFAULT_CAPTION_MAX_NEW_TOKENS = 6000
 
 _MODEL_DROPDOWNS = load_ollama_model_dropdowns(__file__)
 DISTILLER_MODEL_CHOICES = _MODEL_DROPDOWNS["distiller_models"]
@@ -208,6 +225,22 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
     distiller_model = str(kwargs.get("distiller_model") or DEFAULT_DISTILLER_MODEL).strip() or DEFAULT_DISTILLER_MODEL
     validator_model = str(kwargs.get("validator_model") or DEFAULT_VALIDATOR_MODEL).strip() or DEFAULT_VALIDATOR_MODEL
 
+    caption_common = {
+        "base_seed": kwargs.get("base_seed", -1),
+        "seed_mode": kwargs.get("seed_mode", "fixed"),
+        "temperature_schedule": kwargs.get("temperature_schedule", DEFAULT_CAPTION_TEMPERATURE_SCHEDULE),
+        "top_p_schedule": kwargs.get("top_p_schedule", DEFAULT_CAPTION_TOP_P_SCHEDULE),
+        "top_k_schedule": kwargs.get("top_k_schedule", DEFAULT_CAPTION_TOP_K_SCHEDULE),
+        "max_size": kwargs.get("max_size", DEFAULT_CAPTION_MAX_IMAGE_SIZE),
+        "max_new_tokens": kwargs.get("max_new_tokens", DEFAULT_CAPTION_MAX_NEW_TOKENS),
+    }
+    for caption_key in ("caption_settings", "caption_generation", "pass_a_settings"):
+        existing = plan.get(caption_key)
+        if not isinstance(existing, dict):
+            existing = {}
+        existing.update(caption_common)
+        plan[caption_key] = existing
+
     pass_b_distiller = plan.setdefault("pass_b_distiller", {})
     if isinstance(pass_b_distiller, dict):
         pass_b_distiller.update({
@@ -276,17 +309,18 @@ def _patch_supported_caption_witnesses(
     *,
     joy_runs: int,
     qwen_runs: int,
-    smolvlm_runs: int,
+    ollama_runs: int,
 ) -> dict[str, Any]:
-    """Normalize the current supported Pass A caption witness set.
+    """Normalize the current supported Pass A caption-node set.
 
-    Older planner-engine builds knew about Florence/Llama Vision placeholders.
-    Current CaptionForge UI intentionally exposes only the supported caption
-    witness families for this release path: Joy, Qwen, and SmolVLM.
+    Current CaptionForge mainline exposes Joy, Qwen, and generic Ollama Caption
+    nodes. SmolVLM is deliberately not exposed in this Planner revision, but
+    deprecated compatibility keys are patched to zero so older planner-engine
+    structures do not accidentally enable removed branches.
 
-    This helper patches several harmless compatibility locations so both older
-    and newer expand_captionforge_runs implementations can resolve SmolVLM from
-    the emitted CAPTIONFORGE_PIPELINE_PLAN.
+    The canonical Ollama key is ``ollama``. Each connected JLC CaptionForge
+    Ollama Caption node uses this count with its own locally selected Ollama
+    model tag.
     """
     if not isinstance(plan, dict):
         plan = {}
@@ -294,9 +328,11 @@ def _patch_supported_caption_witnesses(
     counts = {
         "joy": max(0, int(joy_runs)),
         "qwen": max(0, int(qwen_runs)),
-        "smolvlm": max(0, int(smolvlm_runs)),
+        "ollama": max(0, int(ollama_runs)),
     }
     deprecated_zero = {
+        "smolvlm": 0,
+        "smol": 0,
         "florence": 0,
         "llama_vision": 0,
         "llamavision": 0,
@@ -307,8 +343,12 @@ def _patch_supported_caption_witnesses(
     for key, runs in counts.items():
         plan[f"{key}_runs_per_image"] = runs
         plan[f"{key}_captions_per_image"] = runs
-    plan["smol_runs_per_image"] = counts["smolvlm"]
-    plan["smol_captions_per_image"] = counts["smolvlm"]
+
+    # Extra aliases accepted by the Ollama Caption node and earlier experiments.
+    for alias in ("ollama_caption", "caption_ollama", "ollama_vlm"):
+        plan[f"{alias}_runs_per_image"] = counts["ollama"]
+        plan[f"{alias}_captions_per_image"] = counts["ollama"]
+
     for key, runs in deprecated_zero.items():
         plan[f"{key}_runs_per_image"] = runs
         plan[f"{key}_captions_per_image"] = runs
@@ -316,8 +356,12 @@ def _patch_supported_caption_witnesses(
     shared = plan.setdefault("shared", {})
     if isinstance(shared, dict):
         shared["caption_witness_counts"] = dict(counts)
+        shared["caption_node_counts"] = dict(counts)
         shared["supported_caption_witnesses"] = [key for key, runs in counts.items() if runs > 0]
+        shared["supported_caption_nodes"] = [key for key, runs in counts.items() if runs > 0]
         shared["deprecated_caption_witnesses"] = list(deprecated_zero.keys())
+        shared["deprecated_caption_nodes"] = list(deprecated_zero.keys())
+        shared["ollama_caption_model_policy"] = "model_tag_selected_in_each_ollama_caption_node"
 
     def witness_record(model_key: str, runs: int) -> dict[str, Any]:
         return {
@@ -328,6 +372,14 @@ def _patch_supported_caption_witnesses(
             "captions_per_image": int(runs),
         }
 
+    def patch_family(container: dict[str, Any], key: str, model_key: str, runs: int) -> None:
+        existing = container.get(key)
+        if not isinstance(existing, dict):
+            existing = {}
+        merged = dict(existing)
+        merged.update(witness_record(model_key, runs))
+        container[key] = merged
+
     def patch_container(container: Any) -> None:
         if not isinstance(container, dict):
             return
@@ -335,27 +387,15 @@ def _patch_supported_caption_witnesses(
         # Preserve any engine-provided per-family details, but force current
         # counts/enabled states.
         for key, runs in counts.items():
-            existing = container.get(key)
-            if not isinstance(existing, dict):
-                existing = {}
-            merged = dict(existing)
-            merged.update(witness_record(key, runs))
-            container[key] = merged
+            patch_family(container, key, key, runs)
 
-        # Smol is sometimes shortened in human-facing code. Provide the alias,
-        # but keep smolvlm as canonical because the Smol node requests
-        # model_key="smolvlm".
-        smol_alias = dict(container.get("smol", {}) if isinstance(container.get("smol"), dict) else {})
-        smol_alias.update(witness_record("smolvlm", counts["smolvlm"]))
-        container["smol"] = smol_alias
+        # Aliases let existing/future Ollama nodes resolve the same canonical
+        # count without making the Planner care about model tags.
+        for alias in ("ollama_caption", "caption_ollama", "ollama_vlm"):
+            patch_family(container, alias, "ollama", counts["ollama"])
 
         for key in deprecated_zero:
-            existing = container.get(key)
-            if not isinstance(existing, dict):
-                existing = {}
-            merged = dict(existing)
-            merged.update(witness_record(key, 0))
-            container[key] = merged
+            patch_family(container, key, key, 0)
 
     # Common/possible namespaces used during CaptionForge planner evolution.
     for container_key in (
@@ -364,6 +404,7 @@ def _patch_supported_caption_witnesses(
         "captioning",
         "caption_models",
         "caption_witnesses",
+        "caption_nodes",
         "caption_model_families",
         "raw_caption_witnesses",
         "pass_a",
@@ -374,12 +415,11 @@ def _patch_supported_caption_witnesses(
 
     return plan
 
-
 def _reset_pass_a_jsonl_for_overwrite(plan: dict[str, Any], *, overwrite_outputs: bool) -> None:
     """Reset the planned Pass A JSONL before caption witnesses append.
 
     Caption witness nodes append to the shared A_RAW_CAPTIONS JSONL during a
-    planned run so Joy, Qwen, SmolVLM, and future witnesses can contribute to the
+    planned run so Joy, Qwen, Ollama, and future caption nodes can contribute to the
     same evidence file. That append behavior is correct inside a single run, but
     stale records from a previous run must not survive when the user has selected
     Output - overwrite outputs.
@@ -551,27 +591,31 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
 
                 # -----------------------------------------------------------------
-                # Caption witness controls. User-facing label avoids Pass A.
+                # Caption-node controls. User-facing label avoids Pass A.
                 # -----------------------------------------------------------------
                 "Caption - Joy runs/image": (
                     CAPTION_RUNS,
                     {
                         "default": "2",
-                        "tooltip": "Joy caption witnesses per image. Set to Disabled to omit Joy from this run. Dropdown is capped at 5 to prevent accidental giant runs.",
+                        "tooltip": "Joy Caption runs per image. Set to Disabled to omit Joy from this run. Dropdown is capped at 5 to prevent accidental giant runs.",
                     },
                 ),
                 "Caption - Qwen runs/image": (
                     CAPTION_RUNS,
                     {
                         "default": "2",
-                        "tooltip": "Qwen caption witnesses per image. Set to Disabled to omit Qwen from this run. Dropdown is capped at 5 to prevent accidental giant runs.",
+                        "tooltip": "Qwen Caption runs per image. Set to Disabled to omit Qwen from this run. Dropdown is capped at 5 to prevent accidental giant runs.",
                     },
                 ),
-                "Caption - SmolVLM runs/image": (
+                "Caption - Ollama runs/image": (
                     CAPTION_RUNS,
                     {
-                        "default": "1",
-                        "tooltip": "SmolVLM caption witnesses per image. Set to Disabled to omit SmolVLM from this run. Dropdown is capped at 5 to prevent accidental giant runs.",
+                        "default": "Disabled",
+                        "tooltip": (
+                            "Ollama Caption runs per image for each connected JLC CaptionForge Ollama Caption node. "
+                            "The actual Ollama model tag is selected in each Ollama Caption node. Connecting multiple "
+                            "Ollama Caption nodes multiplies runtime, memory pressure, and raw-caption count."
+                        ),
                     },
                 ),
                 "Caption - base seed": (
@@ -581,7 +625,7 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "min": -1,
                         "max": MAX_SEED_32,
                         "step": 1,
-                        "tooltip": "Base seed for caption witness generation. -1 means unseeded when supported.",
+                        "tooltip": "Base seed for caption generation. -1 means unseeded when supported.",
                     },
                 ),
                 "Caption - seed mode": (
@@ -591,26 +635,26 @@ class JLC_CaptionForge_Pipeline_Planner:
                 "Caption - temperature schedule": (
                     "STRING",
                     {
-                        "default": "0.70, 0.82, 0.94",
+                        "default": DEFAULT_CAPTION_TEMPERATURE_SCHEDULE,
                         "multiline": False,
                         "tooltip": "Comma-separated caption temperature schedule; final value repeats if needed.",
                     },
                 ),
                 "Caption - top p schedule": (
                     "STRING",
-                    {"default": "0.90", "multiline": False},
+                    {"default": DEFAULT_CAPTION_TOP_P_SCHEDULE, "multiline": False},
                 ),
                 "Caption - top k schedule": (
                     "STRING",
-                    {"default": "50", "multiline": False},
+                    {"default": DEFAULT_CAPTION_TOP_K_SCHEDULE, "multiline": False},
                 ),
                 "Caption - max image size": (
                     "INT",
-                    {"default": 1024, "min": 0, "max": 4096, "step": 64},
+                    {"default": DEFAULT_CAPTION_MAX_IMAGE_SIZE, "min": 0, "max": 4096, "step": 64},
                 ),
                 "Caption - max new tokens": (
                     "INT",
-                    {"default": 512, "min": 16, "max": 4096, "step": 16},
+                    {"default": DEFAULT_CAPTION_MAX_NEW_TOKENS, "min": 16, "max": 12000, "step": 64},
                 ),
 
                 # -----------------------------------------------------------------
@@ -778,7 +822,7 @@ class JLC_CaptionForge_Pipeline_Planner:
     RETURN_TYPES = ("IMAGE", "CAPTIONFORGE_PIPELINE_PLAN", "STRING")
     RETURN_NAMES = ("single_image", "pipeline_plan", "pipeline_plan_json")
     FUNCTION = "plan"
-    CATEGORY = "JLC/Captioning"
+    CATEGORY = "Captioning/CaptionForge"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -804,7 +848,8 @@ class JLC_CaptionForge_Pipeline_Planner:
         planner_enabled = _as_bool(kwargs.get("Planner - enabled", True))
         joy_runs = _runs_per_image(kwargs.get("Caption - Joy runs/image", "2"), "2")
         qwen_runs = _runs_per_image(kwargs.get("Caption - Qwen runs/image", "2"), "2")
-        smolvlm_runs = _runs_per_image(kwargs.get("Caption - SmolVLM runs/image", "1"), "1")
+        ollama_runs = _runs_per_image(kwargs.get("Caption - Ollama runs/image", "Disabled"), "Disabled")
+        smolvlm_runs = 0
 
         if not planner_enabled:
             plan: dict[str, Any] = {}
@@ -819,19 +864,23 @@ class JLC_CaptionForge_Pipeline_Planner:
             filename_glob=str(kwargs.get("Input - filename glob", "*") or "*").strip() or "*",
             joy_runs_per_image=joy_runs,
             qwen_runs_per_image=qwen_runs,
-            smolvlm_runs_per_image=smolvlm_runs,
-            smol_runs_per_image=smolvlm_runs,
+            ollama_runs_per_image=ollama_runs,
+            ollama_caption_runs_per_image=ollama_runs,
+            caption_ollama_runs_per_image=ollama_runs,
+            ollama_vlm_runs_per_image=ollama_runs,
             # Deprecated placeholders are kept at zero for compatibility with
             # older planner-engine signatures, but are no longer exposed in UI.
+            smolvlm_runs_per_image=0,
+            smol_runs_per_image=0,
             florence_runs_per_image=0,
             llama_vision_runs_per_image=0,
             base_seed=int(kwargs.get("Caption - base seed", -1) or -1),
             seed_mode=str(kwargs.get("Caption - seed mode", "fixed") or "fixed"),
-            temperature_schedule=str(kwargs.get("Caption - temperature schedule", "") or ""),
-            top_p_schedule=str(kwargs.get("Caption - top p schedule", "") or ""),
-            top_k_schedule=str(kwargs.get("Caption - top k schedule", "") or ""),
-            max_size=int(kwargs.get("Caption - max image size", 1024) or 1024),
-            max_new_tokens=int(kwargs.get("Caption - max new tokens", 512) or 512),
+            temperature_schedule=str(kwargs.get("Caption - temperature schedule", DEFAULT_CAPTION_TEMPERATURE_SCHEDULE) or DEFAULT_CAPTION_TEMPERATURE_SCHEDULE),
+            top_p_schedule=str(kwargs.get("Caption - top p schedule", DEFAULT_CAPTION_TOP_P_SCHEDULE) or DEFAULT_CAPTION_TOP_P_SCHEDULE),
+            top_k_schedule=str(kwargs.get("Caption - top k schedule", DEFAULT_CAPTION_TOP_K_SCHEDULE) or DEFAULT_CAPTION_TOP_K_SCHEDULE),
+            max_size=int(kwargs.get("Caption - max image size", DEFAULT_CAPTION_MAX_IMAGE_SIZE) or DEFAULT_CAPTION_MAX_IMAGE_SIZE),
+            max_new_tokens=int(kwargs.get("Caption - max new tokens", DEFAULT_CAPTION_MAX_NEW_TOKENS) or DEFAULT_CAPTION_MAX_NEW_TOKENS),
             trigger_word=str(kwargs.get("LoRA - trigger word", "") or "").strip(),
             user_caption_anchor=str(kwargs.get("LoRA - user caption anchor", "") or "").strip(),
             distiller_model=distiller_model,
@@ -865,7 +914,7 @@ class JLC_CaptionForge_Pipeline_Planner:
             plan,
             joy_runs=joy_runs,
             qwen_runs=qwen_runs,
-            smolvlm_runs=smolvlm_runs,
+            ollama_runs=ollama_runs,
         )
 
         overwrite_outputs = _as_bool(kwargs.get("Output - overwrite outputs", True))

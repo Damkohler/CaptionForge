@@ -1,16 +1,116 @@
-#!/usr/bin/env python
 """
 CaptionForge Joy Space Prompt Kit
 
-Small, dependency-free helper for mirroring the public Hugging Face Space
-`fancyfeast/joy-caption-beta-one` prompt harness as closely as practical in
-local CaptionForge Joy nodes.
+- CaptionForge
+  - This module is part of **CaptionForge**, a model-agnostic captioning
+    framework for ComfyUI developed by **J. L. Córdova**.
 
-Source mirrored conceptually from the public Space app.py:
-https://huggingface.co/spaces/fancyfeast/joy-caption-beta-one
+  - Repository:
+    https://github.com/Damkohler/CaptionForge
+
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
+
+- Module Purpose
+    - The **CaptionForge Joy Space Prompt Kit** is a small, dependency-free
+      helper for JoyCaption-style prompt construction inside local CaptionForge
+      Joy caption nodes.
+
+    - It preserves a Joy-specific prompt harness separate from the generic
+      CaptionForge prompt kit.
+
+    - It defines:
+            • JoyCaption-style caption type templates
+            • caption length choices
+            • extra-option text
+            • name-substitution behavior
+            • a Joy prompt metadata dataclass
+            • helpers for building prompt text and metadata together
+
+- CaptionForge Pipeline Role
+    - This module supports **Pass A** Joy raw caption witness nodes.
+
+    - It does not caption images and does not load Joy model weights.
+
+    - Joy caption nodes use this kit to build the user prompt and prompt
+      metadata sent to the Joy caption engine, then record the resolved prompt
+      in CaptionForge outputs.
+
+- Prompting Model
+    - Joy keeps a dedicated prompt kit because its practical behavior is tied to
+      the JoyCaption Beta One prompt interface pattern.
+
+    - Generic CaptionForge prompt construction for Qwen, SmolVLM, Ollama, and
+      future caption witnesses lives separately in:
+
+            captionforge_caption_prompt_kit.py
+
+    - This separation avoids forcing Joy and non-Joy engines into one artificial
+      prompt abstraction.
+
+- Model and Dependency Notes
+    - This file contains prompt text, option lists, and metadata helpers only.
+
+    - It does not execute the Joy model, download model files, manage VRAM, or
+      call Hugging Face directly.
+
+    - Joy model loading and inference are handled by the Joy caption engine and
+      node wrapper.
+
+- Design Philosophy
+    - CaptionForge should preserve Joy's useful prompt-harness behavior while
+      keeping it local, auditable, and isolated from other caption engines.
+
+    - Prompt construction should remain deterministic and dependency-free.
+
+    - Prompt metadata should make it clear which caption type, length, options,
+      name input, and system prompt were used for a Joy caption run.
+
+- Development Status
+    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
+    - Joy prompt templates and option lists may evolve as the local CaptionForge
+      Joy node matures.
+
+- Attribution & License
+  - Concept and implementation by **J. L. Córdova**
+    with development assistance from **ChatGPT (OpenAI)**.
+
+  - CaptionForge's Joy/template-option workflow is locally adapted and was
+    inspired in part by the practical template interface pattern used by the
+    public JoyCaption Beta One Hugging Face Space:
+    https://huggingface.co/spaces/fffiloni/JoyCaption-Beta-One
+
+  - The local Joy caption workflow also references JoyCaption Beta One naming
+    and model identifiers used by the Joy caption ecosystem.
+
+  - Designed for use with:
+    https://github.com/comfyanonymous/ComfyUI
+
+  - Copyright (c) 2026 J. L. Córdova
+
+  - Released under the **MIT License**.
 """
 
 from __future__ import annotations
+
+from ..captionforge_version import CAPTIONFORGE_VERSION
+
+MANIFEST = {
+    "name": "CaptionForge Joy Space Prompt Kit",
+    "version": CAPTIONFORGE_VERSION,
+    "author": "J. L. Córdova",
+    "description": (
+        "Joy-specific dependency-free prompt builder for CaptionForge Joy caption "
+        "nodes. Preserves JoyCaption-style caption type templates, caption length "
+        "handling, extra-option text, name substitution, system-prompt metadata, "
+        "and prompt-spec helpers while keeping Joy prompt behavior separate from "
+        "the generic CaptionForge prompt kit."
+    ),
+}
+
 
 from dataclasses import dataclass, asdict
 from typing import Any

@@ -1,4 +1,22 @@
 {
+  "_meta": {
+    "name": "CaptionForge Ollama Model Dropdowns",
+    "version": "0.1.0",
+    "description": "User-editable Ollama model dropdown configuration for CaptionForge nodes and engines.",
+    "consumed_by": [
+      "nodes/captionforge_ollama_model_dropdowns.py",
+      "CaptionForge Pipeline Planner",
+      "JLC CaptionForge capstone",
+      "JLC CaptionForge Ollama Caption"
+    ],
+    "notes": [
+      "Values should be concrete Ollama model tags used exactly as written.",
+      "distiller_models are used for text-only LLM distillation and formatting stages.",
+      "validator_models are used for image-aware VLM validation.",
+      "caption_models are used by Ollama-backed Pass A caption witness nodes.",
+      "Set include_custom to true to expose a custom model-tag entry in supported nodes."
+    ]
+  },
   "distiller_models": [
     "mistral-small:24b",
     "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
@@ -8,11 +26,25 @@
   ],
   "validator_models": [
     "gemma4:26b",
-    "qwen3.6:35B-A3B"
+    "qwen3.6:35B-A3B",
+    "huihui_ai/gemma-4-abliterated:26b"
+  ],
+  "format_models": [
+    "mistral-small:24b",
+    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
+    "gpt-oss:20b",
+    "deepseek-r1:32b"
+  ],
+  "caption_models": [
+    "gemma4:26b",
+    "qwen3.6:35B-A3B",
+    "huihui_ai/gemma-4-abliterated:26b"
   ],
   "defaults": {
     "distiller_model": "mistral-small:24b",
-    "validator_model": "gemma4:26b"
+    "validator_model": "gemma4:26b",
+    "format_model": "mistral-small:24b",
+    "caption_model": "gemma4:26b"
   },
   "include_custom": true
 }

@@ -5,51 +5,54 @@ CaptionForge Global Model Cache Manager
   - This module is part of **CaptionForge**, a model-agnostic captioning
     framework for ComfyUI developed by **J. L. Córdova**.
 
-  - Repository
+  - Repository:
     https://github.com/Damkohler/CaptionForge
 
-  - CaptionForge focuses on practical dataset-captioning infrastructure for:
-        • LoRA dataset preparation
-        • multi-engine caption generation
-        • JSONL audit trails
-        • claim extraction and refinement
-        • consensus-oriented caption improvement
+- CaptionForge focuses on practical dataset-captioning infrastructure for
+  LoRA dataset preparation, using multi-engine caption generation, JSONL
+  audit trails, claim extraction and refinement, text-LLM distillation,
+  image-aware VLM validation, and consensus-oriented caption improvement
+  to produce grounded, auditable training captions.
 
-- Module Purpose
-    - The **CaptionForge Global Model Cache Manager** provides a shared,
-      process-local cache for heavyweight captioning and language models used
-      by CaptionForge engines.
+- Engine Purpose
+    - The **CaptionForge Global Model Cache Manager** provides shared,
+      process-local residency management for heavyweight CaptionForge model
+      bundles.
 
-    - It is designed for workflows where multiple local captioning systems may
-      be available, but limited VRAM makes simultaneous residency impractical.
+    - It supports local ComfyUI workflows where Joy, Qwen, and other
+      captioning engines may be available, but limited VRAM makes simultaneous
+      residency impractical.
 
-    - The cache manager:
-            • Builds stable model cache keys
-            • Reuses already-loaded model bundles
-            • Registers newly loaded model handles
-            • Evicts incompatible or excess resident models
-            • Supports optional engine-provided unload callbacks
-            • Clears Python references and CUDA allocator leftovers
-            • Provides lightweight cache diagnostics
+    - The cache manager is responsible for:
+            • stable cache-key construction
+            • reuse of already-loaded model bundles
+            • registration of newly loaded model handles
+            • eviction of incompatible or excess resident models
+            • optional engine-provided unload callbacks
+            • Python reference cleanup
+            • best-effort CUDA allocator cleanup
+            • lightweight cache diagnostics
 
-    - Typical cached objects may include:
-            • Qwen / VLM caption model bundles
-            • Joy caption model bundles
-            • future cleanup LLMs
-            • future validator / claim-refinement models
-            • engine-specific processor/tokenizer/model containers
+    - Cached objects may include model instances, processor/tokenizer bundles,
+      engine-specific dataclass containers, or dictionaries/tuples wrapping
+      those objects.
+
+- CaptionForge Pipeline Role
+    - This module is shared infrastructure, not a captioning pass.
+
+    - It supports CaptionForge Pass A caption witness engines by reducing
+      avoidable model reloads while also protecting constrained-VRAM systems
+      from accidental multi-model co-residency.
+
+    - It does not own model loading logic. Engines remain responsible for
+      constructing their own models and may register unload callbacks when they
+      need custom teardown behavior.
 
 - Execution Model
     - The cache is global, process-local, and protected by a re-entrant lock.
 
-    - Default policy keeps only one heavyweight CaptionForge model resident
-      at a time, which is appropriate for constrained VRAM systems.
-
-    - Eviction behavior is intentionally conservative:
-            • Engine code remains responsible for loading models
-            • Engine code may provide unload callbacks
-            • The cache deletes references but does not assume model internals
-            • CUDA cleanup is attempted only when PyTorch/CUDA are available
+    - The default policy keeps only one heavyweight CaptionForge model resident
+      at a time.
 
     - Cache keys include fields that materially affect model residency:
             • role
@@ -60,27 +63,29 @@ CaptionForge Global Model Cache Manager
             • dtype
             • revision
 
+    - CUDA cleanup is attempted only when PyTorch and CUDA are available.
+
 - Design Philosophy
     - CaptionForge treats model loading as an engine concern and model residency
       as shared infrastructure.
 
-    - This keeps Qwen, Joy, future LLM validators, and future caption engines
-      under one cache policy without making any single engine canonical.
+    - This keeps the cache small, explicit, and dependency-light while allowing
+      multiple CaptionForge engines to share one conservative VRAM policy.
 
-    - The module is intentionally small, explicit, and dependency-light so it can
-      be reused across CaptionForge nodes without introducing a larger runtime
-      framework.
+    - The module favors predictable behavior over aggressive automatic memory
+      management.
 
-- ⚠️ Development Status
-    - This is early CaptionForge infrastructure intended for local ComfyUI use.
-    - Cache policy and diagnostics may evolve as additional engines and live LLM
-      refinement passes are added.
-    - The default single-model residency policy is conservative and may be
-      adjusted in future versions for larger VRAM systems.
+- Development Status
+    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
+    - Cache policy and diagnostics may evolve as CaptionForge's supported engine
+      set matures.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
     with development assistance from **ChatGPT (OpenAI)**.
+
+  - Designed for use with:
+    https://github.com/comfyanonymous/ComfyUI
 
   - Copyright (c) 2026 J. L. Córdova
 
@@ -89,17 +94,18 @@ CaptionForge Global Model Cache Manager
 
 from __future__ import annotations
 
+from ..captionforge_version import CAPTIONFORGE_VERSION
+
 MANIFEST = {
     "name": "CaptionForge Global Model Cache Manager",
-    "version": (0, 1, 1),
+    "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
-        "Shared process-local cache manager for heavyweight CaptionForge model bundles. "
-        "Provides stable cache keys, model registration, reuse, eviction, optional unload "
-        "callbacks, CUDA cleanup, and lightweight diagnostics for model-agnostic captioning "
-        "workflows. Designed to prevent unnecessary Qwen/Joy/future-LLM co-residency on "
-        "limited-VRAM ComfyUI systems while keeping engine-specific loading logic separate "
-        "from shared residency policy."
+        "Shared process-local cache manager for heavyweight CaptionForge model "
+        "bundles. Provides stable cache keys, model registration, reuse, "
+        "eviction, optional unload callbacks, CUDA cleanup, and lightweight "
+        "diagnostics while keeping engine-specific loading logic separate from "
+        "shared residency policy."
     ),
 }
 

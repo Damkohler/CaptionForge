@@ -121,10 +121,11 @@ JLC Joy Caption Engine
 """
 
 from __future__ import annotations
+from ..captionforge_version import CAPTIONFORGE_VERSION
 
 MANIFEST = {
     "name": "JLC Joy Caption Engine",
-    "version": (1, 1, 0),
+    "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
         "Shared JoyCaption-family CaptionForge Pass A engine for local image captioning, "
