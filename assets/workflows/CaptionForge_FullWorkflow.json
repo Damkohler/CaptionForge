@@ -1,0 +1,1375 @@
+{
+  "id": "10a98c38-ff15-4164-bbc1-2942ceae87fb",
+  "revision": 0,
+  "last_node_id": 70,
+  "last_link_id": 172,
+  "nodes": [
+    {
+      "id": 51,
+      "type": "JLC_CaptionForgeJoy",
+      "pos": [
+        -1420,
+        644
+      ],
+      "size": [
+        332,
+        692
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 141
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 142
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 122
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            104
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            110
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            159
+          ]
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": [
+            162
+          ]
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Damkohler/CaptionForge",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeJoy"
+      },
+      "widgets_values": [
+        "llama-joycaption-beta-one-hf-llava",
+        "Balanced (8-bit)",
+        true,
+        true,
+        "JLC LoRA Literal",
+        "any",
+        false,
+        "default_literal",
+        "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "",
+        384,
+        0.75,
+        0.9,
+        50,
+        1,
+        1024,
+        "",
+        "",
+        false
+      ]
+    },
+    {
+      "id": 52,
+      "type": "JLC_CaptionForgeQwen",
+      "pos": [
+        -1072,
+        644
+      ],
+      "size": [
+        328,
+        692
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 104
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 110
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 159
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            135
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            137
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            160
+          ]
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": [
+            163
+          ]
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Damkohler/CaptionForge",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeQwen"
+      },
+      "widgets_values": [
+        "Qwen2.5-VL-7B-Instruct",
+        "Balanced (8-bit)",
+        true,
+        true,
+        "LoRA Literal",
+        "any",
+        false,
+        "default_literal",
+        "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "",
+        384,
+        0.75,
+        0.9,
+        50,
+        1.08,
+        1024,
+        "",
+        "",
+        false
+      ]
+    },
+    {
+      "id": 58,
+      "type": "JLC_CaptionForgeOllamaCaption",
+      "pos": [
+        -728,
+        644
+      ],
+      "size": [
+        328,
+        740
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 135
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 137
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 160
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            136
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            138
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            161
+          ]
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": [
+            164
+          ]
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Damkohler/CaptionForge",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeOllamaCaption"
+      },
+      "widgets_values": [
+        "qwen3.6:35B-A3B",
+        "",
+        "http://127.0.0.1:11434",
+        true,
+        true,
+        "Descriptive",
+        "any",
+        false,
+        "female_character_lora",
+        "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        6000,
+        0.9,
+        0.6,
+        80,
+        1.03,
+        1024,
+        1800,
+        "",
+        "",
+        false
+      ]
+    },
+    {
+      "id": 66,
+      "type": "DisplayAny",
+      "pos": [
+        -728,
+        1428
+      ],
+      "size": [
+        328,
+        652
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 164
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "raw value"
+      ]
+    },
+    {
+      "id": 63,
+      "type": "DisplayAny",
+      "pos": [
+        -384,
+        1428
+      ],
+      "size": [
+        328,
+        652
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 165
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "raw value"
+      ]
+    },
+    {
+      "id": 64,
+      "type": "DisplayAny",
+      "pos": [
+        -1420,
+        1384
+      ],
+      "size": [
+        328,
+        652
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 162
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "raw value"
+      ]
+    },
+    {
+      "id": 65,
+      "type": "DisplayAny",
+      "pos": [
+        -1072,
+        1384
+      ],
+      "size": [
+        328,
+        652
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 163
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "raw value"
+      ]
+    },
+    {
+      "id": 60,
+      "type": "JLC_CaptionForge",
+      "pos": [
+        -40,
+        644
+      ],
+      "size": [
+        328,
+        1364
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "Input - single image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 147
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 148
+        }
+      ],
+      "outputs": [
+        {
+          "name": "natural_captions",
+          "type": "STRING",
+          "links": [
+            145
+          ]
+        },
+        {
+          "name": "taggy_captions",
+          "type": "STRING",
+          "links": [
+            152
+          ]
+        },
+        {
+          "name": "final_jsonl_records",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "output_paths_json",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Damkohler/CaptionForge",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForge"
+      },
+      "widgets_values": [
+        "",
+        "",
+        "joy,qwen,ollama",
+        5,
+        20,
+        "",
+        "captionforge_run",
+        true,
+        "http://127.0.0.1:11434",
+        true,
+        1800,
+        "",
+        "",
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        1,
+        "fixed",
+        1536,
+        5000,
+        0.12,
+        0.88,
+        50,
+        "gemma4:26b",
+        "",
+        "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        1,
+        "fixed",
+        5000,
+        0.05,
+        0.88,
+        50,
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a LoRA caption format converter.\n\nThe validated paragraph is already the natural-language final caption. Do not rewrite it.\n\nTask:\nCreate one TAGGY caption from the validated paragraph.\n\nRules:\n- Output only the taggy comma-separated caption.\n- Use only details already present in the validated paragraph.\n- Preserve concrete LoRA-useful details.\n- Do not add new details.\n- Do not mention this process.\n- Do not output markdown.\n- Do not include a TAGGY: label.\n- Keep the result as a comma-separated list, not full prose.",
+        1,
+        "fixed",
+        3200,
+        0.12,
+        0.88,
+        50,
+        false,
+        false,
+        "natural",
+        true,
+        true
+      ]
+    },
+    {
+      "id": 32,
+      "type": "DisplayAny",
+      "pos": [
+        -1772,
+        1616
+      ],
+      "size": [
+        328,
+        652
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 143
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "raw value"
+      ]
+    },
+    {
+      "id": 56,
+      "type": "JLC_CaptionForgeOllamaCaption",
+      "pos": [
+        -384,
+        644
+      ],
+      "size": [
+        328,
+        740
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 136
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 138
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 161
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            147
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            148
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": []
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": [
+            165
+          ]
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Damkohler/CaptionForge",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeOllamaCaption"
+      },
+      "widgets_values": [
+        "huihui_ai/gemma-4-abliterated:26b",
+        "",
+        "http://127.0.0.1:11434",
+        true,
+        false,
+        "Descriptive",
+        "any",
+        false,
+        "female_character_lora",
+        "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        6000,
+        0.9,
+        0.6,
+        80,
+        1.03,
+        1024,
+        1800,
+        "",
+        "",
+        false
+      ]
+    },
+    {
+      "id": 62,
+      "type": "DisplayAny",
+      "pos": [
+        308,
+        1532
+      ],
+      "size": [
+        328,
+        652
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 152
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "raw value"
+      ]
+    },
+    {
+      "id": 28,
+      "type": "DisplayAny",
+      "pos": [
+        312,
+        628
+      ],
+      "size": [
+        316,
+        852
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 145
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "raw value"
+      ]
+    },
+    {
+      "id": 55,
+      "type": "JLC_CaptionForgeExtraOptions",
+      "pos": [
+        -1780,
+        736
+      ],
+      "size": [
+        344,
+        824
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "template_options",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            122
+          ]
+        },
+        {
+          "name": "template_options_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "aux_id": "Damkohler/CaptionForge",
+        "ver": "ad9f3213066b34f2005e654bcd272cd42732b3ac",
+        "Node name for S&R": "JLC_CaptionForgeExtraOptions"
+      },
+      "widgets_values": [
+        "",
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "id": 67,
+      "type": "ImageBatchMulti",
+      "pos": [
+        -2512,
+        644
+      ],
+      "size": [
+        212,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "type": "IMAGE",
+          "link": 171
+        },
+        {
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 170
+        },
+        {
+          "name": "image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 172
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            167
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "3efb07295a829943e0935e5afd2dc4a3cf9917f4"
+      },
+      "widgets_values": [
+        3,
+        null
+      ]
+    },
+    {
+      "id": 68,
+      "type": "LoadImage",
+      "pos": [
+        -2524,
+        812
+      ],
+      "size": [
+        224,
+        364
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            171
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.20.1",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "Flux.2__00297_.png",
+        "image"
+      ]
+    },
+    {
+      "id": 70,
+      "type": "LoadImage",
+      "pos": [
+        -2528,
+        1220
+      ],
+      "size": [
+        224,
+        328
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            170
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.20.1",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "ChatGPT Image Jun 20, 2026, 10_38_46 AM (7).png",
+        "image"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "LoadImage",
+      "pos": [
+        -2532,
+        1592
+      ],
+      "size": [
+        232,
+        344
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            172
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.20.1",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "Goth Blonde - 004_00006_.png",
+        "image"
+      ]
+    },
+    {
+      "id": 59,
+      "type": "JLC_CaptionForge_Pipeline_Planner",
+      "pos": [
+        -2284,
+        644
+      ],
+      "size": [
+        488,
+        1132
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "Input - single image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 167
+        }
+      ],
+      "outputs": [
+        {
+          "name": "single_image",
+          "type": "IMAGE",
+          "links": [
+            141
+          ]
+        },
+        {
+          "name": "pipeline_plan",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            142
+          ]
+        },
+        {
+          "name": "pipeline_plan_json",
+          "type": "STRING",
+          "links": [
+            143
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "Damkohler/CaptionForge",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner"
+      },
+      "widgets_values": [
+        true,
+        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\RelTest",
+        false,
+        "*",
+        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\RelTest",
+        "ReleaseTest",
+        true,
+        "Dolls",
+        "",
+        "2",
+        "2",
+        "2",
+        3,
+        "random",
+        "0.80, 0.90",
+        "0.70, 0.60",
+        "70, 80",
+        1024,
+        6000,
+        "mistral-small:24b",
+        "",
+        3,
+        "random",
+        "single_pass",
+        1536,
+        3096,
+        0.24,
+        0.9,
+        60,
+        false,
+        false,
+        "gemma4:26b",
+        "",
+        3,
+        "random",
+        2200,
+        0,
+        0.92,
+        80,
+        false,
+        false,
+        "both",
+        true,
+        true
+      ]
+    }
+  ],
+  "links": [
+    [
+      104,
+      51,
+      0,
+      52,
+      0,
+      "IMAGE"
+    ],
+    [
+      110,
+      51,
+      1,
+      52,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      122,
+      55,
+      0,
+      51,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      135,
+      52,
+      0,
+      58,
+      0,
+      "IMAGE"
+    ],
+    [
+      136,
+      58,
+      0,
+      56,
+      0,
+      "IMAGE"
+    ],
+    [
+      137,
+      52,
+      1,
+      58,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      138,
+      58,
+      1,
+      56,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      141,
+      59,
+      0,
+      51,
+      0,
+      "IMAGE"
+    ],
+    [
+      142,
+      59,
+      1,
+      51,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      143,
+      59,
+      2,
+      32,
+      0,
+      "STRING"
+    ],
+    [
+      145,
+      60,
+      0,
+      28,
+      0,
+      "STRING"
+    ],
+    [
+      147,
+      56,
+      0,
+      60,
+      0,
+      "IMAGE"
+    ],
+    [
+      148,
+      56,
+      1,
+      60,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      152,
+      60,
+      1,
+      62,
+      0,
+      "STRING"
+    ],
+    [
+      159,
+      51,
+      2,
+      52,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      160,
+      52,
+      2,
+      58,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      161,
+      58,
+      2,
+      56,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      162,
+      51,
+      3,
+      64,
+      0,
+      "STRING"
+    ],
+    [
+      163,
+      52,
+      3,
+      65,
+      0,
+      "STRING"
+    ],
+    [
+      164,
+      58,
+      3,
+      66,
+      0,
+      "STRING"
+    ],
+    [
+      165,
+      56,
+      3,
+      63,
+      0,
+      "STRING"
+    ],
+    [
+      167,
+      67,
+      0,
+      59,
+      0,
+      "IMAGE"
+    ],
+    [
+      170,
+      70,
+      0,
+      67,
+      1,
+      "IMAGE"
+    ],
+    [
+      171,
+      68,
+      0,
+      67,
+      0,
+      "IMAGE"
+    ],
+    [
+      172,
+      9,
+      0,
+      67,
+      2,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.52,
+      "offset": [
+        2641.466665520697,
+        -423.79491729681746
+      ]
+    },
+    "frontendVersion": "1.42.15"
+  },
+  "version": 0.4
+}

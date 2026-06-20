@@ -625,7 +625,8 @@ def _derive_paths(output_dir: Path, run_name: str, plan: dict[str, Any]) -> dict
         # Legacy/debug-only. Primary final TXT sidecars are written beside images.
         "final_txt_dir": pick(("final_txt_dir",), working_dir / f"{run_name}__TXT"),
         "final_sidecar_policy": str(planned_paths.get("final_sidecar_policy") or "beside_resolved_source_image"),
-        "opt_images_dir": pick(("opt_images_dir",), working_dir / "opt_images"),
+        "working_images_dir": pick(("working_images_dir",), working_dir / "images"),
+        "opt_images_dir": pick(("opt_images_dir",), working_dir / "images" / "opt_images"),
         "output_paths_json": pick(("output_paths_json",), working_dir / f"{run_name}__output_paths.json"),
         "raw_response_dir": pick(("raw_response_dir",), working_dir / f"{run_name}__raw_responses"),
     }
@@ -696,15 +697,10 @@ def _save_single_image_inputs_for_validator(image_tensor: Any, image_dir: Path) 
     image_dir.mkdir(parents=True, exist_ok=True)
     for index, pil in enumerate(images):
         stem = f"comfy_image_{index:04d}"
-        # Extensionless resolver target is retained for old records; the PNG is
-        # the human-visible audit image and preferred sidecar anchor.
-        resolver_target = image_dir / stem
         audit_target = image_dir / f"{stem}.png"
-        pil.save(resolver_target, format="PNG")
         pil.save(audit_target, format="PNG")
     print(f"[JLC CaptionForge Node] Saved optional IMAGE input(s) for validator: {image_dir}", flush=True)
     return str(image_dir)
-
 
 def _basename_cross_platform(value: Any) -> str:
     text = str(value or "").strip()
@@ -753,12 +749,26 @@ def _dedupe_paths(values: list[Any]) -> list[Path]:
 
 
 def _record_image_key(record: dict[str, Any], fallback_index: int = 0) -> str:
-    for key in ("image_key", "image", "source_image", "filename"):
+    """Return the stable grouping key for a Pass A image record.
+
+    ``image_key`` is already the canonical sanitized key emitted by caption
+    witnesses. Do not pass it through Path(...).stem: dotted extensionless keys
+    such as ``Flux.2__00635`` would collapse to ``Flux`` and merge unrelated
+    images into one downstream group.
+    """
+    explicit_key = str(record.get("image_key") or "").strip()
+    if explicit_key:
+        return explicit_key
+
+    for key in ("image", "source_image", "filename"):
         value = str(record.get(key) or "").strip()
         if value:
             base = _basename_cross_platform(value)
             if base:
-                return Path(base).stem or base
+                candidate = Path(base)
+                if candidate.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES:
+                    return candidate.stem or base
+                return base
             return value
     return f"image_{fallback_index:04d}"
 
@@ -1192,33 +1202,120 @@ def _normalize_txt_export_format(export_format: str) -> str:
     return fmt or "natural"
 
 
-def _write_final_txt_sidecars(image_path: Path, natural: str, taggy: str, export_format: str) -> list[str]:
-    fmt = _normalize_txt_export_format(export_format)
-    written: list[str] = []
+def _split_tag_items(text: str) -> list[str]:
+    raw = str(text or "").replace("\n", ",")
+    items = [re.sub(r"\s+", " ", part).strip(" ,;:\t") for part in raw.split(",")]
+    return [item for item in items if item]
 
-    natural_path = image_path.with_suffix(".txt")
-    taggy_path = image_path.with_suffix(".taggy.txt")
 
-    if fmt == "both_separate":
-        if natural:
-            _write_text(natural_path, natural)
-            written.append(str(natural_path))
-        if taggy:
-            _write_text(taggy_path, taggy)
-            written.append(str(taggy_path))
-        return written
+def _dedupe_keep_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        key = re.sub(r"[^a-z0-9]+", " ", str(item).lower()).strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
 
-    if fmt == "taggy":
-        caption = taggy or natural
+
+def _compact_taggy_caption(taggy: str, *, max_items: int = 64, max_chars: int = 1200) -> str:
+    """Make a compact LoRA-style comma caption without adding new visual claims."""
+    items = _dedupe_keep_order(_split_tag_items(taggy))
+
+    # Drop model-output scaffolding that occasionally leaks into comma lists.
+    banned_prefixes = (
+        "taggy comma-list only",
+        "caption",
+        "the image shows",
+        "this image shows",
+        "there is",
+        "there are",
+    )
+    cleaned: list[str] = []
+    for item in items:
+        low = item.lower().strip()
+        if any(low.startswith(prefix) for prefix in banned_prefixes):
+            item = re.sub(
+                r"(?is)^(taggy comma-list only|caption|the image shows|this image shows|there is|there are)\s*[:\-]?\s*",
+                "",
+                item,
+            ).strip(" ,;:")
+        if item:
+            cleaned.append(item)
+
+    cleaned = _dedupe_keep_order(cleaned)[:max_items]
+    out = ", ".join(cleaned)
+    if max_chars > 0 and len(out) > max_chars:
+        out = out[:max_chars].rsplit(",", 1)[0].strip(" ,")
+    return out
+
+
+def _compact_lora_short_caption(long_caption: str, taggy_caption: str, *, max_words: int = 90, max_chars: int = 900) -> str:
+    """Create a shorter LoRA-length caption from the validated long caption.
+
+    This is deterministic and conservative: it compresses existing validated text
+    instead of asking another model to invent or rewrite details.
+    """
+    text = _cleanup_single_paragraph(long_caption or "")
+    if not text:
+        return _compact_taggy_caption(taggy_caption, max_items=42, max_chars=max_chars)
+
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    kept: list[str] = []
+    words = 0
+    for sentence in sentences:
+        sentence_words = sentence.split()
+        if not sentence_words:
+            continue
+        if kept and words + len(sentence_words) > max_words:
+            break
+        kept.append(sentence)
+        words += len(sentence_words)
+
+    if kept:
+        short = " ".join(kept)
     else:
-        caption = natural or taggy
+        short = " ".join(text.split()[:max_words])
 
-    if caption:
-        _write_text(natural_path, caption)
-        written.append(str(natural_path))
+    if len(short) > max_chars:
+        short = short[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+    return short.strip()
+
+
+def _write_final_txt_sidecars(
+    image_path: Path,
+    long_caption: str,
+    short_caption: str,
+    taggy_caption: str,
+    export_format: str = "",
+) -> list[str]:
+    """Write v0.1.x final sidecars beside the resolved source image.
+
+    v0.1.x intentionally keeps the rich validated caption, while also exporting
+    a shorter LoRA-length caption and a compact taggy caption.
+    """
+    written: list[str] = []
+    stem = image_path.stem
+    parent = image_path.parent
+
+    long_text = _cleanup_single_paragraph(long_caption)
+    taggy_text = _compact_taggy_caption(taggy_caption)
+    short_text = _cleanup_single_paragraph(short_caption) or _compact_lora_short_caption(long_text, taggy_text)
+
+    targets = [
+        (parent / f"{stem}_long.txt", long_text),
+        (parent / f"{stem}_short.txt", short_text),
+        (parent / f"{stem}_taggy.txt", taggy_text),
+    ]
+
+    for path, text in targets:
+        if text:
+            _write_text(path, text)
+            written.append(str(path))
 
     return written
-
 
 def _make_final_failure_record(
     *,
@@ -1432,7 +1529,7 @@ class JLC_CaptionForge:
             raise FileNotFoundError(f"Caption JSONL is empty: {caption_path}")
 
         image_root = _resolve_image_root(str(kwargs.get("Input - image path", "") or ""), plan, caption_jsonl)
-        opt_images_dir = Path(paths.get("opt_images_dir") or (Path(paths["output_dir"]) / "opt_images"))
+        opt_images_dir = Path(paths.get("opt_images_dir") or (Path(paths["working_dir"]) / "images" / "opt_images"))
         single_image_root = _save_single_image_inputs_for_validator(kwargs.get("Input - single image"), opt_images_dir)
         image_roots = _dedupe_paths([
             image_root,
@@ -1694,7 +1791,10 @@ class JLC_CaptionForge:
                 keep_loaded=keep_loaded,
                 timeout=timeout,
             )
-            taggy = _prepend_metadata(_cleanup_taggy(taggy), trigger_word, user_caption_anchor)
+            taggy = _compact_taggy_caption(
+                _prepend_metadata(_cleanup_taggy(taggy), trigger_word, user_caption_anchor)
+            )
+            short = _compact_lora_short_caption(natural, taggy)
             fmt_raw_path = _save_raw_response(raw_dir, image_key, "03_taggy_raw", fmt_raw)
             _write_jsonl(
                 Path(paths["taggy_jsonl"]),
@@ -1737,6 +1837,8 @@ class JLC_CaptionForge:
                 "status": "ok" if is_ok else "error",
                 "export_format": txt_export_format,
                 "final_caption": export_caption,
+                "final_caption_long": natural,
+                "final_caption_short": short,
                 "final_caption_natural": natural,
                 "final_caption_taggy": taggy,
                 "fat_draft": fat_text,
@@ -1749,10 +1851,11 @@ class JLC_CaptionForge:
                 "timestamp": datetime.now().isoformat(timespec="seconds"),
             }
 
-            if write_txt and export_caption:
+            if write_txt and (natural or short or taggy):
                 final_record["sidecar_paths"] = _write_final_txt_sidecars(
                     Path(image_path),
                     natural,
+                    short,
                     taggy,
                     txt_export_format,
                 )
@@ -1775,6 +1878,7 @@ class JLC_CaptionForge:
                 "pass_a_jsonl": caption_jsonl,
                 "image_root": image_root,
                 "image_roots": [str(p) for p in image_roots],
+                "working_images_dir": str(paths.get("working_images_dir") or (Path(paths["working_dir"]) / "images")),
                 "opt_images_dir": str(opt_images_dir),
                 "planner_connected": _planner_overrides(plan),
                 "fat_draft_model_resolved": fat_model,

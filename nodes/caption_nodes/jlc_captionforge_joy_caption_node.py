@@ -651,8 +651,20 @@ class JLC_CaptionForgeJoy:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "CAPTIONFORGE_PIPELINE_PLAN", "STRING", "STRING")
-    RETURN_NAMES = ("image_out", "pipeline_plan_out", "caption", "resolved_prompt")
+    RETURN_TYPES = (
+    "IMAGE",
+    "CAPTIONFORGE_PIPELINE_PLAN",
+    "CAPTIONFORGE_EXTRA_OPTIONS",
+    "STRING",
+    "STRING",
+    )
+    RETURN_NAMES = (
+        "image_out",
+        "pipeline_plan_out",
+        "template_options_out",
+        "caption",
+        "resolved_prompt",
+    )
     FUNCTION = "caption"
     CATEGORY = "Captioning/CaptionForge/Captioning Nodes"
 
@@ -877,7 +889,7 @@ class JLC_CaptionForgeJoy:
             engine.unload()
 
         caption_string = "\n\n".join(r.caption for r in all_records if r.status == "ok")
-        return (image, pipeline_plan, caption_string, resolved_prompt)
+        return (image, pipeline_plan, template_options, caption_string, resolved_prompt)
 
 
 NODE_CLASS_MAPPINGS = {
@@ -885,5 +897,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "JLC_CaptionForgeJoy": "\u2003JLC CaptionForge Joy",
+    "JLC_CaptionForgeJoy": "\u2003JLC CaptionForge Joy Caption",
 }

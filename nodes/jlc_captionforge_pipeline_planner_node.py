@@ -417,6 +417,38 @@ def _patch_supported_caption_witnesses(
 
     return plan
 
+
+def _patch_v010_working_image_paths(plan: dict[str, Any]) -> dict[str, Any]:
+    """Normalize v0.1.x optional-image directories in the emitted plan.
+
+    The planner engine owns most path derivation. This wrapper patch keeps
+    JSON/JSONL/audit artifacts inside the run working directory while promoting
+    optional ComfyUI IMAGE copies to a user-visible opt_images folder directly
+    under the selected output root. Those copied optional images become source
+    stand-ins, so their final *_long/_short/_taggy sidecars can live beside them.
+    """
+    if not isinstance(plan, dict):
+        return plan
+
+    paths = plan.setdefault("paths", {})
+    if not isinstance(paths, dict):
+        return plan
+
+    output_root = Path(str(paths.get("output_root") or paths.get("output_dir") or _default_output_dir()).strip())
+    shared = plan.get("shared") if isinstance(plan.get("shared"), dict) else {}
+    run_name = _clean_run_name(paths.get("run_name") or plan.get("run_name") or shared.get("run_name") or "captionforge_run")
+    working_dir = Path(str(paths.get("working_dir") or (output_root / f"{run_name}__working")).strip())
+
+    paths["working_images_dir"] = str(working_dir / "images")
+    paths["opt_images_dir"] = str(output_root / "opt_images")
+
+    if isinstance(shared, dict):
+        shared["working_images_dir"] = paths["working_images_dir"]
+        shared["opt_images_dir"] = paths["opt_images_dir"]
+
+    return plan
+
+
 def _reset_pass_a_jsonl_for_overwrite(plan: dict[str, Any], *, overwrite_outputs: bool) -> None:
     """Reset the planned Pass A JSONL before caption witnesses append.
 
@@ -922,6 +954,7 @@ class JLC_CaptionForge_Pipeline_Planner:
             qwen_runs=qwen_runs,
             ollama_runs=ollama_runs,
         )
+        plan = _patch_v010_working_image_paths(plan)
 
         overwrite_outputs = _as_bool(kwargs.get("Output - overwrite outputs", True))
         _reset_pass_a_jsonl_for_overwrite(plan, overwrite_outputs=overwrite_outputs)

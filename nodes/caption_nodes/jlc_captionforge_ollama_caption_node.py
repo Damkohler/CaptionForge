@@ -1440,8 +1440,20 @@ class JLC_CaptionForgeOllamaCaption:
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "CAPTIONFORGE_PIPELINE_PLAN", "STRING", "STRING")
-    RETURN_NAMES = ("image_out", "pipeline_plan_out", "caption", "resolved_prompt")
+    RETURN_TYPES = (
+        "IMAGE",
+        "CAPTIONFORGE_PIPELINE_PLAN",
+        "CAPTIONFORGE_EXTRA_OPTIONS",
+        "STRING",
+        "STRING",
+    )
+    RETURN_NAMES = (
+        "image_out",
+        "pipeline_plan_out",
+        "template_options_out",
+        "caption",
+        "resolved_prompt",
+    )
     FUNCTION = "caption"
     CATEGORY = "Captioning/CaptionForge/Caption Nodes"
 
@@ -1668,7 +1680,7 @@ class JLC_CaptionForgeOllamaCaption:
         # Ollama model residency is requested through keep_alive on generation calls;
         # Ollama's server/runtime policy ultimately decides residency.
         caption_string = "\n\n".join(r.caption for r in all_records if r.status == "ok" and r.caption)
-        return (image, pipeline_plan, caption_string, resolved_prompt)
+        return (image, pipeline_plan, template_options, caption_string, resolved_prompt)
 
 
 NODE_CLASS_MAPPINGS = {
