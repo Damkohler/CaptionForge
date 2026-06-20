@@ -143,7 +143,7 @@ Expected v0.1.x realities:
 - not every dataset will benefit equally
 - comparison feedback is welcome
 
-This a heavy tool. Use it when the extra caption quality and audit trail of large automated jobs are worth the runtime cost.
+This is a heavy tool. Use it when the extra caption quality and audit trail of large automated jobs are worth the runtime cost.
 
 ## Why use this instead of a standalone captioner?
 
@@ -372,6 +372,16 @@ A typical planned run uses this structure:
 
 ```text
 <output_root>/
+  opt_images/
+    comfy_image_0000.png
+    comfy_image_0000_long.txt
+    comfy_image_0000_short.txt
+    comfy_image_0000_taggy.txt
+    comfy_image_0001.png
+    comfy_image_0001_long.txt
+    comfy_image_0001_short.txt
+    comfy_image_0001_taggy.txt
+
   <run_name>__working/
     <run_name>__A_RAW_CAPTIONS.jsonl
     <run_name>__B_DISTILL.jsonl
@@ -384,19 +394,17 @@ A typical planned run uses this structure:
     <run_name>__D_FINAL_EXPORT.jsonl
     <run_name>__output_paths.json
     <run_name>__run_config.json
-    images/
-      opt_images/
-        comfy_image_0000.png
-        comfy_image_0001.png
 ```
 
-Folder-input images keep their source locations. Optional direct `IMAGE` inputs are saved into the run working area under:
+Folder-input images keep their source locations, and final TXT sidecars are written beside those original images.
+
+Optional direct `IMAGE` inputs are copied into a visible output-root folder:
 
 ```text
-<output_root>/<run_name>__working/images/opt_images/
+<output_root>/opt_images/
 ```
 
-Final caption sidecars are written beside the resolved source image. For folder-input images, that means beside the original image. For optional direct images, that means beside the saved optional image inside `working/images/opt_images/`.
+Final caption sidecars are written beside the resolved source image. For folder-input images, that means beside the original image. For optional direct images, that means beside the saved optional image inside `opt_images/`.
 
 Final sidecars currently include:
 
