@@ -174,6 +174,15 @@ except Exception:  # pragma: no cover
                 return {}
         return {}
 
+try:
+    from ..engines.captionforge_model_cache import (
+        cache_size as _captionforge_cache_size,
+        unload_all as _captionforge_unload_all,
+    )
+except Exception:  # pragma: no cover - keeps direct/local smoke tests importable
+    _captionforge_cache_size = None
+    _captionforge_unload_all = None
+
 
 CAPTIONFORGE_NODE_VERSION = "0.2.0"
 SEED_MODES = ["fixed", "increment", "decrement", "random"]
@@ -262,6 +271,41 @@ Rules:
 - Keep the result as a comma-separated list, not full prose."""
 
 _SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+def _evict_python_models_before_ollama_if_needed(caller: str) -> None:
+    """Unload resident Python/HF CaptionForge models before capstone Ollama calls.
+
+    The capstone's B/C/D stages are served by the local Ollama daemon. Joy/Qwen
+    and other Python-side caption models may still be resident after Pass A, so
+    clear the CaptionForge process-local cache once before the first Ollama
+    request. Because Ollama models are not registered in this cache, this does
+    not unload or churn between Ollama text/VLM/formatter models.
+    """
+    if _captionforge_cache_size is None or _captionforge_unload_all is None:
+        return
+
+    try:
+        resident = int(_captionforge_cache_size(include_keep=True))
+    except Exception as exc:
+        print(f"[{caller}] WARNING: Could not inspect CaptionForge Python model cache before Ollama handoff: {exc}", flush=True)
+        return
+
+    if resident <= 0:
+        return
+
+    try:
+        evicted = int(
+            _captionforge_unload_all(
+                include_keep=True,
+                reason="handoff_to_ollama",
+                safe=True,
+            )
+        )
+        if evicted:
+            print(f"[{caller}] Evicted {evicted} CaptionForge Python model(s) before Ollama handoff.", flush=True)
+    except Exception as exc:
+        print(f"[{caller}] WARNING: Python model cache eviction before Ollama handoff failed: {exc}", flush=True)
 
 
 @dataclass
@@ -543,8 +587,18 @@ def _resolve_run_name(widget_value: str, plan: dict[str, Any]) -> str:
 
 
 def _derive_paths(output_dir: Path, run_name: str, plan: dict[str, Any]) -> dict[str, str]:
+    """Resolve capstone artifact paths.
+
+    Planned runs receive paths from the Pipeline Planner. Standalone runs treat
+    the visible Output folder as an output root and create a run-specific working
+    directory inside it. Final LoRA TXT sidecars are written beside each resolved
+    source image by _write_final_txt_sidecars(), not into final_txt_dir.
+    """
     planned_paths = _plan_get(plan, "paths", default={}) if _planner_overrides(plan) else {}
     planned_paths = planned_paths if isinstance(planned_paths, dict) else {}
+
+    output_root = Path(str(planned_paths.get("output_root") or "").strip() or output_dir)
+    working_dir = Path(str(planned_paths.get("working_dir") or "").strip() or (output_root / f"{run_name}__working"))
 
     def pick(names: tuple[str, ...], fallback: Path) -> str:
         for name in names:
@@ -554,20 +608,26 @@ def _derive_paths(output_dir: Path, run_name: str, plan: dict[str, Any]) -> dict
         return str(fallback)
 
     return {
-        "output_dir": pick(("output_dir",), output_dir),
+        "output_root": str(output_root),
+        "working_dir": str(working_dir),
+        # Compatibility: internal audit/artifact writers use output_dir.
+        "output_dir": pick(("output_dir",), working_dir),
         "run_name": run_name,
-        "caption_jsonl": pick(("caption_jsonl", "pass_a_jsonl"), output_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
-        "pass_a_jsonl": pick(("pass_a_jsonl", "caption_jsonl"), output_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
-        "fat_draft_jsonl": pick(("fat_draft_jsonl", "distiller_jsonl"), output_dir / f"{run_name}__B_FAT_DRAFT.jsonl"),
-        "fat_draft_prompt_jsonl": pick(("fat_draft_prompt_jsonl", "distiller_prompt_jsonl"), output_dir / f"{run_name}__B_FAT_DRAFT_prompts.jsonl"),
-        "validator_jsonl": pick(("validator_jsonl",), output_dir / f"{run_name}__C_VLM_VALIDATED_FINAL.jsonl"),
-        "validator_prompt_jsonl": pick(("validator_prompt_jsonl",), output_dir / f"{run_name}__C_VLM_VALIDATOR_prompts.jsonl"),
-        "taggy_jsonl": pick(("taggy_jsonl", "formatter_jsonl"), output_dir / f"{run_name}__D_FORMAT_TAGGY.jsonl"),
-        "taggy_prompt_jsonl": pick(("taggy_prompt_jsonl", "formatter_prompt_jsonl"), output_dir / f"{run_name}__D_FORMAT_TAGGY_prompts.jsonl"),
-        "final_jsonl": pick(("final_jsonl",), output_dir / f"{run_name}__E_FINAL_EXPORT.jsonl"),
-        "final_txt_dir": pick(("final_txt_dir",), output_dir / f"{run_name}__TXT"),
-        "output_paths_json": pick(("output_paths_json",), output_dir / f"{run_name}__output_paths.json"),
-        "raw_response_dir": pick(("raw_response_dir",), output_dir / f"{run_name}__raw_responses"),
+        "caption_jsonl": pick(("caption_jsonl", "pass_a_jsonl"), working_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
+        "pass_a_jsonl": pick(("pass_a_jsonl", "caption_jsonl"), working_dir / f"{run_name}__A_RAW_CAPTIONS.jsonl"),
+        "fat_draft_jsonl": pick(("fat_draft_jsonl", "distiller_jsonl"), working_dir / f"{run_name}__B_FAT_DRAFT.jsonl"),
+        "fat_draft_prompt_jsonl": pick(("fat_draft_prompt_jsonl", "distiller_prompt_jsonl"), working_dir / f"{run_name}__B_FAT_DRAFT_prompts.jsonl"),
+        "validator_jsonl": pick(("validator_jsonl",), working_dir / f"{run_name}__C_VLM_VALIDATED_FINAL.jsonl"),
+        "validator_prompt_jsonl": pick(("validator_prompt_jsonl",), working_dir / f"{run_name}__C_VLM_VALIDATOR_prompts.jsonl"),
+        "taggy_jsonl": pick(("taggy_jsonl", "formatter_jsonl"), working_dir / f"{run_name}__D_FORMAT_TAGGY.jsonl"),
+        "taggy_prompt_jsonl": pick(("taggy_prompt_jsonl", "formatter_prompt_jsonl"), working_dir / f"{run_name}__D_FORMAT_TAGGY_prompts.jsonl"),
+        "final_jsonl": pick(("final_jsonl",), working_dir / f"{run_name}__D_FINAL_EXPORT.jsonl"),
+        # Legacy/debug-only. Primary final TXT sidecars are written beside images.
+        "final_txt_dir": pick(("final_txt_dir",), working_dir / f"{run_name}__TXT"),
+        "final_sidecar_policy": str(planned_paths.get("final_sidecar_policy") or "beside_resolved_source_image"),
+        "opt_images_dir": pick(("opt_images_dir",), working_dir / "opt_images"),
+        "output_paths_json": pick(("output_paths_json",), working_dir / f"{run_name}__output_paths.json"),
+        "raw_response_dir": pick(("raw_response_dir",), working_dir / f"{run_name}__raw_responses"),
     }
 
 
@@ -629,14 +689,15 @@ def _tensor_to_pil_images(image_tensor: Any) -> list[Image.Image]:
     return images
 
 
-def _save_single_image_inputs_for_validator(image_tensor: Any, output_dir: Path) -> str:
+def _save_single_image_inputs_for_validator(image_tensor: Any, image_dir: Path) -> str:
     images = _tensor_to_pil_images(image_tensor)
     if not images:
         return ""
-    image_dir = output_dir / "opt_images"
     image_dir.mkdir(parents=True, exist_ok=True)
     for index, pil in enumerate(images):
         stem = f"comfy_image_{index:04d}"
+        # Extensionless resolver target is retained for old records; the PNG is
+        # the human-visible audit image and preferred sidecar anchor.
         resolver_target = image_dir / stem
         audit_target = image_dir / f"{stem}.png"
         pil.save(resolver_target, format="PNG")
@@ -660,6 +721,35 @@ def _safe_txt_stem(value: Any) -> str:
     stem = Path(base).stem or base
     stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).rstrip(" .")
     return stem or "image"
+
+
+def _safe_source_name(value: str) -> str:
+    cleaned = []
+    for ch in str(value or "").replace("\\", "/"):
+        if ch.isalnum() or ch in {"-", "_", "."}:
+            cleaned.append(ch)
+        elif ch == "/":
+            cleaned.append("__")
+        else:
+            cleaned.append("_")
+    out = "".join(cleaned).strip("._")
+    return out or "image"
+
+
+def _dedupe_paths(values: list[Any]) -> list[Path]:
+    out: list[Path] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        p = Path(text)
+        marker = str(p)
+        if marker in seen:
+            continue
+        out.append(p)
+        seen.add(marker)
+    return out
 
 
 def _record_image_key(record: dict[str, Any], fallback_index: int = 0) -> str:
@@ -706,22 +796,75 @@ def _candidate_image_paths(image_root: str, value: Any) -> list[Path]:
     return candidates
 
 
-def _resolve_image_path_for_group(records: list[dict[str, Any]], image_root: str) -> Path | None:
-    values: list[Any] = []
-    for record in records:
-        values.extend([
-            record.get("image_resolved_path"),
-            record.get("image_path"),
-            record.get("source_path"),
-            record.get("image"),
-            record.get("image_key"),
-        ])
-    for value in values:
-        for candidate in _candidate_image_paths(image_root, value):
-            if candidate.exists() and candidate.is_file():
-                return candidate
-    return None
+def _candidate_keys_for_image_file(path: Path, root: Path | None = None) -> set[str]:
+    keys = {
+        path.name,
+        path.stem,
+        _safe_source_name(path.name),
+        _safe_source_name(path.stem),
+    }
+    if root is not None:
+        try:
+            rel = path.relative_to(root).with_suffix("")
+            keys.add(str(rel))
+            keys.add(_safe_source_name(str(rel)))
+        except Exception:
+            pass
+    return {k for k in keys if k}
 
+
+def _values_for_group_resolution(records: list[dict[str, Any]]) -> set[str]:
+    values: set[str] = set()
+    for record in records:
+        for key in ("image_resolved_path", "image_path", "source_path", "image", "image_key"):
+            value = str(record.get(key) or "").strip()
+            if not value:
+                continue
+            base = _basename_cross_platform(value)
+            stem = Path(base).stem if base else value
+            values.update({value, base, stem, _safe_source_name(value), _safe_source_name(base), _safe_source_name(stem)})
+    return {v for v in values if v}
+
+
+def _resolve_image_path_for_group(records: list[dict[str, Any]], image_roots: str | Path | list[str | Path]) -> Path | None:
+    if isinstance(image_roots, (str, Path)):
+        roots = _dedupe_paths([image_roots])
+    else:
+        roots = _dedupe_paths(list(image_roots or []))
+
+    values = _values_for_group_resolution(records)
+
+    # First try explicit/direct candidate paths from the raw record fields.
+    existing: list[Path] = []
+    for value in values:
+        for root in roots:
+            for candidate in _candidate_image_paths(str(root), value):
+                if candidate.exists() and candidate.is_file():
+                    existing.append(candidate)
+
+    if existing:
+        existing = _dedupe_paths(existing)
+        # Prefer real image extensions over the extensionless compatibility copy.
+        existing.sort(key=lambda p: 0 if p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES else 1)
+        return existing[0]
+
+    # Then index actual image files by the same sanitized key scheme used by the
+    # caption witness nodes for folder traversal. This resolves original files
+    # whose names contained spaces/parentheses but whose image_key was sanitized.
+    for root in roots:
+        try:
+            if root.is_file() and root.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES:
+                if values.intersection(_candidate_keys_for_image_file(root, None)):
+                    return root
+            if not root.exists() or not root.is_dir():
+                continue
+            for path in sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES):
+                if values.intersection(_candidate_keys_for_image_file(path, root)):
+                    return path
+        except Exception:
+            continue
+
+    return None
 
 def _pil_to_base64_png(path: Path) -> str:
     with Image.open(path) as img:
@@ -1038,8 +1181,80 @@ def _ollama_chat_image(
 # -----------------------------------------------------------------------------
 
 
-def _selected_export_caption(natural: str, taggy: str, export_format: str) -> str:
+def _normalize_txt_export_format(export_format: str) -> str:
     fmt = str(export_format or "natural").strip().lower()
+    if fmt in {"narrative", "natural"}:
+        return "natural"
+    if fmt in {"comma", "taggy"}:
+        return "taggy"
+    if fmt in {"both", "both_separate", "both separate"}:
+        return "both_separate"
+    return fmt or "natural"
+
+
+def _write_final_txt_sidecars(image_path: Path, natural: str, taggy: str, export_format: str) -> list[str]:
+    fmt = _normalize_txt_export_format(export_format)
+    written: list[str] = []
+
+    natural_path = image_path.with_suffix(".txt")
+    taggy_path = image_path.with_suffix(".taggy.txt")
+
+    if fmt == "both_separate":
+        if natural:
+            _write_text(natural_path, natural)
+            written.append(str(natural_path))
+        if taggy:
+            _write_text(taggy_path, taggy)
+            written.append(str(taggy_path))
+        return written
+
+    if fmt == "taggy":
+        caption = taggy or natural
+    else:
+        caption = natural or taggy
+
+    if caption:
+        _write_text(natural_path, caption)
+        written.append(str(natural_path))
+
+    return written
+
+
+def _make_final_failure_record(
+    *,
+    image_key: str,
+    status: str,
+    error: str,
+    selected_caption_count: int,
+    source_caption_families: list[str],
+    trigger_word: str,
+    user_caption_anchor: str,
+    models: dict[str, str],
+) -> dict[str, Any]:
+    return {
+        "captionforge_pass": "D_FINAL_EXPORT",
+        "engine": "jlc_captionforge_node",
+        "engine_version": CAPTIONFORGE_NODE_VERSION,
+        "image_key": image_key,
+        "image": "",
+        "status": status,
+        "error": error,
+        "export_format": "",
+        "final_caption": "",
+        "final_caption_natural": "",
+        "final_caption_taggy": "",
+        "fat_draft": "",
+        "trigger_word": trigger_word,
+        "user_caption_anchor": user_caption_anchor,
+        "models": models,
+        "selected_caption_count": int(selected_caption_count),
+        "source_caption_families": source_caption_families,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def _selected_export_caption(natural: str, taggy: str, export_format: str) -> str:
+    fmt = _normalize_txt_export_format(export_format)
     if fmt == "taggy":
         return taggy or natural
     return natural or taggy
@@ -1202,6 +1417,7 @@ class JLC_CaptionForge:
         output_dir.mkdir(parents=True, exist_ok=True)
         run_name = _resolve_run_name(str(kwargs.get("Output - run name", "captionforge_run") or "captionforge_run"), plan)
         paths = _derive_paths(output_dir, run_name, plan)
+        Path(paths["output_dir"]).mkdir(parents=True, exist_ok=True)
         overwrite = _safe_bool(
             _resolve_setting(plan, kwargs.get("Output - overwrite outputs"), "final.overwrite_outputs", "output.overwrite_outputs", "shared.overwrite_outputs", default=True),
             True,
@@ -1216,9 +1432,14 @@ class JLC_CaptionForge:
             raise FileNotFoundError(f"Caption JSONL is empty: {caption_path}")
 
         image_root = _resolve_image_root(str(kwargs.get("Input - image path", "") or ""), plan, caption_jsonl)
-        single_image_root = _save_single_image_inputs_for_validator(kwargs.get("Input - single image"), output_dir)
-        if single_image_root:
-            image_root = single_image_root
+        opt_images_dir = Path(paths.get("opt_images_dir") or (Path(paths["output_dir"]) / "opt_images"))
+        single_image_root = _save_single_image_inputs_for_validator(kwargs.get("Input - single image"), opt_images_dir)
+        image_roots = _dedupe_paths([
+            image_root,
+            _plan_get(plan, "paths.image_root", "shared.image_root", "shared.input_path", "input_path", default=""),
+            single_image_root,
+            Path(caption_jsonl).resolve().parent,
+        ])
 
         ollama_url = _normalize_ollama_url(str(kwargs.get("Ollama - URL", DEFAULT_OLLAMA_URL)))
         keep_loaded = _safe_bool(kwargs.get("Ollama - keep loaded", True), True)
@@ -1297,8 +1518,7 @@ class JLC_CaptionForge:
         fmt_prompt_instructions = str(kwargs.get("Formatter - prompt") or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
 
         txt_export_format = str(_resolve_setting(plan, kwargs.get("Final - TXT export format"), "final.txt_export_format", "final.caption_style", default="natural") or "natural")
-        if txt_export_format == "comma":
-            txt_export_format = "taggy"
+        txt_export_format = _normalize_txt_export_format(txt_export_format)
         write_txt = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write TXT sidecars"), "final.write_txt_sidecars", default=True), True)
         write_jsonl = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write JSONL"), "final.write_jsonl", default=True), True)
 
@@ -1314,6 +1534,8 @@ class JLC_CaptionForge:
         ok = 0
         failed = 0
 
+        _evict_python_models_before_ollama_if_needed("JLC CaptionForge Node")
+
         if write_jsonl:
             Path(paths["final_jsonl"]).parent.mkdir(parents=True, exist_ok=True)
             if overwrite:
@@ -1326,14 +1548,48 @@ class JLC_CaptionForge:
                 max_per_family=max_per_family,
                 max_total=max_total,
             )
+            source_families = sorted({(_family_of(r) or "unknown") for r in selected})
+            models_for_record = {"fat_draft": fat_model, "validator": val_model, "formatter": fmt_model}
+
             if not selected:
                 failed += 1
+                final_record = _make_final_failure_record(
+                    image_key=image_key,
+                    status="error",
+                    error="no_usable_captions_selected",
+                    selected_caption_count=0,
+                    source_caption_families=[],
+                    trigger_word=trigger_word,
+                    user_caption_anchor=user_caption_anchor,
+                    models=models_for_record,
+                )
+                final_records.append(final_record)
+                if write_jsonl:
+                    _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
                 print(f"[JLC CaptionForge Node] No usable captions selected for image_key={image_key}", flush=True)
                 continue
-            image_path = _resolve_image_path_for_group(selected, image_root)
+
+            image_path = _resolve_image_path_for_group(selected, image_roots)
             if image_path is None:
                 failed += 1
-                print(f"[JLC CaptionForge Node] Could not resolve image path for image_key={image_key} under {image_root}", flush=True)
+                final_record = _make_final_failure_record(
+                    image_key=image_key,
+                    status="error",
+                    error=f"could_not_resolve_image_path; searched={'; '.join(str(p) for p in image_roots)}",
+                    selected_caption_count=len(selected),
+                    source_caption_families=source_families,
+                    trigger_word=trigger_word,
+                    user_caption_anchor=user_caption_anchor,
+                    models=models_for_record,
+                )
+                final_records.append(final_record)
+                if write_jsonl:
+                    _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
+                print(
+                    f"[JLC CaptionForge Node] Could not resolve image path for image_key={image_key}; "
+                    f"searched roots: {', '.join(str(p) for p in image_roots)}",
+                    flush=True,
+                )
                 continue
 
             caption_blocks = _build_caption_blocks(selected, max_caption_chars)
@@ -1473,7 +1729,7 @@ class JLC_CaptionForge:
                 taggy_blocks.append(taggy)
 
             final_record = {
-                "captionforge_pass": "E_FINAL_EXPORT",
+                "captionforge_pass": "D_FINAL_EXPORT",
                 "engine": "jlc_captionforge_node",
                 "engine_version": CAPTIONFORGE_NODE_VERSION,
                 "image_key": image_key,
@@ -1486,21 +1742,22 @@ class JLC_CaptionForge:
                 "fat_draft": fat_text,
                 "trigger_word": trigger_word,
                 "user_caption_anchor": user_caption_anchor,
-                "models": {"fat_draft": fat_model, "validator": val_model, "formatter": fmt_model},
+                "models": models_for_record,
                 "selected_caption_count": len(selected),
-                "source_caption_families": sorted({(_family_of(r) or "unknown") for r in selected}),
+                "source_caption_families": source_families,
+                "sidecar_paths": [],
                 "timestamp": datetime.now().isoformat(timespec="seconds"),
             }
-            final_records.append(final_record)
 
             if write_txt and export_caption:
-                stem = _safe_txt_stem(image_path)
-                txt_dir = Path(paths["final_txt_dir"])
-                if txt_export_format == "both_separate":
-                    _write_text(txt_dir / f"{stem}.txt", natural)
-                    _write_text(txt_dir / f"{stem}.taggy.txt", taggy)
-                else:
-                    _write_text(txt_dir / f"{stem}.txt", export_caption)
+                final_record["sidecar_paths"] = _write_final_txt_sidecars(
+                    Path(image_path),
+                    natural,
+                    taggy,
+                    txt_export_format,
+                )
+
+            final_records.append(final_record)
 
             if write_jsonl:
                 _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
@@ -1517,6 +1774,8 @@ class JLC_CaptionForge:
                 "caption_jsonl": caption_jsonl,
                 "pass_a_jsonl": caption_jsonl,
                 "image_root": image_root,
+                "image_roots": [str(p) for p in image_roots],
+                "opt_images_dir": str(opt_images_dir),
                 "planner_connected": _planner_overrides(plan),
                 "fat_draft_model_resolved": fat_model,
                 "validator_model_resolved": val_model,

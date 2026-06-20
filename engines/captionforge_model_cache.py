@@ -230,6 +230,29 @@ def get_max_loaded_models() -> int:
         return _MAX_LOADED_MODELS
 
 
+def cache_size(*, include_keep: bool = True, role: str | None = None) -> int:
+    """Return the number of resident CaptionForge Python model cache entries.
+
+    This is intentionally lightweight and side-effect free. Ollama-backed nodes
+    use it to decide whether a Python/HF/torch model is still resident before
+    handing the workflow over to the local Ollama server.
+
+    Ollama models are not registered in this process-local cache, so this check
+    will not cause eviction between Ollama models.
+    """
+    role_norm = normalize_cache_part(role).lower() if role is not None else None
+
+    with _CACHE_LOCK:
+        count = 0
+        for entry in _MODEL_CACHE.values():
+            if entry.keep and not include_keep:
+                continue
+            if role_norm is not None and normalize_cache_part(entry.role).lower() != role_norm:
+                continue
+            count += 1
+        return count
+
+
 def get_cached_model(key: str) -> Optional[Any]:
     """
     Return cached model bundle/object if present.

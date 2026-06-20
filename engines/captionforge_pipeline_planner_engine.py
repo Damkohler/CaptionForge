@@ -315,26 +315,42 @@ def get_pass_a_model_plan(pipeline_plan: Any, model_key: str, *, widget_captions
 
 
 def _derive_paths(output_dir: str, run_name: str, image_root: str = "") -> dict[str, str]:
-    out = Path(str(output_dir or "").strip())
+    """Derive planner-owned artifact paths.
+
+    ``output_dir`` is treated as the user-selected output root. CaptionForge then
+    creates one run-specific working directory inside it for JSON/JSONL audit
+    artifacts and temporary optional-image files. Final LoRA TXT sidecars are
+    written later by the capstone beside the resolved source image, not into this
+    artifact directory.
+    """
+    output_root = Path(str(output_dir or "").strip() or ".")
     name = _clean_name(run_name)
-    caption_jsonl = out / f"{name}__A_RAW_CAPTIONS.jsonl"
+    working_dir = output_root / f"{name}__working"
+    caption_jsonl = working_dir / f"{name}__A_RAW_CAPTIONS.jsonl"
     return {
-        "output_dir": str(out),
+        "output_root": str(output_root),
+        "working_dir": str(working_dir),
+        # Compatibility: existing caption nodes read paths/shared output_dir.
+        "output_dir": str(working_dir),
         "run_name": name,
         "image_root": str(image_root or "").strip(),
         "caption_jsonl": str(caption_jsonl),
         "pass_a_jsonl": str(caption_jsonl),
-        "distiller_jsonl": str(out / f"{name}__B_DISTILL.jsonl"),
-        "distiller_readable_jsonl": str(out / f"{name}__B_DISTILL_readable.jsonl"),
-        "distiller_readable_json": str(out / f"{name}__B_DISTILL_readable.json"),
-        "distiller_prompt_jsonl": str(out / f"{name}__B_DISTILL_prompts.jsonl"),
-        "validator_jsonl": str(out / f"{name}__C_VLM_VALIDATED.jsonl"),
-        "validator_prompt_jsonl": str(out / f"{name}__C_VLM_VALIDATOR_prompts.jsonl"),
-        "validator_readable_dir": str(out / f"{name}__C_VLM_VALIDATED_readable"),
-        "final_jsonl": str(out / f"{name}__D_FINAL_EXPORT.jsonl"),
-        "final_txt_dir": str(out / f"{name}__TXT"),
-        "output_paths_json": str(out / f"{name}__output_paths.json"),
-        "run_config_json": str(out / f"{name}__run_config.json"),
+        "distiller_jsonl": str(working_dir / f"{name}__B_DISTILL.jsonl"),
+        "distiller_readable_jsonl": str(working_dir / f"{name}__B_DISTILL_readable.jsonl"),
+        "distiller_readable_json": str(working_dir / f"{name}__B_DISTILL_readable.json"),
+        "distiller_prompt_jsonl": str(working_dir / f"{name}__B_DISTILL_prompts.jsonl"),
+        "validator_jsonl": str(working_dir / f"{name}__C_VLM_VALIDATED.jsonl"),
+        "validator_prompt_jsonl": str(working_dir / f"{name}__C_VLM_VALIDATOR_prompts.jsonl"),
+        "validator_readable_dir": str(working_dir / f"{name}__C_VLM_VALIDATED_readable"),
+        "final_jsonl": str(working_dir / f"{name}__D_FINAL_EXPORT.jsonl"),
+        # Legacy/debug-only directory. The capstone writes final LoRA sidecars
+        # beside resolved source images instead of using this for primary output.
+        "final_txt_dir": str(working_dir / f"{name}__TXT"),
+        "final_sidecar_policy": "beside_resolved_source_image",
+        "opt_images_dir": str(working_dir / "opt_images"),
+        "output_paths_json": str(working_dir / f"{name}__output_paths.json"),
+        "run_config_json": str(working_dir / f"{name}__run_config.json"),
     }
 
 
@@ -349,6 +365,10 @@ def build_captionforge_pipeline_plan(
     overwrite_outputs: bool = True,
     joy_runs_per_image: Any = 2,
     qwen_runs_per_image: Any = 2,
+    ollama_runs_per_image: Any = "Disabled",
+    ollama_caption_runs_per_image: Any | None = None,
+    caption_ollama_runs_per_image: Any | None = None,
+    ollama_vlm_runs_per_image: Any | None = None,
     florence_runs_per_image: Any = "Disabled",
     llama_vision_runs_per_image: Any = "Disabled",
     base_seed: int = -1,
@@ -396,9 +416,19 @@ def build_captionforge_pipeline_plan(
 ) -> dict[str, Any]:
     joy_runs = _normalize_runs_per_image(joy_runs_per_image, 2)
     qwen_runs = _normalize_runs_per_image(qwen_runs_per_image, 2)
+    ollama_runs = max(
+        _normalize_runs_per_image(value, "Disabled")
+        for value in (
+            ollama_runs_per_image,
+            ollama_caption_runs_per_image,
+            caption_ollama_runs_per_image,
+            ollama_vlm_runs_per_image,
+        )
+        if value is not None
+    )
     florence_runs = _normalize_runs_per_image(florence_runs_per_image, "Disabled")
     llama_runs = _normalize_runs_per_image(llama_vision_runs_per_image, "Disabled")
-    pass_a_total_runs = joy_runs + qwen_runs + florence_runs + llama_runs
+    pass_a_total_runs = joy_runs + qwen_runs + ollama_runs + florence_runs + llama_runs
 
     if pass_a_total_runs <= 0:
         raise ValueError(
@@ -441,12 +471,17 @@ def build_captionforge_pipeline_plan(
         "overwrite_outputs": _coerce_bool(overwrite_outputs, True),
     }
     shared["captions_per_image"] = (
-        _coerce_int(captions_per_image, max(joy_runs, qwen_runs, florence_runs, llama_runs, 1), 1, 100)
+        _coerce_int(captions_per_image, max(joy_runs, qwen_runs, ollama_runs, florence_runs, llama_runs, 1), 1, 100)
         if captions_per_image is not None
-        else max(joy_runs, qwen_runs, florence_runs, llama_runs, 1)
+        else max(joy_runs, qwen_runs, ollama_runs, florence_runs, llama_runs, 1)
     )
 
     paths = _derive_paths(shared["output_dir"], run_name_n, image_root=input_path_n)
+    shared["output_root"] = paths["output_root"]
+    shared["working_dir"] = paths["working_dir"]
+    # Compatibility: caption witness nodes consume shared.output_dir when writing
+    # Pass A JSONL/audit artifacts, so point it at the run working directory.
+    shared["output_dir"] = paths["output_dir"]
 
     distiller = {
         "backend": "ollama",
@@ -498,6 +533,10 @@ def build_captionforge_pipeline_plan(
         "pass_a": {
             "joy": {"model_key": "joy", "enabled": joy_runs > 0, "runs_per_image": joy_runs, "role": "rich_descriptive_caption_witness"},
             "qwen": {"model_key": "qwen", "enabled": qwen_runs > 0, "runs_per_image": qwen_runs, "role": "detail_miner_alternate_caption_witness"},
+            "ollama": {"model_key": "ollama", "enabled": ollama_runs > 0, "runs_per_image": ollama_runs, "role": "generic_ollama_vlm_caption_witness"},
+            "ollama_caption": {"model_key": "ollama", "enabled": ollama_runs > 0, "runs_per_image": ollama_runs, "role": "generic_ollama_vlm_caption_witness"},
+            "caption_ollama": {"model_key": "ollama", "enabled": ollama_runs > 0, "runs_per_image": ollama_runs, "role": "generic_ollama_vlm_caption_witness"},
+            "ollama_vlm": {"model_key": "ollama", "enabled": ollama_runs > 0, "runs_per_image": ollama_runs, "role": "generic_ollama_vlm_caption_witness"},
             "florence": {"model_key": "florence", "enabled": florence_runs > 0, "runs_per_image": florence_runs, "role": "optional_grounding_caption_witness"},
             "llama_vision": {"model_key": "llama_vision", "enabled": llama_runs > 0, "runs_per_image": llama_runs, "role": "optional_vision_language_caption_witness"},
         },
@@ -506,6 +545,7 @@ def build_captionforge_pipeline_plan(
                 key for key, runs in {
                     "joy": joy_runs,
                     "qwen": qwen_runs,
+                    "ollama": ollama_runs,
                     "florence": florence_runs,
                     "llama_vision": llama_runs,
                 }.items() if runs > 0

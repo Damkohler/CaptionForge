@@ -104,8 +104,10 @@ MANIFEST = {
         "Caption-stage Ollama model tags are selected directly on each Ollama Caption "
         "node. Loads explicit Ollama Distiller/Validator dropdown tags from "
         "config/captionforge_ollama_models.json, with no family aliases or shorthand "
-        "model substitutions. When overwrite_outputs is true, the planner resets the "
-        "planned Pass A caption JSONL before caption nodes append fresh records."
+        "model substitutions. The selected output folder is treated as an output root; "
+        "the planner derives a run-specific working directory for JSON/JSONL artifacts. "
+        "When overwrite_outputs is true, the planner resets the planned Pass A caption "
+        "JSONL before caption nodes append fresh records."
     ),
 }
 
@@ -548,7 +550,11 @@ class JLC_CaptionForge_Pipeline_Planner:
                     {
                         "default": _default_output_dir(),
                         "multiline": False,
-                        "tooltip": "Shared output folder for all CaptionForge JSON/JSONL/TXT artifacts.",
+                        "tooltip": (
+                            "Output root folder. CaptionForge creates a run-specific working directory "
+                            "inside this folder for JSON/JSONL/audit artifacts. Final TXT sidecars are "
+                            "written beside their resolved source images."
+                        ),
                     },
                 ),
                 "Output - run name": (

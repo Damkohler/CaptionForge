@@ -217,10 +217,52 @@ from ..captionforge_ollama_model_dropdowns import (
     load_ollama_model_dropdowns,
 )
 
+try:
+    from ...engines.captionforge_model_cache import (
+        cache_size as _captionforge_cache_size,
+        unload_all as _captionforge_unload_all,
+    )
+except Exception:  # pragma: no cover - keeps direct/local smoke tests importable
+    _captionforge_cache_size = None
+    _captionforge_unload_all = None
+
 
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 DEFAULT_JSONL_FILENAME = "captions.jsonl"
 _SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+def _evict_python_models_before_ollama_if_needed(caller: str) -> None:
+    """Unload resident Python/HF CaptionForge models before handing off to Ollama.
+
+    Ollama model residency is owned by the Ollama daemon, not by CaptionForge's
+    process-local Python model cache. Therefore this only runs when the Python
+    cache is non-empty and naturally becomes a no-op between Ollama models.
+    """
+    if _captionforge_cache_size is None or _captionforge_unload_all is None:
+        return
+
+    try:
+        resident = int(_captionforge_cache_size(include_keep=True))
+    except Exception as exc:
+        print(f"[{caller}] WARNING: Could not inspect CaptionForge Python model cache before Ollama handoff: {exc}", flush=True)
+        return
+
+    if resident <= 0:
+        return
+
+    try:
+        evicted = int(
+            _captionforge_unload_all(
+                include_keep=True,
+                reason="handoff_to_ollama",
+                safe=True,
+            )
+        )
+        if evicted:
+            print(f"[{caller}] Evicted {evicted} CaptionForge Python model(s) before Ollama handoff.", flush=True)
+    except Exception as exc:
+        print(f"[{caller}] WARNING: Python model cache eviction before Ollama handoff failed: {exc}", flush=True)
 
 
 FEMALE_CHARACTER_LORA_SYSTEM_PROMPT = """You are a multimodal image captioning engine for female character LoRA dataset preparation.
@@ -1455,6 +1497,8 @@ class JLC_CaptionForgeOllamaCaption:
             prompt = _resolve_prompt_preset(prompt_preset, custom_prompt)
 
         resolved_prompt = _format_resolved_prompt(system_prompt, prompt)
+
+        _evict_python_models_before_ollama_if_needed("JLC CaptionForge Ollama Caption")
 
         if download_probe_only:
             result = _probe_ollama_model(ollama_url, model_tag, timeout=min(timeout, 60.0))
