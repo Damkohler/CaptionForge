@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "captionforge"
-version = "0.1.0"
+version = "0.1.1"
 description = "CaptionForge is a local ComfyUI captioning toolkit for preparing better LoRA-ready image datasets. It runs multiple caption witnesses, compares their agreements and contradictions, distills the strongest visual claims, validates them against the image with a VLM, and exports long, short, and taggy TXT captions alongside JSONL audit trails. CaptionForge does not ship model weights: Python-backed Hugging Face models such as Joy and Qwen are downloaded on demand and cached locally, while Ollama-backed stages require a local Ollama installation with the selected model tags installed or pullable."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
