@@ -69,7 +69,4 @@ config/.bak/
 # CaptionForge local experimental/quarantined code
 /nodes/experimental/
 /engines/experimental/
-
-# CaptionForge local experimental/quarantined code
-/nodes/experimental/
-/engines/experimental/
+node.zip
