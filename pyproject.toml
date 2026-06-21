@@ -5,43 +5,47 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "captionforge"
 version = "0.1.0"
-description = "Experimental ComfyUI captioning framework for LoRA dataset preparation using multi-engine caption witnesses, JSONL audit trails, text-LLM distillation, image-aware VLM validation, and grounded final-caption export."
+description = "CaptionForge is a local ComfyUI captioning toolkit for preparing better LoRA-ready image datasets. It runs multiple caption witnesses, compares their agreements and contradictions, distills the strongest visual claims, validates them against the image with a VLM, and exports long, short, and taggy TXT captions alongside JSONL audit trails. CaptionForge does not ship model weights: Python-backed Hugging Face models such as Joy and Qwen are downloaded on demand and cached locally, while Ollama-backed stages require a local Ollama installation with the selected model tags installed or pullable."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
 authors = [
-    { name = "J. L. Córdova" }
+    { name = "J. L. Córdova", email = "jose.l.cordova@gmail.com" }
 ]
 maintainers = [
-    { name = "J. L. Córdova" }
+    { name = "J. L. Córdova", email = "jose.l.cordova@gmail.com" }
 ]
 keywords = [
     "comfyui",
+    "comfyui-nodes",
+    "comfyui-custom-nodes",
     "captioning",
-    "lora",
+    "caption-generation",
+    "dataset-captioning",
     "dataset-preparation",
     "image-captioning",
+    "image-dataset",
+    "lora",
+    "lora-training",
     "vision-language-models",
     "vlm",
+    "vlm-validation",
     "llm",
+    "multimodal-ai",
     "ollama",
+    "huggingface",
     "qwen",
     "joycaption",
     "jsonl",
+    "audit-trail",
     "local-ai",
 ]
 
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
     "Topic :: Multimedia :: Graphics",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Operating System :: OS Independent",
 ]
 
 dependencies = [
@@ -69,6 +73,14 @@ dev = [
 Homepage = "https://github.com/Damkohler/CaptionForge"
 Repository = "https://github.com/Damkohler/CaptionForge"
 Issues = "https://github.com/Damkohler/CaptionForge/issues"
+
+[tool.comfy]
+supported_comfyui_version = ">=0.2"
+PublisherId = "damkohler"
+DisplayName = "CaptionForge"
+Icon = "https://raw.githubusercontent.com/Damkohler/jlc-comfyui-nodes/main/assets/icons/jlc-comfyui-nodes_Logo-0512.png"
+Category = "nodes"
+Homepage = "https://github.com/Damkohler/CaptionForge"
 
 [tool.setuptools]
 include-package-data = true
