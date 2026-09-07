@@ -339,7 +339,7 @@ class JLC_CaptionForgeExtraOptions:
     RETURN_TYPES = ("CAPTIONFORGE_EXTRA_OPTIONS", "STRING")
     RETURN_NAMES = ("template_options", "template_options_json")
     FUNCTION = "build"
-    CATEGORY = "Captioning/CaptionForge"
+    CATEGORY = "Caption/CaptionForge"
 
     def build(self, **kwargs):
         # Accept the old name_input key as a courtesy during hot-swaps, but the

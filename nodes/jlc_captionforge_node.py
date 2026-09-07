@@ -1290,6 +1290,8 @@ def _write_final_txt_sidecars(
     short_caption: str,
     taggy_caption: str,
     export_format: str = "",
+    *,
+    overwrite: bool = True,
 ) -> list[str]:
     """Write v0.1.x final sidecars beside the resolved source image.
 
@@ -1312,6 +1314,8 @@ def _write_final_txt_sidecars(
 
     for path, text in targets:
         if text:
+            if path.exists() and not overwrite:
+                continue
             _write_text(path, text)
             written.append(str(path))
 
@@ -1501,7 +1505,7 @@ class JLC_CaptionForge:
     RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("natural_captions", "taggy_captions", "final_jsonl_records", "output_paths_json", "status")
     FUNCTION = "forge"
-    CATEGORY = "Captioning/CaptionForge"
+    CATEGORY = "Caption/CaptionForge"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -1858,6 +1862,7 @@ class JLC_CaptionForge:
                     short,
                     taggy,
                     txt_export_format,
+                    overwrite=overwrite,
                 )
 
             final_records.append(final_record)

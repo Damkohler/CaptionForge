@@ -1,8 +1,8 @@
 {
-  "id": "10a98c38-ff15-4164-bbc1-2942ceae87fb",
+  "id": "5062aa6a-f573-4ee5-8f10-7cb88f33c2aa",
   "revision": 0,
   "last_node_id": 70,
-  "last_link_id": 172,
+  "last_link_id": 174,
   "nodes": [
     {
       "id": 51,
@@ -80,9 +80,10 @@
         }
       ],
       "properties": {
-        "aux_id": "Damkohler/CaptionForge",
+        "cnr_id": "comfyui_fearnworksnodes",
         "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForgeJoy"
+        "Node name for S&R": "JLC_CaptionForgeJoy",
+        "aux_id": "Damkohler/CaptionForge"
       },
       "widgets_values": [
         "llama-joycaption-beta-one-hf-llava",
@@ -104,7 +105,28 @@
         "",
         "",
         false
-      ]
+      ],
+      "widgets_values_named": {
+        "model": "llama-joycaption-beta-one-hf-llava",
+        "memory_mode": "Balanced (8-bit)",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "JLC LoRA Literal",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "default_literal",
+        "system_prompt": "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "custom_prompt": "",
+        "max_new_tokens": 384,
+        "temperature": 0.75,
+        "top_p": 0.9,
+        "top_k": 50,
+        "repetition_penalty": 1,
+        "max_size": 1024,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
     },
     {
       "id": 52,
@@ -182,9 +204,10 @@
         }
       ],
       "properties": {
-        "aux_id": "Damkohler/CaptionForge",
+        "cnr_id": "comfyui_fearnworksnodes",
         "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForgeQwen"
+        "Node name for S&R": "JLC_CaptionForgeQwen",
+        "aux_id": "Damkohler/CaptionForge"
       },
       "widgets_values": [
         "Qwen2.5-VL-7B-Instruct",
@@ -206,7 +229,28 @@
         "",
         "",
         false
-      ]
+      ],
+      "widgets_values_named": {
+        "model": "Qwen2.5-VL-7B-Instruct",
+        "qwen_quantization": "Balanced (8-bit)",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "LoRA Literal",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "default_literal",
+        "system_prompt": "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "custom_prompt": "",
+        "max_new_tokens": 384,
+        "temperature": 0.75,
+        "top_p": 0.9,
+        "top_k": 50,
+        "repetition_penalty": 1.08,
+        "max_size": 1024,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
     },
     {
       "id": 58,
@@ -284,9 +328,10 @@
         }
       ],
       "properties": {
-        "aux_id": "Damkohler/CaptionForge",
+        "cnr_id": "comfyui_fearnworksnodes",
         "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForgeOllamaCaption"
+        "Node name for S&R": "JLC_CaptionForgeOllamaCaption",
+        "aux_id": "Damkohler/CaptionForge"
       },
       "widgets_values": [
         "qwen3.6:35B-A3B",
@@ -310,7 +355,30 @@
         "",
         "",
         false
-      ]
+      ],
+      "widgets_values_named": {
+        "model": "qwen3.6:35B-A3B",
+        "custom_model_tag": "",
+        "ollama_url": "http://127.0.0.1:11434",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "Descriptive",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "female_character_lora",
+        "system_prompt": "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "custom_prompt": "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        "max_new_tokens": 6000,
+        "temperature": 0.9,
+        "top_p": 0.6,
+        "top_k": 80,
+        "repetition_penalty": 1.03,
+        "max_size": 1024,
+        "request_timeout_seconds": 1800,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
     },
     {
       "id": 66,
@@ -352,7 +420,10 @@
       },
       "widgets_values": [
         "raw value"
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
     },
     {
       "id": 63,
@@ -394,7 +465,10 @@
       },
       "widgets_values": [
         "raw value"
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
     },
     {
       "id": 64,
@@ -436,7 +510,10 @@
       },
       "widgets_values": [
         "raw value"
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
     },
     {
       "id": 65,
@@ -478,7 +555,10 @@
       },
       "widgets_values": [
         "raw value"
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
     },
     {
       "id": 60,
@@ -540,9 +620,10 @@
         }
       ],
       "properties": {
-        "aux_id": "Damkohler/CaptionForge",
+        "cnr_id": "comfyui_fearnworksnodes",
         "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForge"
+        "Node name for S&R": "JLC_CaptionForge",
+        "aux_id": "Damkohler/CaptionForge"
       },
       "widgets_values": [
         "",
@@ -592,7 +673,56 @@
         "natural",
         true,
         true
-      ]
+      ],
+      "widgets_values_named": {
+        "Input - captions JSONL": "",
+        "Input - image path": "",
+        "Input - include caption families": "joy,qwen,ollama",
+        "Input - max captions per family": 5,
+        "Input - max total captions": 20,
+        "Output - folder": "",
+        "Output - run name": "captionforge_run",
+        "Output - overwrite outputs": true,
+        "Ollama - URL": "http://127.0.0.1:11434",
+        "Ollama - keep loaded": true,
+        "Ollama - request timeout seconds": 1800,
+        "LoRA - trigger word": "",
+        "LoRA - user caption anchor": "",
+        "Fat Draft - model": "mistral-small:24b",
+        "Fat Draft - custom Ollama model": "",
+        "Fat Draft - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        "Fat Draft - base seed": 1,
+        "Fat Draft - seed mode": "fixed",
+        "Fat Draft - max caption chars": 1536,
+        "Fat Draft - max new tokens": 5000,
+        "Fat Draft - temperature": 0.12,
+        "Fat Draft - top p": 0.88,
+        "Fat Draft - top k": 50,
+        "Validator - model": "gemma4:26b",
+        "Validator - custom Ollama model": "",
+        "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        "Validator - base seed": 1,
+        "Validator - seed mode": "fixed",
+        "Validator - max new tokens": 5000,
+        "Validator - temperature": 0.05,
+        "Validator - top p": 0.88,
+        "Validator - top k": 50,
+        "Formatter - model": "mistral-small:24b",
+        "Formatter - custom Ollama model": "",
+        "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter.\n\nThe validated paragraph is already the natural-language final caption. Do not rewrite it.\n\nTask:\nCreate one TAGGY caption from the validated paragraph.\n\nRules:\n- Output only the taggy comma-separated caption.\n- Use only details already present in the validated paragraph.\n- Preserve concrete LoRA-useful details.\n- Do not add new details.\n- Do not mention this process.\n- Do not output markdown.\n- Do not include a TAGGY: label.\n- Keep the result as a comma-separated list, not full prose.",
+        "Formatter - base seed": 1,
+        "Formatter - seed mode": "fixed",
+        "Formatter - max new tokens": 3200,
+        "Formatter - temperature": 0.12,
+        "Formatter - top p": 0.88,
+        "Formatter - top k": 50,
+        "Audit - write prompt JSONL": false,
+        "Audit - preserve raw responses": false,
+        "Final - TXT export format": "natural",
+        "Final - write TXT sidecars": true,
+        "Final - write JSONL": true
+      }
     },
     {
       "id": 32,
@@ -634,7 +764,10 @@
       },
       "widgets_values": [
         "raw value"
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
     },
     {
       "id": 56,
@@ -710,9 +843,10 @@
         }
       ],
       "properties": {
-        "aux_id": "Damkohler/CaptionForge",
+        "cnr_id": "comfyui_fearnworksnodes",
         "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForgeOllamaCaption"
+        "Node name for S&R": "JLC_CaptionForgeOllamaCaption",
+        "aux_id": "Damkohler/CaptionForge"
       },
       "widgets_values": [
         "huihui_ai/gemma-4-abliterated:26b",
@@ -736,7 +870,30 @@
         "",
         "",
         false
-      ]
+      ],
+      "widgets_values_named": {
+        "model": "huihui_ai/gemma-4-abliterated:26b",
+        "custom_model_tag": "",
+        "ollama_url": "http://127.0.0.1:11434",
+        "keep_loaded": true,
+        "caption_template_mode": false,
+        "caption_type": "Descriptive",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "female_character_lora",
+        "system_prompt": "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "custom_prompt": "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        "max_new_tokens": 6000,
+        "temperature": 0.9,
+        "top_p": 0.6,
+        "top_k": 80,
+        "repetition_penalty": 1.03,
+        "max_size": 1024,
+        "request_timeout_seconds": 1800,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
     },
     {
       "id": 62,
@@ -778,7 +935,10 @@
       },
       "widgets_values": [
         "raw value"
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
     },
     {
       "id": 28,
@@ -820,7 +980,10 @@
       },
       "widgets_values": [
         "raw value"
-      ]
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
     },
     {
       "id": 55,
@@ -852,9 +1015,10 @@
         }
       ],
       "properties": {
-        "aux_id": "Damkohler/CaptionForge",
+        "cnr_id": "comfyui_fearnworksnodes",
         "ver": "ad9f3213066b34f2005e654bcd272cd42732b3ac",
-        "Node name for S&R": "JLC_CaptionForgeExtraOptions"
+        "Node name for S&R": "JLC_CaptionForgeExtraOptions",
+        "aux_id": "Damkohler/CaptionForge"
       },
       "widgets_values": [
         "",
@@ -889,14 +1053,177 @@
         true,
         true,
         true
-      ]
+      ],
+      "widgets_values_named": {
+        "name_input__replacement_for_name": "",
+        "option_01__character_name_required": false,
+        "option_02__literal_visible_details_only": true,
+        "option_03__no_roleplay_or_dialogue": true,
+        "option_04__no_ambiguous_wording": true,
+        "option_05__avoid_meta_lead_ins": true,
+        "option_06__describe_facial_features": true,
+        "option_07__eye_color_vs_makeup": true,
+        "option_08__describe_makeup_separately": true,
+        "option_09__describe_expression": true,
+        "option_10__hair_color_and_style": true,
+        "option_11__skin_tone_and_texture": true,
+        "option_12__body_shape_and_proportions": true,
+        "option_13__visible_anatomy_and_coverage": true,
+        "option_14__stylized_material_traits": true,
+        "option_15__clothing_pieces_clearly": true,
+        "option_16__clothing_materials_textures": true,
+        "option_17__precise_colors": false,
+        "option_18__accessories_and_jewelry": false,
+        "option_19__pose_and_stance": true,
+        "option_20__hands_and_arms": true,
+        "option_21__framing_shot_distance": true,
+        "option_22__viewing_angle": true,
+        "option_23__background_and_setting": true,
+        "option_24__lighting": false,
+        "option_25__image_style_medium": true,
+        "option_26__watermark_only_if_present": false,
+        "option_27__visible_text_if_relevant": true,
+        "option_28__sfw_suggestive_nsfw_rating": false,
+        "option_29__neutral_sensual_details": true,
+        "option_30__vulgar_wording_allowed": true,
+        "option_31__no_polite_euphemisms": true
+      }
+    },
+    {
+      "id": 68,
+      "type": "LoadImage",
+      "pos": [
+        -2532,
+        820
+      ],
+      "size": [
+        224,
+        364
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            171
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.20.1",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "Flux.2__00297_.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "Flux.2__00297_.png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 70,
+      "type": "LoadImage",
+      "pos": [
+        -2532,
+        1232
+      ],
+      "size": [
+        224,
+        328
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            170
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.20.1",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "ChatGPT Image Jun 20, 2026, 10_38_46 AM (7).png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "ChatGPT Image Jun 20, 2026, 10_38_46 AM (7).png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 9,
+      "type": "LoadImage",
+      "pos": [
+        -2540,
+        1612
+      ],
+      "size": [
+        232,
+        344
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            172
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.20.1",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "Goth Blonde - 004_00006_.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "Goth Blonde - 004_00006_.png",
+        "upload": "image"
+      }
     },
     {
       "id": 67,
       "type": "ImageBatchMulti",
       "pos": [
-        -2512,
-        644
+        -2520,
+        648
       ],
       "size": [
         212,
@@ -929,7 +1256,7 @@
           "name": "images",
           "type": "IMAGE",
           "links": [
-            167
+            174
           ]
         }
       ],
@@ -940,124 +1267,11 @@
       "widgets_values": [
         3,
         null
-      ]
-    },
-    {
-      "id": 68,
-      "type": "LoadImage",
-      "pos": [
-        -2524,
-        812
       ],
-      "size": [
-        224,
-        364
-      ],
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            171
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.20.1",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "Flux.2__00297_.png",
-        "image"
-      ]
-    },
-    {
-      "id": 70,
-      "type": "LoadImage",
-      "pos": [
-        -2528,
-        1220
-      ],
-      "size": [
-        224,
-        328
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            170
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.20.1",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "ChatGPT Image Jun 20, 2026, 10_38_46 AM (7).png",
-        "image"
-      ]
-    },
-    {
-      "id": 9,
-      "type": "LoadImage",
-      "pos": [
-        -2532,
-        1592
-      ],
-      "size": [
-        232,
-        344
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            172
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.20.1",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "Goth Blonde - 004_00006_.png",
-        "image"
-      ]
+      "widgets_values_named": {
+        "inputcount": 3,
+        "Update inputs": null
+      }
     },
     {
       "id": 59,
@@ -1078,7 +1292,7 @@
           "name": "Input - single image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 167
+          "link": 174
         }
       ],
       "outputs": [
@@ -1105,23 +1319,24 @@
         }
       ],
       "properties": {
-        "aux_id": "Damkohler/CaptionForge",
+        "cnr_id": "comfyui_fearnworksnodes",
         "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner"
+        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner",
+        "aux_id": "Damkohler/CaptionForge"
       },
       "widgets_values": [
         true,
-        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\RelTest",
+        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
         false,
         "*",
-        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\RelTest",
-        "ReleaseTest",
+        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
+        "Release_1.0.1_BigTest01",
         true,
-        "Dolls",
         "",
-        "2",
-        "2",
-        "2",
+        "",
+        "1",
+        "1",
+        "Disabled",
         3,
         "random",
         "0.80, 0.90",
@@ -1154,7 +1369,53 @@
         "both",
         true,
         true
-      ]
+      ],
+      "widgets_values_named": {
+        "Planner - enabled": true,
+        "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
+        "Input - recursive": false,
+        "Input - filename glob": "*",
+        "Output - folder": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
+        "Output - run name": "Release_1.0.1_BigTest01",
+        "Output - overwrite outputs": true,
+        "LoRA - trigger word": "",
+        "LoRA - user caption anchor": "",
+        "Caption - Joy runs/image": "1",
+        "Caption - Qwen runs/image": "1",
+        "Caption - Ollama runs/image": "Disabled",
+        "Caption - base seed": 3,
+        "Caption - seed mode": "random",
+        "Caption - temperature schedule": "0.80, 0.90",
+        "Caption - top p schedule": "0.70, 0.60",
+        "Caption - top k schedule": "70, 80",
+        "Caption - max image size": 1024,
+        "Caption - max new tokens": 6000,
+        "Distiller - model": "mistral-small:24b",
+        "Distiller - custom Ollama model": "",
+        "Distiller - base seed": 3,
+        "Distiller - seed mode": "random",
+        "Distiller - strategy": "single_pass",
+        "Distiller - max caption chars for LLM": 1536,
+        "Distiller - num predict": 3096,
+        "Distiller - temperature": 0.24,
+        "Distiller - top p": 0.9,
+        "Distiller - top k": 60,
+        "Distiller - write prompt JSONL": false,
+        "Distiller - preserve raw response": false,
+        "Validator - model": "gemma4:26b",
+        "Validator - custom Ollama model": "",
+        "Validator - base seed": 3,
+        "Validator - seed mode": "random",
+        "Validator - num predict": 2200,
+        "Validator - temperature": 0,
+        "Validator - top p": 0.92,
+        "Validator - top k": 80,
+        "Validator - write prompt JSONL": false,
+        "Validator - preserve raw VLM response": false,
+        "Final - caption style": "both",
+        "Final - write TXT sidecars": true,
+        "Final - write JSONL": true
+      }
     }
   ],
   "links": [
@@ -1327,14 +1588,6 @@
       "STRING"
     ],
     [
-      167,
-      67,
-      0,
-      59,
-      0,
-      "IMAGE"
-    ],
-    [
       170,
       70,
       0,
@@ -1357,19 +1610,27 @@
       67,
       2,
       "IMAGE"
+    ],
+    [
+      174,
+      67,
+      0,
+      59,
+      0,
+      "IMAGE"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.52,
+      "scale": 0.3551669967898395,
       "offset": [
-        2641.466665520697,
-        -423.79491729681746
+        2937.749098642831,
+        -148.4422183344935
       ]
     },
-    "frontendVersion": "1.42.15"
+    "frontendVersion": "1.49.6"
   },
   "version": 0.4
 }

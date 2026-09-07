@@ -1455,7 +1455,7 @@ class JLC_CaptionForgeOllamaCaption:
         "resolved_prompt",
     )
     FUNCTION = "caption"
-    CATEGORY = "Captioning/CaptionForge/Caption Nodes"
+    CATEGORY = "Caption/CaptionForge/Caption Nodes"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -1510,15 +1510,6 @@ class JLC_CaptionForgeOllamaCaption:
 
         resolved_prompt = _format_resolved_prompt(system_prompt, prompt)
 
-        _evict_python_models_before_ollama_if_needed("JLC CaptionForge Ollama Caption")
-
-        if download_probe_only:
-            result = _probe_ollama_model(ollama_url, model_tag, timeout=min(timeout, 60.0))
-            return (image, pipeline_plan, result, resolved_prompt)
-
-        _ensure_ollama_model(ollama_url, model_tag, timeout=timeout)
-        _persist_caption_model_if_possible(model_tag)
-
         effective_seed = -1 if seed is None else int(seed)
 
         run_plan, planner_key = _expand_ollama_runs_compat(
@@ -1534,7 +1525,16 @@ class JLC_CaptionForgeOllamaCaption:
         if run_plan_connected and not run_plan:
             status = "[CaptionForge] Ollama Caption disabled by Pipeline Planner or Planner has no Ollama caption count yet."
             print(status)
-            return (image, pipeline_plan, status, resolved_prompt)
+            return (image, pipeline_plan, template_options, status, resolved_prompt)
+
+        _evict_python_models_before_ollama_if_needed("JLC CaptionForge Ollama Caption")
+
+        if download_probe_only:
+            result = _probe_ollama_model(ollama_url, model_tag, timeout=min(timeout, 60.0))
+            return (image, pipeline_plan, template_options, result, resolved_prompt)
+
+        _ensure_ollama_model(ollama_url, model_tag, timeout=timeout)
+        _persist_caption_model_if_possible(model_tag)
 
         if not run_plan:
             # Defensive fallback for standalone mode if expand_captionforge_runs ever changes behavior.

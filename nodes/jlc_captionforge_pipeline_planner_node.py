@@ -860,7 +860,7 @@ class JLC_CaptionForge_Pipeline_Planner:
     RETURN_TYPES = ("IMAGE", "CAPTIONFORGE_PIPELINE_PLAN", "STRING")
     RETURN_NAMES = ("single_image", "pipeline_plan", "pipeline_plan_json")
     FUNCTION = "plan"
-    CATEGORY = "Captioning/CaptionForge"
+    CATEGORY = "Caption/CaptionForge"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):

@@ -689,7 +689,7 @@ class JLC_CaptionForgeQwen:
         "resolved_prompt",
     )
     FUNCTION = "caption"
-    CATEGORY = "Captioning/CaptionForge/Captioning Nodes"
+    CATEGORY = "Caption/CaptionForge/Caption Nodes"
 
     @classmethod
     def IS_CHANGED(cls, **kwargs):
@@ -741,7 +741,7 @@ class JLC_CaptionForgeQwen:
 
         if download_probe_only:
             result = probe_registry_model_download(model, JLC_QWEN_MODEL_ROOT)
-            return (image, pipeline_plan, result, resolved_prompt)
+            return (image, pipeline_plan, template_options, result, resolved_prompt)
 
         effective_seed = -1 if seed is None else int(seed)
 
@@ -765,7 +765,7 @@ class JLC_CaptionForgeQwen:
         if run_plan_connected and not run_plan:
             status = "[CaptionForge] Qwen disabled by Pipeline Planner."
             print(status)
-            return (image, pipeline_plan, status, resolved_prompt)
+            return (image, pipeline_plan, template_options, status, resolved_prompt)
 
         first_run = run_plan[0]
         qwen_quantization_value = "bnb_8bit" if qwen_quantization == "Balanced (8-bit)" else "none"
