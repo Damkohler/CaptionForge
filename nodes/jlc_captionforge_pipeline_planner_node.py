@@ -24,7 +24,7 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
             • optional IMAGE passthrough for quick single-image workflows
             • shared input path, recursion, and filename-glob routing
             • output folder and run-name policy
-            • LoRA trigger word and user caption anchor routing
+            • LoRA trigger word and persistent semantic caption anchor routing
             • raw-caption run counts for Joy, Qwen, and generic Ollama Caption nodes
             • caption seed, sampling, image-size, and token policy
             • Distiller model/settings selection
@@ -54,11 +54,15 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
 
     - The canonical graph flow is:
             Pipeline Planner
-              -> Joy/Qwen/Ollama raw-caption nodes
+              -> Joy/Qwen/Ollama Pass A caption witness nodes
               -> JLC CaptionForge capstone node
-              -> Distiller Engine
-              -> VLM Validator Engine
-              -> final deterministic TXT/JSONL export
+                   -> Pass B fat draft (text Ollama call)
+                   -> Pass C image-aware validator (Ollama VLM call)
+                   -> Pass D taggy formatter (text Ollama call)
+                   -> final deterministic TXT/JSONL export
+
+    - The standalone CLI-oriented distiller and validator engines are
+      prototype/reference implementations, not the production runtime path.
 
     - SmolVLM is not exposed in the current mainline Planner UI. It may remain
       available as a standalone/experimental node and can be revisited later.
@@ -142,17 +146,13 @@ DEFAULT_CAPTION_TEMPERATURE_SCHEDULE = "0.90"
 DEFAULT_CAPTION_TOP_P_SCHEDULE = "0.60"
 DEFAULT_CAPTION_TOP_K_SCHEDULE = "80"
 DEFAULT_CAPTION_MAX_IMAGE_SIZE = 1024
-DEFAULT_CAPTION_MAX_NEW_TOKENS = 6000
+DEFAULT_CAPTION_MAX_NEW_TOKENS = 4096
 
 _MODEL_DROPDOWNS = load_ollama_model_dropdowns(__file__)
 DISTILLER_MODEL_CHOICES = _MODEL_DROPDOWNS["distiller_models"]
 VALIDATOR_MODEL_CHOICES = _MODEL_DROPDOWNS["validator_models"]
 DEFAULT_DISTILLER_MODEL = _MODEL_DROPDOWNS["distiller_default"]
 DEFAULT_VALIDATOR_MODEL = _MODEL_DROPDOWNS["validator_default"]
-DISTILLER_STRATEGIES = ["single_pass", "by_model_then_global"]
-FINAL_CAPTION_STYLES = ["narrative", "comma", "both"]
-
-
 def _default_output_dir() -> str:
     if folder_paths is not None:
         try:
@@ -172,6 +172,11 @@ def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _value_or_default(value: Any, default: Any) -> Any:
+    """Return a default only for an absent/empty value, preserving numeric zero."""
+    return default if value is None or value == "" else value
 
 
 def _runs_per_image(value: Any, default: str = "Disabled") -> int:
@@ -267,7 +272,6 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
         "model_family": distiller_model,
         "base_seed": kwargs.get("distiller_base_seed", -1),
         "seed_mode": kwargs.get("distiller_seed_mode", "fixed"),
-        "strategy": kwargs.get("distiller_strategy", "single_pass"),
         "max_caption_chars_for_llm": kwargs.get("distiller_max_caption_chars_for_llm", 1536),
         "num_predict": kwargs.get("distiller_num_predict", 3096),
         "temperature": kwargs.get("distiller_temperature", 0.24),
@@ -296,7 +300,6 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
     plan["pass_c"] = dict(validator_common)
 
     plan["final"] = {
-        "caption_style": kwargs.get("final_caption_style", "narrative"),
         "write_txt_sidecars": kwargs.get("final_write_txt_sidecars", True),
         "write_jsonl": kwargs.get("final_write_jsonl", True),
         "overwrite_outputs": kwargs.get("overwrite_outputs", True),
@@ -624,7 +627,11 @@ class JLC_CaptionForge_Pipeline_Planner:
                     {
                         "default": "",
                         "multiline": False,
-                        "tooltip": "Optional user style/identity anchor passed to distiller and validator.",
+                        "tooltip": (
+                            "Optional persistent semantic caption anchor supplied by the user, for example "
+                            "'doll-like quasi-3D render'. CaptionForge encourages compatible anchor content "
+                            "to persist through refinement and final caption generation."
+                        ),
                     },
                 ),
 
@@ -692,7 +699,13 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Caption - max new tokens": (
                     "INT",
-                    {"default": DEFAULT_CAPTION_MAX_NEW_TOKENS, "min": 16, "max": 12000, "step": 64},
+                    {
+                        "default": DEFAULT_CAPTION_MAX_NEW_TOKENS,
+                        "min": 16,
+                        "max": 4096,
+                        "step": 64,
+                        "tooltip": "Maximum Pass-A generation budget. CaptionForge supports up to 4096 tokens.",
+                    },
                 ),
 
                 # -----------------------------------------------------------------
@@ -729,10 +742,6 @@ class JLC_CaptionForge_Pipeline_Planner:
                 "Distiller - seed mode": (
                     SEED_MODES,
                     {"default": "fixed"},
-                ),
-                "Distiller - strategy": (
-                    DISTILLER_STRATEGIES,
-                    {"default": "single_pass"},
                 ),
                 "Distiller - max caption chars for LLM": (
                     "INT",
@@ -826,10 +835,6 @@ class JLC_CaptionForge_Pipeline_Planner:
                 # -----------------------------------------------------------------
                 # Final export controls.
                 # -----------------------------------------------------------------
-                "Final - caption style": (
-                    FINAL_CAPTION_STYLES,
-                    {"default": "narrative"},
-                ),
                 "Final - write TXT sidecars": (
                     "BOOLEAN",
                     {
@@ -912,38 +917,36 @@ class JLC_CaptionForge_Pipeline_Planner:
             smol_runs_per_image=0,
             florence_runs_per_image=0,
             llama_vision_runs_per_image=0,
-            base_seed=int(kwargs.get("Caption - base seed", -1) or -1),
+            base_seed=int(_value_or_default(kwargs.get("Caption - base seed", -1), -1)),
             seed_mode=str(kwargs.get("Caption - seed mode", "fixed") or "fixed"),
             temperature_schedule=str(kwargs.get("Caption - temperature schedule", DEFAULT_CAPTION_TEMPERATURE_SCHEDULE) or DEFAULT_CAPTION_TEMPERATURE_SCHEDULE),
             top_p_schedule=str(kwargs.get("Caption - top p schedule", DEFAULT_CAPTION_TOP_P_SCHEDULE) or DEFAULT_CAPTION_TOP_P_SCHEDULE),
             top_k_schedule=str(kwargs.get("Caption - top k schedule", DEFAULT_CAPTION_TOP_K_SCHEDULE) or DEFAULT_CAPTION_TOP_K_SCHEDULE),
-            max_size=int(kwargs.get("Caption - max image size", DEFAULT_CAPTION_MAX_IMAGE_SIZE) or DEFAULT_CAPTION_MAX_IMAGE_SIZE),
-            max_new_tokens=int(kwargs.get("Caption - max new tokens", DEFAULT_CAPTION_MAX_NEW_TOKENS) or DEFAULT_CAPTION_MAX_NEW_TOKENS),
+            max_size=int(_value_or_default(kwargs.get("Caption - max image size", DEFAULT_CAPTION_MAX_IMAGE_SIZE), DEFAULT_CAPTION_MAX_IMAGE_SIZE)),
+            max_new_tokens=int(_value_or_default(kwargs.get("Caption - max new tokens", DEFAULT_CAPTION_MAX_NEW_TOKENS), DEFAULT_CAPTION_MAX_NEW_TOKENS)),
             trigger_word=str(kwargs.get("LoRA - trigger word", "") or "").strip(),
             user_caption_anchor=str(kwargs.get("LoRA - user caption anchor", "") or "").strip(),
             distiller_model=distiller_model,
             distiller_model_family=distiller_model,
-            distiller_base_seed=int(kwargs.get("Distiller - base seed", -1) or -1),
+            distiller_base_seed=int(_value_or_default(kwargs.get("Distiller - base seed", -1), -1)),
             distiller_seed_mode=str(kwargs.get("Distiller - seed mode", "fixed") or "fixed"),
-            distiller_strategy=str(kwargs.get("Distiller - strategy", "single_pass") or "single_pass"),
-            distiller_max_caption_chars_for_llm=int(kwargs.get("Distiller - max caption chars for LLM", 1536) or 1536),
+            distiller_max_caption_chars_for_llm=int(_value_or_default(kwargs.get("Distiller - max caption chars for LLM", 1536), 1536)),
             distiller_num_predict=int(kwargs.get("Distiller - num predict", 3096) or 3096),
             distiller_temperature=float(kwargs.get("Distiller - temperature", 0.24) or 0.0),
-            distiller_top_p=float(kwargs.get("Distiller - top p", 0.90) or 0.90),
-            distiller_top_k=int(kwargs.get("Distiller - top k", 60) or 60),
+            distiller_top_p=float(_value_or_default(kwargs.get("Distiller - top p", 0.90), 0.90)),
+            distiller_top_k=int(_value_or_default(kwargs.get("Distiller - top k", 60), 60)),
             distiller_write_prompt_jsonl=_as_bool(kwargs.get("Distiller - write prompt JSONL", False)),
             distiller_preserve_raw_response=_as_bool(kwargs.get("Distiller - preserve raw response", False)),
             validator_model=validator_model,
             validator_model_family=validator_model,
-            validator_base_seed=int(kwargs.get("Validator - base seed", -1) or -1),
+            validator_base_seed=int(_value_or_default(kwargs.get("Validator - base seed", -1), -1)),
             validator_seed_mode=str(kwargs.get("Validator - seed mode", "fixed") or "fixed"),
             validator_num_predict=int(kwargs.get("Validator - num predict", 2200) or 2200),
             validator_temperature=float(kwargs.get("Validator - temperature", 0.0) or 0.0),
-            validator_top_p=float(kwargs.get("Validator - top p", 0.92) or 0.92),
-            validator_top_k=int(kwargs.get("Validator - top k", 80) or 80),
+            validator_top_p=float(_value_or_default(kwargs.get("Validator - top p", 0.92), 0.92)),
+            validator_top_k=int(_value_or_default(kwargs.get("Validator - top k", 80), 80)),
             validator_write_prompt_jsonl=_as_bool(kwargs.get("Validator - write prompt JSONL", False)),
             validator_preserve_raw_vlm_response=_as_bool(kwargs.get("Validator - preserve raw VLM response", False)),
-            final_caption_style=str(kwargs.get("Final - caption style", "narrative") or "narrative"),
             final_write_txt_sidecars=_as_bool(kwargs.get("Final - write TXT sidecars", True)),
             final_write_jsonl=_as_bool(kwargs.get("Final - write JSONL", True)),
             overwrite_outputs=_as_bool(kwargs.get("Output - overwrite outputs", True)),

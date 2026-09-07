@@ -517,6 +517,82 @@ def _resolve_setting(plan: dict[str, Any], widget_value: Any, *plan_keys: str, d
     return widget_value if widget_value not in (None, "") else default
 
 
+def _resolve_fat_draft_max_caption_chars(plan: dict[str, Any], widget_value: Any) -> int:
+    """Resolve the per-source Pass A caption cap without changing prompt semantics."""
+    return _coerce_int(
+        _resolve_setting(
+            plan,
+            widget_value,
+            "distiller.max_caption_chars_for_llm",
+            "pass_b.max_caption_chars_for_llm",
+            "pass_b_distiller.max_caption_chars_for_llm",
+            default=1536,
+        ),
+        1536,
+        0,
+        12000,
+    )
+
+
+def _resolve_stage_audit_settings(
+    plan: dict[str, Any],
+    widget_write_prompts: Any,
+    widget_preserve_raw: Any,
+) -> dict[str, bool]:
+    """Resolve independent B/C Planner audit controls and capstone-owned D controls."""
+    standalone_write = _safe_bool(widget_write_prompts, False)
+    standalone_raw = _safe_bool(widget_preserve_raw, False)
+    return {
+        "fat_write_prompts": _safe_bool(
+            _resolve_setting(
+                plan,
+                standalone_write,
+                "distiller.write_prompt_jsonl",
+                "pass_b.write_prompt_jsonl",
+                "pass_b_distiller.write_prompt_jsonl",
+                default=False,
+            ),
+            False,
+        ),
+        "fat_preserve_raw": _safe_bool(
+            _resolve_setting(
+                plan,
+                standalone_raw,
+                "distiller.preserve_raw_response",
+                "pass_b.preserve_raw_response",
+                "pass_b_distiller.preserve_raw_response",
+                default=False,
+            ),
+            False,
+        ),
+        "val_write_prompts": _safe_bool(
+            _resolve_setting(
+                plan,
+                standalone_write,
+                "validator.write_prompt_jsonl",
+                "pass_c.write_prompt_jsonl",
+                "pass_c_vlm_validator.write_prompt_jsonl",
+                default=False,
+            ),
+            False,
+        ),
+        "val_preserve_raw": _safe_bool(
+            _resolve_setting(
+                plan,
+                standalone_raw,
+                "validator.preserve_raw_vlm_response",
+                "pass_c.preserve_raw_vlm_response",
+                "pass_c_vlm_validator.preserve_raw_vlm_response",
+                default=False,
+            ),
+            False,
+        ),
+        # The Planner intentionally has no Pass D audit policy in this release.
+        "fmt_write_prompts": standalone_write,
+        "fmt_preserve_raw": standalone_raw,
+    }
+
+
 def _resolve_ollama_model_name(value: Any, custom_value: Any, fallback: str) -> str:
     text = str(value or "").strip()
     custom = str(custom_value or "").strip()
@@ -1087,11 +1163,20 @@ def _summarize_ollama_response(data: Any) -> str:
     return "; ".join(parts)
 
 
-def _save_raw_response(raw_dir: Path | None, image_key: str, stage: str, data: dict[str, Any]) -> str:
+def _save_raw_response(
+    raw_dir: Path | None,
+    image_key: str,
+    stage: str,
+    data: dict[str, Any],
+    *,
+    overwrite: bool = True,
+) -> str:
     if raw_dir is None:
         return ""
     raw_dir.mkdir(parents=True, exist_ok=True)
     path = raw_dir / f"{_safe_txt_stem(image_key)}__{stage}.json"
+    if path.exists() and not overwrite:
+        return ""
     path.write_text(json.dumps(_json_safe(data), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return str(path)
 
@@ -1364,6 +1449,9 @@ def _selected_export_caption(natural: str, taggy: str, export_format: str) -> st
 def _reset_outputs(paths: dict[str, str], overwrite: bool) -> None:
     if not overwrite:
         return
+    # These are append-oriented semantic/audit logs. Current-run descriptors
+    # such as output_paths.json are intentionally regenerated at completion and
+    # are not part of this reset set.
     for key in ("fat_draft_jsonl", "fat_draft_prompt_jsonl", "validator_jsonl", "validator_prompt_jsonl", "taggy_jsonl", "taggy_prompt_jsonl", "final_jsonl"):
         p = Path(paths[key])
         if p.exists() and p.is_file():
@@ -1545,9 +1633,21 @@ class JLC_CaptionForge:
         ollama_url = _normalize_ollama_url(str(kwargs.get("Ollama - URL", DEFAULT_OLLAMA_URL)))
         keep_loaded = _safe_bool(kwargs.get("Ollama - keep loaded", True), True)
         timeout = float(_coerce_int(kwargs.get("Ollama - request timeout seconds", 1800), 1800, 10, 7200))
-        write_prompts = _safe_bool(kwargs.get("Audit - write prompt JSONL", False), False)
-        preserve_raw = _safe_bool(kwargs.get("Audit - preserve raw responses", False), False)
-        raw_dir = Path(paths["raw_response_dir"]) if preserve_raw else None
+        # Standalone mode keeps the capstone's global audit widgets. In planned
+        # mode, Pass B and Pass C resolve independently from their Planner
+        # namespaces. Pass D intentionally remains owned by the capstone widget.
+        audit = _resolve_stage_audit_settings(
+            plan,
+            kwargs.get("Audit - write prompt JSONL", False),
+            kwargs.get("Audit - preserve raw responses", False),
+        )
+        fat_write_prompts = audit["fat_write_prompts"]
+        fat_preserve_raw = audit["fat_preserve_raw"]
+        val_write_prompts = audit["val_write_prompts"]
+        val_preserve_raw = audit["val_preserve_raw"]
+        fmt_write_prompts = audit["fmt_write_prompts"]
+        fmt_preserve_raw = audit["fmt_preserve_raw"]
+        raw_dir = Path(paths["raw_response_dir"])
 
         trigger_word = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - trigger word"), "shared.trigger_word", "lora.trigger_word", "trigger_word", default=""))
         user_caption_anchor = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - user caption anchor"), "shared.user_caption_anchor", "lora.user_caption_anchor", "user_caption_anchor", default=""))
@@ -1559,20 +1659,25 @@ class JLC_CaptionForge:
             "pass_b.model",
             "distiller.ollama_model",
             "pass_b.ollama_model",
+            "pass_b_distiller.model",
+            "pass_b_distiller.ollama_model",
             default=DEFAULT_DISTILLER_MODEL,
         )
         fat_model = _resolve_ollama_model_name(fat_model_choice, kwargs.get("Fat Draft - custom Ollama model"), DEFAULT_DISTILLER_MODEL)
         fat_seed = _seed_for_stage(
-            _resolve_setting(plan, kwargs.get("Fat Draft - base seed"), "distiller.base_seed", "pass_b.base_seed", default=1),
-            _resolve_setting(plan, kwargs.get("Fat Draft - seed mode"), "distiller.seed_mode", "pass_b.seed_mode", default="fixed"),
+            _resolve_setting(plan, kwargs.get("Fat Draft - base seed"), "distiller.base_seed", "pass_b.base_seed", "pass_b_distiller.base_seed", default=1),
+            _resolve_setting(plan, kwargs.get("Fat Draft - seed mode"), "distiller.seed_mode", "pass_b.seed_mode", "pass_b_distiller.seed_mode", default="fixed"),
             0,
         )
-        fat_num = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - max new tokens"), "distiller.num_predict", "pass_b.num_predict", default=5000), 5000, 64, 12000)
-        fat_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - temperature"), "distiller.temperature", "pass_b.temperature", default=0.12), 0.12, 0.0, 2.0)
-        fat_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - top p"), "distiller.top_p", "pass_b.top_p", default=0.88), 0.88, 0.0, 1.0)
-        fat_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - top k"), "distiller.top_k", "pass_b.top_k", default=50), 50, 0, 500)
+        fat_num = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - max new tokens"), "distiller.num_predict", "pass_b.num_predict", "pass_b_distiller.num_predict", default=5000), 5000, 64, 12000)
+        fat_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - temperature"), "distiller.temperature", "pass_b.temperature", "pass_b_distiller.temperature", default=0.12), 0.12, 0.0, 2.0)
+        fat_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - top p"), "distiller.top_p", "pass_b.top_p", "pass_b_distiller.top_p", default=0.88), 0.88, 0.0, 1.0)
+        fat_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - top k"), "distiller.top_k", "pass_b.top_k", "pass_b_distiller.top_k", default=50), 50, 0, 500)
         fat_prompt_instructions = str(kwargs.get("Fat Draft - prompt") or DEFAULT_FAT_DRAFT_INSTRUCTIONS)
-        max_caption_chars = _coerce_int(kwargs.get("Fat Draft - max caption chars", 1536), 1536, 0, 12000)
+        max_caption_chars = _resolve_fat_draft_max_caption_chars(
+            plan,
+            kwargs.get("Fat Draft - max caption chars"),
+        )
 
         val_model_choice = _resolve_setting(
             plan,
@@ -1581,18 +1686,20 @@ class JLC_CaptionForge:
             "pass_c.model",
             "validator.ollama_model",
             "pass_c.ollama_model",
+            "pass_c_vlm_validator.model",
+            "pass_c_vlm_validator.ollama_model",
             default=DEFAULT_VALIDATOR_MODEL,
         )
         val_model = _resolve_ollama_model_name(val_model_choice, kwargs.get("Validator - custom Ollama model"), DEFAULT_VALIDATOR_MODEL)
         val_seed = _seed_for_stage(
-            _resolve_setting(plan, kwargs.get("Validator - base seed"), "validator.base_seed", "pass_c.base_seed", default=1),
-            _resolve_setting(plan, kwargs.get("Validator - seed mode"), "validator.seed_mode", "pass_c.seed_mode", default="fixed"),
+            _resolve_setting(plan, kwargs.get("Validator - base seed"), "validator.base_seed", "pass_c.base_seed", "pass_c_vlm_validator.base_seed", default=1),
+            _resolve_setting(plan, kwargs.get("Validator - seed mode"), "validator.seed_mode", "pass_c.seed_mode", "pass_c_vlm_validator.seed_mode", default="fixed"),
             1,
         )
-        val_num = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - max new tokens"), "validator.num_predict", "pass_c.num_predict", default=5000), 5000, 64, 12000)
-        val_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - temperature"), "validator.temperature", "pass_c.temperature", default=0.05), 0.05, 0.0, 2.0)
-        val_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - top p"), "validator.top_p", "pass_c.top_p", default=0.88), 0.88, 0.0, 1.0)
-        val_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - top k"), "validator.top_k", "pass_c.top_k", default=50), 50, 0, 500)
+        val_num = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - max new tokens"), "validator.num_predict", "pass_c.num_predict", "pass_c_vlm_validator.num_predict", default=5000), 5000, 64, 12000)
+        val_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - temperature"), "validator.temperature", "pass_c.temperature", "pass_c_vlm_validator.temperature", default=0.05), 0.05, 0.0, 2.0)
+        val_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - top p"), "validator.top_p", "pass_c.top_p", "pass_c_vlm_validator.top_p", default=0.88), 0.88, 0.0, 1.0)
+        val_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - top k"), "validator.top_k", "pass_c.top_k", "pass_c_vlm_validator.top_k", default=50), 50, 0, 500)
         val_system = str(kwargs.get("Validator - system prompt") or DEFAULT_VALIDATOR_SYSTEM_PROMPT)
         val_prompt_instructions = str(kwargs.get("Validator - prompt") or DEFAULT_VALIDATOR_INSTRUCTIONS)
 
@@ -1618,7 +1725,7 @@ class JLC_CaptionForge:
         fmt_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - top k"), "formatter.top_k", "format.top_k", "pass_d.top_k", default=50), 50, 0, 500)
         fmt_prompt_instructions = str(kwargs.get("Formatter - prompt") or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
 
-        txt_export_format = str(_resolve_setting(plan, kwargs.get("Final - TXT export format"), "final.txt_export_format", "final.caption_style", default="natural") or "natural")
+        txt_export_format = str(_resolve_setting(plan, kwargs.get("Final - TXT export format"), "final.txt_export_format", default="natural") or "natural")
         txt_export_format = _normalize_txt_export_format(txt_export_format)
         write_txt = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write TXT sidecars"), "final.write_txt_sidecars", default=True), True)
         write_jsonl = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write JSONL"), "final.write_jsonl", default=True), True)
@@ -1695,7 +1802,7 @@ class JLC_CaptionForge:
 
             caption_blocks = _build_caption_blocks(selected, max_caption_chars)
             fat_prompt = _build_fat_draft_prompt(fat_prompt_instructions, caption_blocks, trigger_word, user_caption_anchor)
-            if write_prompts:
+            if fat_write_prompts:
                 _write_jsonl(Path(paths["fat_draft_prompt_jsonl"]), [{"image_key": image_key, "prompt": fat_prompt, "model": fat_model, "stage": "B_FAT_DRAFT"}], append=True)
 
             fat_text, fat_raw = _ollama_generate_text(
@@ -1711,7 +1818,13 @@ class JLC_CaptionForge:
                 timeout=timeout,
             )
             fat_text = _cleanup_single_paragraph(fat_text)
-            fat_raw_path = _save_raw_response(raw_dir, image_key, "01_fat_draft_raw", fat_raw)
+            fat_raw_path = _save_raw_response(
+                raw_dir if fat_preserve_raw else None,
+                image_key,
+                "01_fat_draft_raw",
+                fat_raw,
+                overwrite=overwrite,
+            )
             _write_jsonl(
                 Path(paths["fat_draft_jsonl"]),
                 [
@@ -1725,7 +1838,7 @@ class JLC_CaptionForge:
                             status="ok" if fat_text else "empty",
                             text=fat_text,
                             model=fat_model,
-                            prompt=fat_prompt if write_prompts else "",
+                            prompt=fat_prompt if fat_write_prompts else "",
                             params={"max_new_tokens": fat_num, "temperature": fat_temp, "top_p": fat_top_p, "top_k": fat_top_k, "seed": fat_seed},
                             source={"selected_caption_count": len(selected), "raw_response_path": fat_raw_path},
                             timestamp=datetime.now().isoformat(timespec="seconds"),
@@ -1737,7 +1850,7 @@ class JLC_CaptionForge:
 
             image_b64 = _pil_to_base64_png(image_path)
             val_prompt = _build_validator_prompt(val_prompt_instructions, fat_text, trigger_word, user_caption_anchor)
-            if write_prompts:
+            if val_write_prompts:
                 _write_jsonl(Path(paths["validator_prompt_jsonl"]), [{"image_key": image_key, "prompt": val_prompt, "system_prompt": val_system, "model": val_model, "stage": "C_VLM_VALIDATED_FINAL"}], append=True)
 
             natural, val_raw = _ollama_chat_image(
@@ -1755,7 +1868,13 @@ class JLC_CaptionForge:
                 timeout=timeout,
             )
             natural = _prepend_metadata(_cleanup_single_paragraph(natural), trigger_word, user_caption_anchor)
-            val_raw_path = _save_raw_response(raw_dir, image_key, "02_validator_raw", val_raw)
+            val_raw_path = _save_raw_response(
+                raw_dir if val_preserve_raw else None,
+                image_key,
+                "02_validator_raw",
+                val_raw,
+                overwrite=overwrite,
+            )
             _write_jsonl(
                 Path(paths["validator_jsonl"]),
                 [
@@ -1769,7 +1888,7 @@ class JLC_CaptionForge:
                             status="ok" if natural else "empty",
                             text=natural,
                             model=val_model,
-                            prompt=val_prompt if write_prompts else "",
+                            prompt=val_prompt if val_write_prompts else "",
                             params={"max_new_tokens": val_num, "temperature": val_temp, "top_p": val_top_p, "top_k": val_top_k, "seed": val_seed},
                             source={"fat_draft": fat_text, "raw_response_path": val_raw_path},
                             timestamp=datetime.now().isoformat(timespec="seconds"),
@@ -1780,7 +1899,7 @@ class JLC_CaptionForge:
             )
 
             fmt_prompt = _build_taggy_prompt(fmt_prompt_instructions, natural, trigger_word, user_caption_anchor)
-            if write_prompts:
+            if fmt_write_prompts:
                 _write_jsonl(Path(paths["taggy_prompt_jsonl"]), [{"image_key": image_key, "prompt": fmt_prompt, "model": fmt_model, "stage": "D_FORMAT_TAGGY"}], append=True)
 
             taggy, fmt_raw = _ollama_generate_text(
@@ -1799,7 +1918,13 @@ class JLC_CaptionForge:
                 _prepend_metadata(_cleanup_taggy(taggy), trigger_word, user_caption_anchor)
             )
             short = _compact_lora_short_caption(natural, taggy)
-            fmt_raw_path = _save_raw_response(raw_dir, image_key, "03_taggy_raw", fmt_raw)
+            fmt_raw_path = _save_raw_response(
+                raw_dir if fmt_preserve_raw else None,
+                image_key,
+                "03_taggy_raw",
+                fmt_raw,
+                overwrite=overwrite,
+            )
             _write_jsonl(
                 Path(paths["taggy_jsonl"]),
                 [
@@ -1813,7 +1938,7 @@ class JLC_CaptionForge:
                             status="ok" if taggy else "empty",
                             text=taggy,
                             model=fmt_model,
-                            prompt=fmt_prompt if write_prompts else "",
+                            prompt=fmt_prompt if fmt_write_prompts else "",
                             params={"max_new_tokens": fmt_num, "temperature": fmt_temp, "top_p": fmt_top_p, "top_k": fmt_top_k, "seed": fmt_seed},
                             source={"validated_natural": natural, "raw_response_path": fmt_raw_path},
                             timestamp=datetime.now().isoformat(timespec="seconds"),

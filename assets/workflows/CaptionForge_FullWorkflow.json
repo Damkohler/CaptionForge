@@ -1,8 +1,8 @@
 {
-  "id": "5062aa6a-f573-4ee5-8f10-7cb88f33c2aa",
+  "id": "a4d15886-704a-4c04-9a67-e85aa6bc34bf",
   "revision": 0,
-  "last_node_id": 70,
-  "last_link_id": 174,
+  "last_node_id": 74,
+  "last_link_id": 178,
   "nodes": [
     {
       "id": 51,
@@ -23,13 +23,13 @@
           "name": "image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 141
+          "link": 176
         },
         {
           "name": "pipeline_plan",
           "shape": 7,
           "type": "CAPTIONFORGE_PIPELINE_PLAN",
-          "link": 142
+          "link": 177
         },
         {
           "name": "template_options",
@@ -742,7 +742,7 @@
         {
           "name": "input",
           "type": "*",
-          "link": 143
+          "link": 178
         }
       ],
       "outputs": [
@@ -1256,7 +1256,7 @@
           "name": "images",
           "type": "IMAGE",
           "links": [
-            174
+            175
           ]
         }
       ],
@@ -1274,15 +1274,15 @@
       }
     },
     {
-      "id": 59,
+      "id": 74,
       "type": "JLC_CaptionForge_Pipeline_Planner",
       "pos": [
-        -2284,
-        644
+        -2288,
+        620
       ],
       "size": [
-        488,
-        1132
+        484,
+        1112
       ],
       "flags": {},
       "order": 5,
@@ -1292,7 +1292,7 @@
           "name": "Input - single image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 174
+          "link": 175
         }
       ],
       "outputs": [
@@ -1300,37 +1300,36 @@
           "name": "single_image",
           "type": "IMAGE",
           "links": [
-            141
+            176
           ]
         },
         {
           "name": "pipeline_plan",
           "type": "CAPTIONFORGE_PIPELINE_PLAN",
           "links": [
-            142
+            177
           ]
         },
         {
           "name": "pipeline_plan_json",
           "type": "STRING",
           "links": [
-            143
+            178
           ]
         }
       ],
       "properties": {
         "cnr_id": "comfyui_fearnworksnodes",
-        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner",
-        "aux_id": "Damkohler/CaptionForge"
+        "ver": "0.1.2",
+        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner"
       },
       "widgets_values": [
         true,
-        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
+        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
         false,
         "*",
-        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
-        "Release_1.0.1_BigTest01",
+        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
+        "New_LoRA_Captions",
         true,
         "",
         "",
@@ -1339,16 +1338,15 @@
         "Disabled",
         3,
         "random",
-        "0.80, 0.90",
-        "0.70, 0.60",
+        "0.8, 0.90",
+        "0.7, 0.60",
         "70, 80",
         1024,
-        6000,
+        4096,
         "mistral-small:24b",
         "",
         3,
         "random",
-        "single_pass",
         1536,
         3096,
         0.24,
@@ -1366,17 +1364,16 @@
         80,
         false,
         false,
-        "both",
         true,
         true
       ],
       "widgets_values_named": {
         "Planner - enabled": true,
-        "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
+        "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
         "Input - recursive": false,
         "Input - filename glob": "*",
-        "Output - folder": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
-        "Output - run name": "Release_1.0.1_BigTest01",
+        "Output - folder": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
+        "Output - run name": "New_LoRA_Captions",
         "Output - overwrite outputs": true,
         "LoRA - trigger word": "",
         "LoRA - user caption anchor": "",
@@ -1385,16 +1382,15 @@
         "Caption - Ollama runs/image": "Disabled",
         "Caption - base seed": 3,
         "Caption - seed mode": "random",
-        "Caption - temperature schedule": "0.80, 0.90",
-        "Caption - top p schedule": "0.70, 0.60",
+        "Caption - temperature schedule": "0.8, 0.90",
+        "Caption - top p schedule": "0.7, 0.60",
         "Caption - top k schedule": "70, 80",
         "Caption - max image size": 1024,
-        "Caption - max new tokens": 6000,
+        "Caption - max new tokens": 4096,
         "Distiller - model": "mistral-small:24b",
         "Distiller - custom Ollama model": "",
         "Distiller - base seed": 3,
         "Distiller - seed mode": "random",
-        "Distiller - strategy": "single_pass",
         "Distiller - max caption chars for LLM": 1536,
         "Distiller - num predict": 3096,
         "Distiller - temperature": 0.24,
@@ -1412,7 +1408,6 @@
         "Validator - top k": 80,
         "Validator - write prompt JSONL": false,
         "Validator - preserve raw VLM response": false,
-        "Final - caption style": "both",
         "Final - write TXT sidecars": true,
         "Final - write JSONL": true
       }
@@ -1474,30 +1469,6 @@
       56,
       1,
       "CAPTIONFORGE_PIPELINE_PLAN"
-    ],
-    [
-      141,
-      59,
-      0,
-      51,
-      0,
-      "IMAGE"
-    ],
-    [
-      142,
-      59,
-      1,
-      51,
-      1,
-      "CAPTIONFORGE_PIPELINE_PLAN"
-    ],
-    [
-      143,
-      59,
-      2,
-      32,
-      0,
-      "STRING"
     ],
     [
       145,
@@ -1612,22 +1583,46 @@
       "IMAGE"
     ],
     [
-      174,
+      175,
       67,
       0,
-      59,
+      74,
       0,
       "IMAGE"
+    ],
+    [
+      176,
+      74,
+      0,
+      51,
+      0,
+      "IMAGE"
+    ],
+    [
+      177,
+      74,
+      1,
+      51,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      178,
+      74,
+      2,
+      32,
+      0,
+      "STRING"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.3551669967898395,
+      "scale": 0.355166996789841,
       "offset": [
-        2937.749098642831,
-        -148.4422183344935
+        3041.258033192704,
+        -180.0329257392959
       ]
     },
     "frontendVersion": "1.49.6"

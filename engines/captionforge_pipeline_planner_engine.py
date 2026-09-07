@@ -377,12 +377,14 @@ def build_captionforge_pipeline_plan(
     top_p_schedule: str = "",
     top_k_schedule: str = "",
     max_size: int = 1024,
-    max_new_tokens: int = 512,
+    max_new_tokens: int = 4096,
     trigger_word: str = "",
     user_caption_anchor: str = "",
     distiller_model_family: str = "Llama",
     distiller_base_seed: int | None = None,
     distiller_seed_mode: str = "fixed",
+    # Compatibility-only argument for older callers. Production Pass B is
+    # always one global fat-draft call per image.
     distiller_strategy: str = "single_pass",
     distiller_max_caption_chars_for_llm: int = 1536,
     distiller_num_predict: int = 3096,
@@ -400,6 +402,8 @@ def build_captionforge_pipeline_plan(
     validator_top_k: int = 80,
     validator_write_prompt_jsonl: bool = False,
     validator_preserve_raw_vlm_response: bool = False,
+    # Compatibility-only argument for older callers. Production always exports
+    # the invariant long/short/taggy sidecar set.
     final_caption_style: str = "narrative",
     final_write_txt_sidecars: bool = True,
     final_write_jsonl: bool = True,
@@ -458,7 +462,7 @@ def build_captionforge_pipeline_plan(
         "top_p_schedule": str(top_p_schedule or "").strip(),
         "top_k_schedule": str(top_k_schedule or "").strip(),
         "max_size": _coerce_int(max_size, 1024, 0, 4096),
-        "max_new_tokens": _coerce_int(max_new_tokens, 512, 16, 4096),
+        "max_new_tokens": _coerce_int(max_new_tokens, 4096, 16, 4096),
         "trigger_word": str(trigger_word or "").strip(),
         "user_caption_anchor": str(user_caption_anchor or "").strip(),
         "output_dir": str(output_dir or "").strip(),
@@ -490,7 +494,6 @@ def build_captionforge_pipeline_plan(
         "base_seed": d_seed,
         "seed": d_seed,
         "seed_mode": _normalize_seed_mode(distiller_seed_mode),
-        "strategy": str(distiller_strategy or "single_pass").strip() or "single_pass",
         "max_caption_chars_for_llm": _coerce_int(distiller_max_caption_chars_for_llm, 1536, 0, 12000),
         "num_predict": _coerce_int(distiller_num_predict, 3096, 64, 12000),
         "temperature": _coerce_float(distiller_temperature, 0.24, 0.0, 2.0),
@@ -517,7 +520,6 @@ def build_captionforge_pipeline_plan(
         "role": "image_aware_precision_validation",
     }
     final = {
-        "caption_style": str(final_caption_style or "narrative").strip() or "narrative",
         "write_txt_sidecars": _coerce_bool(final_write_txt_sidecars, True),
         "write_jsonl": _coerce_bool(final_write_jsonl, True),
         "overwrite_outputs": _coerce_bool(overwrite_outputs, True),
@@ -572,7 +574,7 @@ def build_captionforge_run_config(
     top_p_schedule: str = "",
     top_k_schedule: str = "",
     max_size: int = 1024,
-    max_new_tokens: int = 512,
+    max_new_tokens: int = 4096,
     trigger_word: str = "",
     output_dir: str = "",
     input_path: str = "",

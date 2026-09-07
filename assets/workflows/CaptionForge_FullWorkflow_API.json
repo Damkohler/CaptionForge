@@ -25,7 +25,7 @@
     "inputs": {
       "mode": "raw value",
       "input": [
-        "59",
+        "74",
         2
       ]
     },
@@ -56,11 +56,11 @@
       "replace_pairs": "",
       "download_probe_only": false,
       "image": [
-        "59",
+        "74",
         0
       ],
       "pipeline_plan": [
-        "59",
+        "74",
         1
       ],
       "template_options": [
@@ -234,62 +234,6 @@
       "title": " JLC CaptionForge Ollama Caption"
     }
   },
-  "59": {
-    "inputs": {
-      "Planner - enabled": true,
-      "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
-      "Input - recursive": false,
-      "Input - filename glob": "*",
-      "Output - folder": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\big_test",
-      "Output - run name": "Release_1.0.1_BigTest01",
-      "Output - overwrite outputs": true,
-      "LoRA - trigger word": "",
-      "LoRA - user caption anchor": "",
-      "Caption - Joy runs/image": "1",
-      "Caption - Qwen runs/image": "1",
-      "Caption - Ollama runs/image": "Disabled",
-      "Caption - base seed": 3,
-      "Caption - seed mode": "random",
-      "Caption - temperature schedule": "0.80, 0.90",
-      "Caption - top p schedule": "0.70, 0.60",
-      "Caption - top k schedule": "70, 80",
-      "Caption - max image size": 1024,
-      "Caption - max new tokens": 6000,
-      "Distiller - model": "mistral-small:24b",
-      "Distiller - custom Ollama model": "",
-      "Distiller - base seed": 3,
-      "Distiller - seed mode": "random",
-      "Distiller - strategy": "single_pass",
-      "Distiller - max caption chars for LLM": 1536,
-      "Distiller - num predict": 3096,
-      "Distiller - temperature": 0.24,
-      "Distiller - top p": 0.9,
-      "Distiller - top k": 60,
-      "Distiller - write prompt JSONL": false,
-      "Distiller - preserve raw response": false,
-      "Validator - model": "gemma4:26b",
-      "Validator - custom Ollama model": "",
-      "Validator - base seed": 3,
-      "Validator - seed mode": "random",
-      "Validator - num predict": 2200,
-      "Validator - temperature": 0,
-      "Validator - top p": 0.92,
-      "Validator - top k": 80,
-      "Validator - write prompt JSONL": false,
-      "Validator - preserve raw VLM response": false,
-      "Final - caption style": "both",
-      "Final - write TXT sidecars": true,
-      "Final - write JSONL": true,
-      "Input - single image": [
-        "67",
-        0
-      ]
-    },
-    "class_type": "JLC_CaptionForge_Pipeline_Planner",
-    "_meta": {
-      "title": " JLC CaptionForge Pipeline Planner"
-    }
-  },
   "60": {
     "inputs": {
       "Input - captions JSONL": "",
@@ -456,6 +400,60 @@
     "class_type": "LoadImage",
     "_meta": {
       "title": "Load Image"
+    }
+  },
+  "74": {
+    "inputs": {
+      "Planner - enabled": true,
+      "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
+      "Input - recursive": false,
+      "Input - filename glob": "*",
+      "Output - folder": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
+      "Output - run name": "New_LoRA_Captions",
+      "Output - overwrite outputs": true,
+      "LoRA - trigger word": "",
+      "LoRA - user caption anchor": "",
+      "Caption - Joy runs/image": "1",
+      "Caption - Qwen runs/image": "1",
+      "Caption - Ollama runs/image": "Disabled",
+      "Caption - base seed": 3,
+      "Caption - seed mode": "random",
+      "Caption - temperature schedule": "0.8, 0.90",
+      "Caption - top p schedule": "0.7, 0.60",
+      "Caption - top k schedule": "70, 80",
+      "Caption - max image size": 1024,
+      "Caption - max new tokens": 4096,
+      "Distiller - model": "mistral-small:24b",
+      "Distiller - custom Ollama model": "",
+      "Distiller - base seed": 3,
+      "Distiller - seed mode": "random",
+      "Distiller - max caption chars for LLM": 1536,
+      "Distiller - num predict": 3096,
+      "Distiller - temperature": 0.24,
+      "Distiller - top p": 0.9,
+      "Distiller - top k": 60,
+      "Distiller - write prompt JSONL": false,
+      "Distiller - preserve raw response": false,
+      "Validator - model": "gemma4:26b",
+      "Validator - custom Ollama model": "",
+      "Validator - base seed": 3,
+      "Validator - seed mode": "random",
+      "Validator - num predict": 2200,
+      "Validator - temperature": 0,
+      "Validator - top p": 0.92,
+      "Validator - top k": 80,
+      "Validator - write prompt JSONL": false,
+      "Validator - preserve raw VLM response": false,
+      "Final - write TXT sidecars": true,
+      "Final - write JSONL": true,
+      "Input - single image": [
+        "67",
+        0
+      ]
+    },
+    "class_type": "JLC_CaptionForge_Pipeline_Planner",
+    "_meta": {
+      "title": " JLC CaptionForge Pipeline Planner"
     }
   }
 }
