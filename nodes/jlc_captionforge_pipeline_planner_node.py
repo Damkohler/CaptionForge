@@ -231,6 +231,9 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
     # older and newer capstone nodes look in slightly different namespaces.
     distiller_model = str(kwargs.get("distiller_model") or DEFAULT_DISTILLER_MODEL).strip() or DEFAULT_DISTILLER_MODEL
     validator_model = str(kwargs.get("validator_model") or DEFAULT_VALIDATOR_MODEL).strip() or DEFAULT_VALIDATOR_MODEL
+    distiller_seed = kwargs.get("distiller_seed", kwargs.get("distiller_base_seed", -1))
+    validator_seed = kwargs.get("validator_seed", kwargs.get("validator_base_seed", -1))
+    formatter_seed = kwargs.get("formatter_seed", -1)
 
     caption_common = {
         "base_seed": kwargs.get("base_seed", -1),
@@ -254,7 +257,7 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
             "backend": "ollama",
             "model": distiller_model,
             "ollama_model": distiller_model,
-            "seed": kwargs.get("distiller_base_seed", -1),
+            "seed": distiller_seed,
         })
 
     pass_c_vlm_validator = plan.setdefault("pass_c_vlm_validator", {})
@@ -263,15 +266,14 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
             "backend": "ollama",
             "model": validator_model,
             "ollama_model": validator_model,
-            "seed": kwargs.get("validator_base_seed", -1),
+            "seed": validator_seed,
         })
 
     distiller_common = {
         "model": distiller_model,
         "ollama_model": distiller_model,
         "model_family": distiller_model,
-        "base_seed": kwargs.get("distiller_base_seed", -1),
-        "seed_mode": kwargs.get("distiller_seed_mode", "fixed"),
+        "seed": distiller_seed,
         "max_caption_chars_for_llm": kwargs.get("distiller_max_caption_chars_for_llm", 1536),
         "num_predict": kwargs.get("distiller_num_predict", 3096),
         "temperature": kwargs.get("distiller_temperature", 0.24),
@@ -287,8 +289,7 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
         "model": validator_model,
         "ollama_model": validator_model,
         "model_family": validator_model,
-        "base_seed": kwargs.get("validator_base_seed", -1),
-        "seed_mode": kwargs.get("validator_seed_mode", "fixed"),
+        "seed": validator_seed,
         "num_predict": kwargs.get("validator_num_predict", 2200),
         "temperature": kwargs.get("validator_temperature", 0.0),
         "top_p": kwargs.get("validator_top_p", 0.92),
@@ -298,6 +299,11 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
     }
     plan["validator"] = dict(validator_common)
     plan["pass_c"] = dict(validator_common)
+
+    formatter_common = {"seed": formatter_seed}
+    plan["formatter"] = dict(formatter_common)
+    plan["pass_d"] = dict(formatter_common)
+    plan["pass_d_formatter"] = dict(formatter_common)
 
     plan["final"] = {
         "write_txt_sidecars": kwargs.get("final_write_txt_sidecars", True),
@@ -670,7 +676,7 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "min": -1,
                         "max": MAX_SEED_32,
                         "step": 1,
-                        "tooltip": "Base seed for caption generation. -1 means unseeded when supported.",
+                        "tooltip": "Base seed for the reusable Pass-A run schedule. -1 means intentionally unseeded.",
                     },
                 ),
                 "Caption - seed mode": (
@@ -729,19 +735,15 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "tooltip": "Used only when Distiller - model is custom, e.g. my-model:latest.",
                     },
                 ),
-                "Distiller - base seed": (
+                "Distiller - seed": (
                     "INT",
                     {
                         "default": -1,
                         "min": -1,
                         "max": MAX_SEED_32,
                         "step": 1,
-                        "tooltip": "Base seed for the distiller. -1 means omit seed.",
+                        "tooltip": "Fixed seed used by the distiller for every image. -1 means omit seed.",
                     },
-                ),
-                "Distiller - seed mode": (
-                    SEED_MODES,
-                    {"default": "fixed"},
                 ),
                 "Distiller - max caption chars for LLM": (
                     "INT",
@@ -793,19 +795,15 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "tooltip": "Used only when Validator - model is custom, e.g. gemma4:e4b or another installed VLM tag.",
                     },
                 ),
-                "Validator - base seed": (
+                "Validator - seed": (
                     "INT",
                     {
                         "default": -1,
                         "min": -1,
                         "max": MAX_SEED_32,
                         "step": 1,
-                        "tooltip": "Base seed for the VLM validator. -1 means omit seed.",
+                        "tooltip": "Fixed seed used by the VLM validator for every image. -1 means omit seed.",
                     },
-                ),
-                "Validator - seed mode": (
-                    SEED_MODES,
-                    {"default": "fixed"},
                 ),
                 "Validator - num predict": (
                     "INT",
@@ -830,6 +828,17 @@ class JLC_CaptionForge_Pipeline_Planner:
                 "Validator - preserve raw VLM response": (
                     "BOOLEAN",
                     {"default": False},
+                ),
+
+                "Formatter - seed": (
+                    "INT",
+                    {
+                        "default": -1,
+                        "min": -1,
+                        "max": MAX_SEED_32,
+                        "step": 1,
+                        "tooltip": "Fixed seed used by the taggy formatter for every image. -1 means omit seed.",
+                    },
                 ),
 
                 # -----------------------------------------------------------------
@@ -928,8 +937,7 @@ class JLC_CaptionForge_Pipeline_Planner:
             user_caption_anchor=str(kwargs.get("LoRA - user caption anchor", "") or "").strip(),
             distiller_model=distiller_model,
             distiller_model_family=distiller_model,
-            distiller_base_seed=int(_value_or_default(kwargs.get("Distiller - base seed", -1), -1)),
-            distiller_seed_mode=str(kwargs.get("Distiller - seed mode", "fixed") or "fixed"),
+            distiller_seed=int(_value_or_default(kwargs.get("Distiller - seed", -1), -1)),
             distiller_max_caption_chars_for_llm=int(_value_or_default(kwargs.get("Distiller - max caption chars for LLM", 1536), 1536)),
             distiller_num_predict=int(kwargs.get("Distiller - num predict", 3096) or 3096),
             distiller_temperature=float(kwargs.get("Distiller - temperature", 0.24) or 0.0),
@@ -939,14 +947,14 @@ class JLC_CaptionForge_Pipeline_Planner:
             distiller_preserve_raw_response=_as_bool(kwargs.get("Distiller - preserve raw response", False)),
             validator_model=validator_model,
             validator_model_family=validator_model,
-            validator_base_seed=int(_value_or_default(kwargs.get("Validator - base seed", -1), -1)),
-            validator_seed_mode=str(kwargs.get("Validator - seed mode", "fixed") or "fixed"),
+            validator_seed=int(_value_or_default(kwargs.get("Validator - seed", -1), -1)),
             validator_num_predict=int(kwargs.get("Validator - num predict", 2200) or 2200),
             validator_temperature=float(kwargs.get("Validator - temperature", 0.0) or 0.0),
             validator_top_p=float(_value_or_default(kwargs.get("Validator - top p", 0.92), 0.92)),
             validator_top_k=int(_value_or_default(kwargs.get("Validator - top k", 80), 80)),
             validator_write_prompt_jsonl=_as_bool(kwargs.get("Validator - write prompt JSONL", False)),
             validator_preserve_raw_vlm_response=_as_bool(kwargs.get("Validator - preserve raw VLM response", False)),
+            formatter_seed=int(_value_or_default(kwargs.get("Formatter - seed", -1), -1)),
             final_write_txt_sidecars=_as_bool(kwargs.get("Final - write TXT sidecars", True)),
             final_write_jsonl=_as_bool(kwargs.get("Final - write JSONL", True)),
             overwrite_outputs=_as_bool(kwargs.get("Output - overwrite outputs", True)),

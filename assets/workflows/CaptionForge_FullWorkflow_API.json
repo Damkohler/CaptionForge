@@ -8,32 +8,6 @@
       "title": "Load Image"
     }
   },
-  "28": {
-    "inputs": {
-      "mode": "raw value",
-      "input": [
-        "60",
-        0
-      ]
-    },
-    "class_type": "DisplayAny",
-    "_meta": {
-      "title": "🔧 Display Any"
-    }
-  },
-  "32": {
-    "inputs": {
-      "mode": "raw value",
-      "input": [
-        "74",
-        2
-      ]
-    },
-    "class_type": "DisplayAny",
-    "_meta": {
-      "title": "🔧 Display Any"
-    }
-  },
   "51": {
     "inputs": {
       "model": "llama-joycaption-beta-one-hf-llava",
@@ -56,11 +30,11 @@
       "replace_pairs": "",
       "download_probe_only": false,
       "image": [
-        "74",
+        "75",
         0
       ],
       "pipeline_plan": [
-        "74",
+        "75",
         1
       ],
       "template_options": [
@@ -234,134 +208,6 @@
       "title": " JLC CaptionForge Ollama Caption"
     }
   },
-  "60": {
-    "inputs": {
-      "Input - captions JSONL": "",
-      "Input - image path": "",
-      "Input - include caption families": "joy,qwen,ollama",
-      "Input - max captions per family": 5,
-      "Input - max total captions": 20,
-      "Output - folder": "",
-      "Output - run name": "captionforge_run",
-      "Output - overwrite outputs": true,
-      "Ollama - URL": "http://127.0.0.1:11434",
-      "Ollama - keep loaded": true,
-      "Ollama - request timeout seconds": 1800,
-      "LoRA - trigger word": "",
-      "LoRA - user caption anchor": "",
-      "Fat Draft - model": "mistral-small:24b",
-      "Fat Draft - custom Ollama model": "",
-      "Fat Draft - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
-      "Fat Draft - base seed": 1,
-      "Fat Draft - seed mode": "fixed",
-      "Fat Draft - max caption chars": 1536,
-      "Fat Draft - max new tokens": 5000,
-      "Fat Draft - temperature": 0.12,
-      "Fat Draft - top p": 0.88,
-      "Fat Draft - top k": 50,
-      "Validator - model": "gemma4:26b",
-      "Validator - custom Ollama model": "",
-      "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
-      "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
-      "Validator - base seed": 1,
-      "Validator - seed mode": "fixed",
-      "Validator - max new tokens": 5000,
-      "Validator - temperature": 0.05,
-      "Validator - top p": 0.88,
-      "Validator - top k": 50,
-      "Formatter - model": "mistral-small:24b",
-      "Formatter - custom Ollama model": "",
-      "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter.\n\nThe validated paragraph is already the natural-language final caption. Do not rewrite it.\n\nTask:\nCreate one TAGGY caption from the validated paragraph.\n\nRules:\n- Output only the taggy comma-separated caption.\n- Use only details already present in the validated paragraph.\n- Preserve concrete LoRA-useful details.\n- Do not add new details.\n- Do not mention this process.\n- Do not output markdown.\n- Do not include a TAGGY: label.\n- Keep the result as a comma-separated list, not full prose.",
-      "Formatter - base seed": 1,
-      "Formatter - seed mode": "fixed",
-      "Formatter - max new tokens": 3200,
-      "Formatter - temperature": 0.12,
-      "Formatter - top p": 0.88,
-      "Formatter - top k": 50,
-      "Audit - write prompt JSONL": false,
-      "Audit - preserve raw responses": false,
-      "Final - TXT export format": "natural",
-      "Final - write TXT sidecars": true,
-      "Final - write JSONL": true,
-      "Input - single image": [
-        "56",
-        0
-      ],
-      "pipeline_plan": [
-        "56",
-        1
-      ]
-    },
-    "class_type": "JLC_CaptionForge",
-    "_meta": {
-      "title": " JLC CaptionForge Node"
-    }
-  },
-  "62": {
-    "inputs": {
-      "mode": "raw value",
-      "input": [
-        "60",
-        1
-      ]
-    },
-    "class_type": "DisplayAny",
-    "_meta": {
-      "title": "🔧 Display Any"
-    }
-  },
-  "63": {
-    "inputs": {
-      "mode": "raw value",
-      "input": [
-        "56",
-        3
-      ]
-    },
-    "class_type": "DisplayAny",
-    "_meta": {
-      "title": "🔧 Display Any"
-    }
-  },
-  "64": {
-    "inputs": {
-      "mode": "raw value",
-      "input": [
-        "51",
-        3
-      ]
-    },
-    "class_type": "DisplayAny",
-    "_meta": {
-      "title": "🔧 Display Any"
-    }
-  },
-  "65": {
-    "inputs": {
-      "mode": "raw value",
-      "input": [
-        "52",
-        3
-      ]
-    },
-    "class_type": "DisplayAny",
-    "_meta": {
-      "title": "🔧 Display Any"
-    }
-  },
-  "66": {
-    "inputs": {
-      "mode": "raw value",
-      "input": [
-        "58",
-        3
-      ]
-    },
-    "class_type": "DisplayAny",
-    "_meta": {
-      "title": "🔧 Display Any"
-    }
-  },
   "67": {
     "inputs": {
       "inputcount": 3,
@@ -402,7 +248,7 @@
       "title": "Load Image"
     }
   },
-  "74": {
+  "75": {
     "inputs": {
       "Planner - enabled": true,
       "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
@@ -418,15 +264,14 @@
       "Caption - Ollama runs/image": "Disabled",
       "Caption - base seed": 3,
       "Caption - seed mode": "random",
-      "Caption - temperature schedule": "0.8, 0.90",
-      "Caption - top p schedule": "0.7, 0.60",
+      "Caption - temperature schedule": "0.8, 0.9",
+      "Caption - top p schedule": "0.7, 0.8",
       "Caption - top k schedule": "70, 80",
       "Caption - max image size": 1024,
       "Caption - max new tokens": 4096,
       "Distiller - model": "mistral-small:24b",
       "Distiller - custom Ollama model": "",
-      "Distiller - base seed": 3,
-      "Distiller - seed mode": "random",
+      "Distiller - seed": 3,
       "Distiller - max caption chars for LLM": 1536,
       "Distiller - num predict": 3096,
       "Distiller - temperature": 0.24,
@@ -436,14 +281,14 @@
       "Distiller - preserve raw response": false,
       "Validator - model": "gemma4:26b",
       "Validator - custom Ollama model": "",
-      "Validator - base seed": 3,
-      "Validator - seed mode": "random",
+      "Validator - seed": 1,
       "Validator - num predict": 2200,
       "Validator - temperature": 0,
       "Validator - top p": 0.92,
       "Validator - top k": 80,
-      "Validator - write prompt JSONL": false,
-      "Validator - preserve raw VLM response": false,
+      "Validator - write prompt JSONL": true,
+      "Validator - preserve raw VLM response": true,
+      "Formatter - seed": 0,
       "Final - write TXT sidecars": true,
       "Final - write JSONL": true,
       "Input - single image": [
@@ -454,6 +299,89 @@
     "class_type": "JLC_CaptionForge_Pipeline_Planner",
     "_meta": {
       "title": " JLC CaptionForge Pipeline Planner"
+    }
+  },
+  "76": {
+    "inputs": {
+      "Input - captions JSONL": "",
+      "Input - image path": "",
+      "Input - include caption families": "joy,qwen,ollama",
+      "Input - max captions per family": 5,
+      "Input - max total captions": 20,
+      "Output - folder": "",
+      "Output - run name": "captionforge_run",
+      "Output - overwrite outputs": true,
+      "Ollama - URL": "http://127.0.0.1:11434",
+      "Ollama - keep loaded": true,
+      "Ollama - request timeout seconds": 1800,
+      "LoRA - trigger word": "",
+      "LoRA - user caption anchor": "",
+      "Fat Draft - model": "mistral-small:24b",
+      "Fat Draft - custom Ollama model": "",
+      "Fat Draft - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+      "Fat Draft - max caption chars": 1536,
+      "Fat Draft - max new tokens": 5000,
+      "Fat Draft - temperature": 0.12,
+      "Fat Draft - top p": 0.88,
+      "Fat Draft - top k": 50,
+      "Validator - model": "gemma4:26b",
+      "Validator - custom Ollama model": "",
+      "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+      "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+      "Validator - max new tokens": 5000,
+      "Validator - temperature": 0.05,
+      "Validator - top p": 0.88,
+      "Validator - top k": 50,
+      "Formatter - model": "mistral-small:24b",
+      "Formatter - custom Ollama model": "",
+      "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter.\n\nThe validated paragraph is already the natural-language final caption. Do not rewrite it.\n\nTask:\nCreate one TAGGY caption from the validated paragraph.\n\nRules:\n- Output only the taggy comma-separated caption.\n- Use only details already present in the validated paragraph.\n- Preserve concrete LoRA-useful details.\n- Do not add new details.\n- Do not mention this process.\n- Do not output markdown.\n- Do not include a TAGGY: label.\n- Keep the result as a comma-separated list, not full prose.",
+      "Formatter - max new tokens": 3200,
+      "Formatter - temperature": 0.12,
+      "Formatter - top p": 0.88,
+      "Formatter - top k": 50,
+      "Audit - write prompt JSONL": true,
+      "Audit - preserve raw responses": true,
+      "Final - TXT export format": "natural",
+      "Final - write TXT sidecars": true,
+      "Final - write JSONL": true,
+      "Input - single image": [
+        "56",
+        0
+      ],
+      "pipeline_plan": [
+        "56",
+        1
+      ]
+    },
+    "class_type": "JLC_CaptionForge",
+    "_meta": {
+      "title": " JLC CaptionForge Node"
+    }
+  },
+  "81": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "Display Any (rgthree)"
+    }
+  },
+  "82": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "76",
+        1
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "Display Any (rgthree)"
     }
   }
 }

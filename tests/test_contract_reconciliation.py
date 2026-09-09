@@ -50,8 +50,7 @@ class PlannerContractTests(unittest.TestCase):
                     # Existing workflow value; effective runtime was and remains 4096.
                     "Caption - max new tokens": 6000,
                     "Distiller - model": "mistral-small:24b",
-                    "Distiller - base seed": 3,
-                    "Distiller - seed mode": "random",
+                    "Distiller - seed": 3,
                     "Distiller - max caption chars for LLM": 1536,
                     "Distiller - num predict": 3096,
                     "Distiller - temperature": 0.24,
@@ -60,14 +59,14 @@ class PlannerContractTests(unittest.TestCase):
                     "Distiller - write prompt JSONL": False,
                     "Distiller - preserve raw response": False,
                     "Validator - model": "gemma4:26b",
-                    "Validator - base seed": 3,
-                    "Validator - seed mode": "random",
+                    "Validator - seed": 3,
                     "Validator - num predict": 2200,
                     "Validator - temperature": 0.0,
                     "Validator - top p": 0.92,
                     "Validator - top k": 80,
                     "Validator - write prompt JSONL": False,
                     "Validator - preserve raw VLM response": False,
+                    "Formatter - seed": 3,
                     "Final - write TXT sidecars": True,
                     "Final - write JSONL": True,
                 }
@@ -89,11 +88,14 @@ class PlannerContractTests(unittest.TestCase):
         self.assertEqual(plan["distiller"]["temperature"], 0.24)
         self.assertEqual(plan["distiller"]["top_p"], 0.90)
         self.assertEqual(plan["distiller"]["top_k"], 60)
+        self.assertEqual(plan["distiller"]["seed"], 3)
         self.assertEqual(plan["validator"]["model"], "gemma4:26b")
         self.assertEqual(plan["validator"]["num_predict"], 2200)
         self.assertEqual(plan["validator"]["temperature"], 0.0)
         self.assertEqual(plan["validator"]["top_p"], 0.92)
         self.assertEqual(plan["validator"]["top_k"], 80)
+        self.assertEqual(plan["validator"]["seed"], 3)
+        self.assertEqual(plan["formatter"]["seed"], 3)
         self.assertEqual(capstone._resolve_fat_draft_max_caption_chars(plan, 1536), 1536)
         self.assertFalse(any(capstone._resolve_stage_audit_settings(plan, False, False).values()))
         self.assertTrue(plan["final"]["write_txt_sidecars"])
@@ -111,13 +113,14 @@ class PlannerContractTests(unittest.TestCase):
                     "Caption - base seed": 0,
                     "Caption - max image size": 0,
                     "Caption - max new tokens": 9999,
-                    "Distiller - base seed": 0,
+                    "Distiller - seed": 0,
                     "Distiller - max caption chars for LLM": 0,
                     "Distiller - top p": 0,
                     "Distiller - top k": 0,
-                    "Validator - base seed": 0,
+                    "Validator - seed": 0,
                     "Validator - top p": 0,
                     "Validator - top k": 0,
+                    "Formatter - seed": 0,
                     # Old serialized inputs are accepted as harmless extras.
                     "Distiller - strategy": "by_model_then_global",
                     "Final - caption style": "comma",
@@ -127,13 +130,14 @@ class PlannerContractTests(unittest.TestCase):
         self.assertEqual(plan["shared"]["base_seed"], 0)
         self.assertEqual(plan["shared"]["max_size"], 0)
         self.assertEqual(plan["shared"]["max_new_tokens"], 4096)
-        self.assertEqual(plan["distiller"]["base_seed"], 0)
+        self.assertEqual(plan["distiller"]["seed"], 0)
         self.assertEqual(plan["distiller"]["max_caption_chars_for_llm"], 0)
         self.assertEqual(plan["distiller"]["top_p"], 0.0)
         self.assertEqual(plan["distiller"]["top_k"], 0)
-        self.assertEqual(plan["validator"]["base_seed"], 0)
+        self.assertEqual(plan["validator"]["seed"], 0)
         self.assertEqual(plan["validator"]["top_p"], 0.0)
         self.assertEqual(plan["validator"]["top_k"], 0)
+        self.assertEqual(plan["formatter"]["seed"], 0)
         self.assertNotIn("strategy", plan["distiller"])
         self.assertNotIn("caption_style", plan["final"])
 
@@ -141,6 +145,9 @@ class PlannerContractTests(unittest.TestCase):
         required = planner_node.JLC_CaptionForge_Pipeline_Planner.INPUT_TYPES()["required"]
         self.assertNotIn("Distiller - strategy", required)
         self.assertNotIn("Final - caption style", required)
+        self.assertNotIn("Distiller - seed mode", required)
+        self.assertNotIn("Validator - seed mode", required)
+        self.assertIn("Formatter - seed", required)
         token_spec = required["Caption - max new tokens"][1]
         self.assertEqual(token_spec["default"], 4096)
         self.assertEqual(token_spec["max"], 4096)
@@ -166,11 +173,11 @@ class CapstoneResolutionTests(unittest.TestCase):
             json.dumps(
                 {
                     "captionforge_config_type": "captionforge_pipeline_plan",
-                    "distiller": {"base_seed": 0, "top_p": 0, "top_k": 0},
+                    "distiller": {"seed": 0, "top_p": 0, "top_k": 0},
                 }
             )
         )
-        self.assertEqual(normalized["distiller"], {"base_seed": 0, "top_p": 0, "top_k": 0})
+        self.assertEqual(normalized["distiller"], {"seed": 0, "top_p": 0, "top_k": 0})
         self.assertEqual(capstone._resolve_setting(normalized, 0.88, "distiller.top_p"), 0)
 
     def test_planner_owns_max_caption_chars_and_canonical_wins(self) -> None:

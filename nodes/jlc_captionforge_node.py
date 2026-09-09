@@ -137,7 +137,6 @@ MANIFEST = {
 import base64
 import io
 import json
-import random
 import re
 import urllib.error
 import urllib.request
@@ -185,7 +184,6 @@ except Exception:  # pragma: no cover - keeps direct/local smoke tests importabl
 
 
 CAPTIONFORGE_NODE_VERSION = "0.2.0"
-SEED_MODES = ["fixed", "increment", "decrement", "random"]
 TXT_EXPORT_FORMATS = ["natural", "taggy", "both_separate"]
 
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
@@ -625,24 +623,11 @@ def _coerce_float(value: Any, default: float, min_value: float | None = None, ma
     return out
 
 
-def _seed_for_stage(base_seed: Any, seed_mode: Any, stage_index: int) -> int | None:
-    base = _coerce_int(base_seed, -1, -1, MAX_SEED_32)
-    mode = str(seed_mode or "fixed").strip().lower()
-    if mode not in {"fixed", "increment", "decrement", "random"}:
-        mode = "fixed"
-    if base < 0:
+def _normalize_optional_seed(value: Any) -> int | None:
+    if value in (None, ""):
         return None
-    if mode == "fixed":
-        return base
-    if mode == "increment":
-        return min(MAX_SEED_32, base + stage_index)
-    if mode == "decrement":
-        return max(0, base - stage_index)
-    rng = random.Random(base)
-    out = base
-    for _ in range(stage_index + 1):
-        out = rng.randint(0, MAX_SEED_32)
-    return out
+    seed = _coerce_int(value, -1, -1, MAX_SEED_32)
+    return seed if seed >= 0 else None
 
 
 def _resolve_output_dir(widget_value: str, plan: dict[str, Any]) -> Path:
@@ -1522,8 +1507,6 @@ class JLC_CaptionForge:
                     "STRING",
                     {"default": DEFAULT_FAT_DRAFT_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the text-only fat draft LLM. Captions are appended automatically."},
                 ),
-                "Fat Draft - base seed": ("INT", {"default": 1, "min": -1, "max": MAX_SEED_32, "step": 1}),
-                "Fat Draft - seed mode": (SEED_MODES, {"default": "fixed"}),
                 "Fat Draft - max caption chars": ("INT", {"default": 1536, "min": 0, "max": 12000, "step": 64}),
                 "Fat Draft - max new tokens": (
                     "INT",
@@ -1545,8 +1528,6 @@ class JLC_CaptionForge:
                     "STRING",
                     {"default": DEFAULT_VALIDATOR_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the image-aware VLM validator. The fat draft is appended automatically."},
                 ),
-                "Validator - base seed": ("INT", {"default": 1, "min": -1, "max": MAX_SEED_32, "step": 1}),
-                "Validator - seed mode": (SEED_MODES, {"default": "fixed"}),
                 "Validator - max new tokens": (
                     "INT",
                     {"default": 5000, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
@@ -1563,8 +1544,6 @@ class JLC_CaptionForge:
                     "STRING",
                     {"default": DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the text-only taggy formatter. The validated paragraph is appended automatically."},
                 ),
-                "Formatter - base seed": ("INT", {"default": 1, "min": -1, "max": MAX_SEED_32, "step": 1}),
-                "Formatter - seed mode": (SEED_MODES, {"default": "fixed"}),
                 "Formatter - max new tokens": (
                     "INT",
                     {"default": 3200, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
@@ -1586,6 +1565,18 @@ class JLC_CaptionForge:
                 "pipeline_plan": (
                     "CAPTIONFORGE_PIPELINE_PLAN",
                     {"tooltip": "Connect the CaptionForge Pipeline Planner pipeline_plan output here."},
+                ),
+                "Distiller seed": (
+                    "INT",
+                    {"forceInput": True, "tooltip": "Optional standalone Pass-B seed. Planner seed overrides it when connected."},
+                ),
+                "Validator seed": (
+                    "INT",
+                    {"forceInput": True, "tooltip": "Optional standalone Pass-C seed. Planner seed overrides it when connected."},
+                ),
+                "Formatter seed": (
+                    "INT",
+                    {"forceInput": True, "tooltip": "Optional standalone Pass-D seed. Planner seed overrides it when connected."},
                 ),
             },
         }
@@ -1634,8 +1625,8 @@ class JLC_CaptionForge:
         keep_loaded = _safe_bool(kwargs.get("Ollama - keep loaded", True), True)
         timeout = float(_coerce_int(kwargs.get("Ollama - request timeout seconds", 1800), 1800, 10, 7200))
         # Standalone mode keeps the capstone's global audit widgets. In planned
-        # mode, Pass B and Pass C resolve independently from their Planner
-        # namespaces. Pass D intentionally remains owned by the capstone widget.
+        # mode, Pass B and Pass C resolve audit settings independently from their
+        # Planner namespaces. Pass D continues to use the global audit policy.
         audit = _resolve_stage_audit_settings(
             plan,
             kwargs.get("Audit - write prompt JSONL", False),
@@ -1664,10 +1655,18 @@ class JLC_CaptionForge:
             default=DEFAULT_DISTILLER_MODEL,
         )
         fat_model = _resolve_ollama_model_name(fat_model_choice, kwargs.get("Fat Draft - custom Ollama model"), DEFAULT_DISTILLER_MODEL)
-        fat_seed = _seed_for_stage(
-            _resolve_setting(plan, kwargs.get("Fat Draft - base seed"), "distiller.base_seed", "pass_b.base_seed", "pass_b_distiller.base_seed", default=1),
-            _resolve_setting(plan, kwargs.get("Fat Draft - seed mode"), "distiller.seed_mode", "pass_b.seed_mode", "pass_b_distiller.seed_mode", default="fixed"),
-            0,
+        fat_seed = _normalize_optional_seed(
+            _resolve_setting(
+                plan,
+                kwargs.get("Distiller seed", kwargs.get("Fat Draft - base seed")),
+                "distiller.seed",
+                "pass_b.seed",
+                "pass_b_distiller.seed",
+                "distiller.base_seed",
+                "pass_b.base_seed",
+                "pass_b_distiller.base_seed",
+                default=None,
+            )
         )
         fat_num = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - max new tokens"), "distiller.num_predict", "pass_b.num_predict", "pass_b_distiller.num_predict", default=5000), 5000, 64, 12000)
         fat_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - temperature"), "distiller.temperature", "pass_b.temperature", "pass_b_distiller.temperature", default=0.12), 0.12, 0.0, 2.0)
@@ -1691,10 +1690,18 @@ class JLC_CaptionForge:
             default=DEFAULT_VALIDATOR_MODEL,
         )
         val_model = _resolve_ollama_model_name(val_model_choice, kwargs.get("Validator - custom Ollama model"), DEFAULT_VALIDATOR_MODEL)
-        val_seed = _seed_for_stage(
-            _resolve_setting(plan, kwargs.get("Validator - base seed"), "validator.base_seed", "pass_c.base_seed", "pass_c_vlm_validator.base_seed", default=1),
-            _resolve_setting(plan, kwargs.get("Validator - seed mode"), "validator.seed_mode", "pass_c.seed_mode", "pass_c_vlm_validator.seed_mode", default="fixed"),
-            1,
+        val_seed = _normalize_optional_seed(
+            _resolve_setting(
+                plan,
+                kwargs.get("Validator seed", kwargs.get("Validator - base seed")),
+                "validator.seed",
+                "pass_c.seed",
+                "pass_c_vlm_validator.seed",
+                "validator.base_seed",
+                "pass_c.base_seed",
+                "pass_c_vlm_validator.base_seed",
+                default=None,
+            )
         )
         val_num = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - max new tokens"), "validator.num_predict", "pass_c.num_predict", "pass_c_vlm_validator.num_predict", default=5000), 5000, 64, 12000)
         val_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - temperature"), "validator.temperature", "pass_c.temperature", "pass_c_vlm_validator.temperature", default=0.05), 0.05, 0.0, 2.0)
@@ -1714,10 +1721,19 @@ class JLC_CaptionForge:
             default=DEFAULT_FORMAT_MODEL,
         )
         fmt_model = _resolve_ollama_model_name(fmt_model_choice, kwargs.get("Formatter - custom Ollama model"), DEFAULT_FORMAT_MODEL)
-        fmt_seed = _seed_for_stage(
-            _resolve_setting(plan, kwargs.get("Formatter - base seed"), "formatter.base_seed", "format.base_seed", "pass_d.base_seed", default=1),
-            _resolve_setting(plan, kwargs.get("Formatter - seed mode"), "formatter.seed_mode", "format.seed_mode", "pass_d.seed_mode", default="fixed"),
-            2,
+        fmt_seed = _normalize_optional_seed(
+            _resolve_setting(
+                plan,
+                kwargs.get("Formatter seed", kwargs.get("Formatter - base seed")),
+                "formatter.seed",
+                "format.seed",
+                "pass_d.seed",
+                "pass_d_formatter.seed",
+                "formatter.base_seed",
+                "format.base_seed",
+                "pass_d.base_seed",
+                default=None,
+            )
         )
         fmt_num = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - max new tokens"), "formatter.num_predict", "format.num_predict", "pass_d.num_predict", default=3200), 3200, 64, 12000)
         fmt_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Formatter - temperature"), "formatter.temperature", "format.temperature", "pass_d.temperature", default=0.12), 0.12, 0.0, 2.0)

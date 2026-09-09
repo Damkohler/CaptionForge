@@ -355,7 +355,7 @@ class OllamaCaptionRecord:
     model_path: str = ""
     prompt: str = ""
     system_prompt: str = ""
-    seed: int = -1
+    seed: int | None = None
     temperature: float = 0.18
     top_p: float = 0.92
     top_k: int = 60
@@ -654,7 +654,7 @@ def _ollama_options(
     top_p: float,
     top_k: int,
     repetition_penalty: float,
-    seed: int,
+    seed: int | None,
 ) -> dict[str, Any]:
     """Build Ollama generation options.
 
@@ -669,7 +669,7 @@ def _ollama_options(
         "top_k": int(top_k),
         "repeat_penalty": float(repetition_penalty),
     }
-    if int(seed) >= 0:
+    if seed is not None and int(seed) >= 0:
         options["seed"] = int(seed)
     return options
 
@@ -780,7 +780,7 @@ def _ollama_generate_caption(
     top_p: float,
     top_k: int,
     repetition_penalty: float,
-    seed: int,
+    seed: int | None,
     max_size: int,
     keep_loaded: bool,
     timeout: float,
@@ -1620,7 +1620,7 @@ class JLC_CaptionForgeOllamaCaption:
                     top_p=float(run.top_p),
                     top_k=int(run.top_k),
                     repetition_penalty=float(repetition_penalty),
-                    seed=int(run.seed),
+                    seed=run.seed,
                     max_size=int(run.max_size),
                     keep_loaded=bool(keep_loaded),
                     timeout=timeout,
@@ -1643,7 +1643,7 @@ class JLC_CaptionForgeOllamaCaption:
                     model_path=model_tag,
                     prompt=prompt,
                     system_prompt=system_prompt,
-                    seed=int(run.seed),
+                    seed=run.seed,
                     temperature=float(run.temperature),
                     top_p=float(run.top_p),
                     top_k=int(run.top_k),

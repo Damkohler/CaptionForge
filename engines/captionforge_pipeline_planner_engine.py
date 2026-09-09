@@ -106,8 +106,8 @@ MANIFEST = {
 }
 
 
+import hashlib
 import json
-import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -115,8 +115,9 @@ from typing import Any
 
 MAX_SEED_32 = 0xFFFFFFFF
 PIPELINE_PLAN_TYPE = "captionforge_pipeline_plan"
-PIPELINE_PLAN_VERSION = 5
+PIPELINE_PLAN_VERSION = 6
 MAX_PASS_A_RUNS_PER_MODEL = 5
+PASS_A_SEED_NAMESPACE = b"captionforge-pass-a-seed-v1"
 
 
 @dataclass(frozen=True)
@@ -213,22 +214,26 @@ def _normalize_seed_mode(value: Any) -> str:
 
 def _seed_for_run(base_seed: int, seed_mode: str, index: int) -> int | None:
     if base_seed < 0:
-        if seed_mode == "random":
-            return random.SystemRandom().randint(0, MAX_SEED_32)
         return None
     base_seed = max(0, min(int(base_seed), MAX_SEED_32))
+    index = int(index)
+    if index < 0:
+        raise ValueError("CaptionForge Pass-A run index must be nonnegative")
     if seed_mode == "fixed":
         return base_seed
     if seed_mode == "increment":
-        return min(MAX_SEED_32, base_seed + index)
+        return (base_seed + index) & MAX_SEED_32
     if seed_mode == "decrement":
-        return max(0, base_seed - index)
+        return (base_seed - index) & MAX_SEED_32
     if seed_mode == "random":
-        rng = random.Random(base_seed)
-        out = base_seed
-        for _ in range(index + 1):
-            out = rng.randint(0, MAX_SEED_32)
-        return out
+        payload = b"\0".join(
+            (
+                PASS_A_SEED_NAMESPACE,
+                str(base_seed).encode("ascii"),
+                str(index).encode("ascii"),
+            )
+        )
+        return int.from_bytes(hashlib.blake2s(payload, digest_size=4).digest(), "big")
     return base_seed
 
 
@@ -382,6 +387,7 @@ def build_captionforge_pipeline_plan(
     user_caption_anchor: str = "",
     distiller_model_family: str = "Llama",
     distiller_base_seed: int | None = None,
+    # Compatibility-only. Pass B owns one fixed seed; modes are ignored.
     distiller_seed_mode: str = "fixed",
     # Compatibility-only argument for older callers. Production Pass B is
     # always one global fat-draft call per image.
@@ -395,6 +401,7 @@ def build_captionforge_pipeline_plan(
     distiller_preserve_raw_response: bool = False,
     validator_model_family: str = "Llama Vision",
     validator_base_seed: int | None = None,
+    # Compatibility-only. Pass C owns one fixed seed; modes are ignored.
     validator_seed_mode: str = "fixed",
     validator_num_predict: int = 2200,
     validator_temperature: float = 0.0,
@@ -410,6 +417,7 @@ def build_captionforge_pipeline_plan(
     # Legacy compatibility aliases retained for older callers.
     distiller_seed: int | None = None,
     validator_seed: int | None = None,
+    formatter_seed: int | None = None,
     distiller_model: str = "llama3.1:8b",
     validator_model: str = "llama3.2-vision:11b",
     captions_per_image: int | None = None,
@@ -444,14 +452,14 @@ def build_captionforge_pipeline_plan(
     base_seed_n = _coerce_int(base_seed, -1, -1, MAX_SEED_32)
     seed_mode_n = _normalize_seed_mode(seed_mode)
 
-    if distiller_base_seed is None:
-        distiller_base_seed = distiller_seed
-    if validator_base_seed is None:
-        validator_base_seed = validator_seed
+    if distiller_seed is None:
+        distiller_seed = distiller_base_seed
+    if validator_seed is None:
+        validator_seed = validator_base_seed
 
-    d_seed = base_seed_n if distiller_base_seed is None else _coerce_int(distiller_base_seed, base_seed_n, -1, MAX_SEED_32)
-    v_seed_default = -1 if base_seed_n < 0 else min(MAX_SEED_32, base_seed_n + 1000003)
-    v_seed = v_seed_default if validator_base_seed is None else _coerce_int(validator_base_seed, v_seed_default, -1, MAX_SEED_32)
+    d_seed = _coerce_int(distiller_seed, -1, -1, MAX_SEED_32)
+    v_seed = _coerce_int(validator_seed, -1, -1, MAX_SEED_32)
+    f_seed = _coerce_int(formatter_seed, -1, -1, MAX_SEED_32)
 
     run_name_n = _clean_name(run_name)
     input_path_n = str(input_path or "").strip()
@@ -491,9 +499,7 @@ def build_captionforge_pipeline_plan(
         "backend": "ollama",
         "model_family": str(distiller_model_family or "Llama").strip() or "Llama",
         "model": str(distiller_model or "llama3.1:8b").strip() or "llama3.1:8b",
-        "base_seed": d_seed,
         "seed": d_seed,
-        "seed_mode": _normalize_seed_mode(distiller_seed_mode),
         "max_caption_chars_for_llm": _coerce_int(distiller_max_caption_chars_for_llm, 1536, 0, 12000),
         "num_predict": _coerce_int(distiller_num_predict, 3096, 64, 12000),
         "temperature": _coerce_float(distiller_temperature, 0.24, 0.0, 2.0),
@@ -507,9 +513,7 @@ def build_captionforge_pipeline_plan(
         "backend": "ollama",
         "model_family": str(validator_model_family or "Llama Vision").strip() or "Llama Vision",
         "model": str(validator_model or "llama3.2-vision:11b").strip() or "llama3.2-vision:11b",
-        "base_seed": v_seed,
         "seed": v_seed,
-        "seed_mode": _normalize_seed_mode(validator_seed_mode),
         "image_root": input_path_n,
         "num_predict": _coerce_int(validator_num_predict, 2200, 64, 12000),
         "temperature": _coerce_float(validator_temperature, 0.0, 0.0, 2.0),
@@ -518,6 +522,10 @@ def build_captionforge_pipeline_plan(
         "write_prompt_jsonl": _coerce_bool(validator_write_prompt_jsonl, False),
         "preserve_raw_vlm_response": _coerce_bool(validator_preserve_raw_vlm_response, False),
         "role": "image_aware_precision_validation",
+    }
+    formatter = {
+        "seed": f_seed,
+        "role": "text_only_taggy_formatting",
     }
     final = {
         "write_txt_sidecars": _coerce_bool(final_write_txt_sidecars, True),
@@ -558,9 +566,11 @@ def build_captionforge_pipeline_plan(
         },
         "distiller": distiller,
         "validator": validator,
+        "formatter": formatter,
         "final": final,
         "pass_b_distiller": distiller,
         "pass_c_vlm_validator": validator,
+        "pass_d_formatter": formatter,
         "final_export": final,
     }
 
