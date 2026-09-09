@@ -334,7 +334,7 @@
       "Validator - top k": 50,
       "Formatter - model": "mistral-small:24b",
       "Formatter - custom Ollama model": "",
-      "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter.\n\nThe validated paragraph is already the natural-language final caption. Do not rewrite it.\n\nTask:\nCreate one TAGGY caption from the validated paragraph.\n\nRules:\n- Output only the taggy comma-separated caption.\n- Use only details already present in the validated paragraph.\n- Preserve concrete LoRA-useful details.\n- Do not add new details.\n- Do not mention this process.\n- Do not output markdown.\n- Do not include a TAGGY: label.\n- Keep the result as a comma-separated list, not full prose.",
+      "Formatter - prompt": "/no_think\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\nOutput exactly two labeled lines:\nSHORT: <exactly three concise sentences totaling at most 90 words>\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\nNo markdown, reasoning, notes, or other labels.",
       "Formatter - max new tokens": 3200,
       "Formatter - temperature": 0.12,
       "Formatter - top p": 0.88,

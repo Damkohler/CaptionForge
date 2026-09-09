@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import struct
 import sys
 import tempfile
 import types
@@ -29,6 +30,21 @@ _install_namespace("CaptionForge.nodes", ROOT / "nodes")
 planner_engine = importlib.import_module("CaptionForge.engines.captionforge_pipeline_planner_engine")
 planner_node = importlib.import_module("CaptionForge.nodes.jlc_captionforge_pipeline_planner_node")
 capstone = importlib.import_module("CaptionForge.nodes.jlc_captionforge_node")
+
+
+def _embedded_png_workflow(path: Path) -> dict:
+    data = path.read_bytes()
+    offset = 8
+    while offset < len(data):
+        length = struct.unpack(">I", data[offset : offset + 4])[0]
+        chunk_type = data[offset + 4 : offset + 8]
+        chunk_data = data[offset + 8 : offset + 8 + length]
+        if chunk_type == b"tEXt":
+            keyword, separator, text = chunk_data.partition(b"\0")
+            if separator and keyword == b"workflow":
+                return json.loads(text.decode("utf-8"))
+        offset += 12 + length
+    raise AssertionError(f"No workflow tEXt chunk in {path}")
 
 
 class PlannerContractTests(unittest.TestCase):
@@ -167,7 +183,50 @@ class PlannerContractTests(unittest.TestCase):
         self.assertEqual(clamped_plan["shared"]["max_new_tokens"], 4096)
 
 
+class WorkflowAssetContractTests(unittest.TestCase):
+    def test_formatter_prompt_matches_ui_api_and_png_workflows(self) -> None:
+        ui = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.json").read_text(encoding="utf-8"))
+        api = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_API.json").read_text(encoding="utf-8"))
+        png = _embedded_png_workflow(ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.png")
+
+        expected = capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS
+        api_prompt = api["76"]["inputs"]["Formatter - prompt"]
+        self.assertEqual(api_prompt, expected)
+
+        for workflow in (ui, png):
+            node = next(node for node in workflow["nodes"] if node["id"] == 76)
+            self.assertEqual(node["widgets_values"][31], expected)
+            self.assertEqual(node["widgets_values_named"]["Formatter - prompt"], expected)
+
+
 class CapstoneResolutionTests(unittest.TestCase):
+    def test_formatter_derivatives_parse_dual_and_legacy_responses(self) -> None:
+        short, taggy = capstone._parse_formatter_derivatives(
+            "SHORT: A concise natural caption.\n"
+            "TAGGY: subject, blue dress, soft lighting."
+        )
+        self.assertEqual(short, "A concise natural caption.")
+        self.assertEqual(taggy, "subject, blue dress, soft lighting.")
+
+        legacy_short, legacy_taggy = capstone._parse_formatter_derivatives(
+            "subject, blue dress, soft lighting"
+        )
+        self.assertEqual(legacy_short, "")
+        self.assertEqual(legacy_taggy, "subject, blue dress, soft lighting")
+
+    def test_short_limit_and_deterministic_fallback_obey_word_cap(self) -> None:
+        overlong_sentence = " ".join(f"word{i}" for i in range(120)) + "."
+        ai_short = capstone._limit_ai_short_caption(overlong_sentence, max_words=90)
+        fallback = capstone._compact_lora_short_caption(overlong_sentence, "")
+        self.assertEqual(len(ai_short.removesuffix("…").split()), 90)
+        self.assertEqual(len(fallback.split()), 90)
+
+    def test_taggy_compaction_removes_terminal_sentence_punctuation(self) -> None:
+        self.assertEqual(
+            capstone._compact_taggy_caption("subject, blue dress, soft lighting."),
+            "subject, blue dress, soft lighting",
+        )
+
     def test_normalization_preserves_nested_zero_values(self) -> None:
         normalized = planner_engine.normalize_captionforge_pipeline_plan(
             json.dumps(

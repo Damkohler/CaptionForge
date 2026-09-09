@@ -118,14 +118,15 @@ Pass C — image-aware VLM validation
   correct visible errors
   produce the authoritative long caption
 
-Pass D — deterministic export formatting
+Pass D — text-only derivative formatting
   write the validated long caption
-  derive a shorter LoRA-length caption
-  derive a compact taggy caption
+  derive a balanced LoRA-length short caption
+  derive a compact taggy caption in the same formatter call
+  compact and bound both derivatives deterministically
   write TXT and JSONL audit records
 ```
 
-The important distinction is that the expensive semantic work should mostly end at the VLM-validated long caption. The short and taggy outputs are intentionally lighter recipe-style formatting steps derived from that validated caption, not new attempts to reinterpret the image.
+The important distinction is that the expensive semantic work ends at the VLM-validated long caption. The text-only formatter derives both shorter outputs from that validated caption in one call and is explicitly forbidden to add, infer, or correct visual claims. Deterministic cleanup bounds the results, and a conservative extractive short remains available as a fallback for legacy/custom taggy-only formatter prompts.
 
 ## Current status
 
@@ -418,8 +419,8 @@ Meaning:
 
 ```text
 _long.txt    the authoritative VLM-validated natural caption
-_short.txt   a shorter LoRA-length caption derived from the long caption
-_taggy.txt   a compact comma-separated taggy caption derived from the long caption
+_short.txt   a balanced LoRA-length natural caption derived from the validated long caption
+_taggy.txt   a compact comma-separated caption derived in the same text-only formatter call
 ```
 
 Long captions are intentional in v0.1.x. The current release-candidate strategy favors preserving visible, trainable detail in the validated long caption, then deriving shorter and taggy outputs from that result.

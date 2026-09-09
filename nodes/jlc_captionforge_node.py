@@ -28,8 +28,8 @@ JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
             • Pass A raw caption selection and grouping by image
             • Pass B fat-draft construction with a text-only Ollama LLM
             • Pass C natural-caption validation with an image-aware Ollama VLM
-            • Pass D taggy-format construction with a text-only Ollama LLM
-            • final natural/taggy TXT and JSONL export
+            • Pass D short/taggy derivative construction with a text-only Ollama LLM
+            • final long/short/taggy TXT and JSONL export
             • output path derivation and run audit status strings
 
 - CaptionForge Pipeline Role
@@ -44,12 +44,12 @@ JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
             A_RAW_CAPTIONS
               -> B_FAT_DRAFT                  text-only LLM
               -> C_VLM_VALIDATED_FINAL        image-aware VLM natural caption
-              -> D_FORMAT_TAGGY               text-only formatter
+              -> D_FORMAT_TAGGY               text-only derivative formatter
               -> final TXT/JSONL export
 
     - The VLM-validated natural paragraph is the natural final caption. The
-      formatter pass must not rewrite that natural paragraph; it only derives a
-      comma-separated taggy caption from it.
+      formatter pass must not rewrite that natural paragraph; it only derives
+      shorter natural-language and comma-separated variants from it.
 
 - Ollama Model Dropdowns
     - Fat Draft, Validator, and Formatter dropdown values are explicit Ollama
@@ -75,8 +75,8 @@ JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
     - The Validator VLM sees the actual image and the fat draft. It returns one
       corrected natural paragraph.
 
-    - The Formatter LLM sees only the validated paragraph. It returns one taggy
-      comma-separated caption.
+    - The Formatter LLM sees only the validated paragraph. In one call it
+      returns a shorter natural caption and a taggy comma-separated caption.
 
 - Model and Dependency Notes
     - This node talks to a local Ollama server over HTTP.
@@ -127,8 +127,8 @@ MANIFEST = {
         "Release-candidate CaptionForge capstone node. Consumes Pass A raw caption "
         "JSONL directly or through a CAPTIONFORGE_PIPELINE_PLAN, builds a text-only "
         "fat draft with an Ollama LLM, validates it against the image with an Ollama "
-        "VLM to produce the natural final caption, derives a taggy comma-list with a "
-        "format model, and exports deterministic TXT/JSONL artifacts. The natural "
+        "VLM to produce the natural final caption, derives short and taggy variants "
+        "with one format-model call, and exports TXT/JSONL artifacts. The natural "
         "caption is the VLM-validated output directly; the formatter pass does not "
         "rewrite the natural paragraph."
     ),
@@ -250,23 +250,18 @@ Rules:
 - Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image."""
 
 DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS = """/no_think
+You are a LoRA caption format converter. The validated paragraph is your only source of truth.
+Output exactly two labeled lines:
+SHORT: <exactly three concise sentences totaling at most 90 words>
+TAGGY: <one compact comma-separated caption>
 
-You are a LoRA caption format converter.
-
-The validated paragraph is already the natural-language final caption. Do not rewrite it.
-
-Task:
-Create one TAGGY caption from the validated paragraph.
-
-Rules:
-- Output only the taggy comma-separated caption.
-- Use only details already present in the validated paragraph.
-- Preserve concrete LoRA-useful details.
-- Do not add new details.
-- Do not mention this process.
-- Do not output markdown.
-- Do not include a TAGGY: label.
-- Keep the result as a comma-separated list, not full prose."""
+SHORT must preserve the image's distinctive training identity across the whole source:
+1. subject, defining face/hair/body traits, and every major outfit piece/material;
+2. pose/action and key accessories or unusual visible details;
+3. setting, lighting, framing, and visual medium/style.
+Omit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.
+TAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.
+No markdown, reasoning, notes, or other labels."""
 
 _SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 
@@ -1039,8 +1034,13 @@ def _build_validator_prompt(instructions: str, draft_caption: str, trigger_word:
 
 
 def _build_taggy_prompt(instructions: str, validated_caption: str, trigger_word: str, user_caption_anchor: str) -> str:
+    """Build the single Pass-D prompt for short and taggy derivatives.
+
+    The historical name is retained for internal compatibility with tests and
+    custom integrations that import this helper.
+    """
     instr = _append_optional_lora_guidance(str(instructions or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS), trigger_word, user_caption_anchor)
-    return f"{instr}\n\nValidated paragraph:\n{validated_caption}\n\nTaggy comma-list only:"
+    return f"{instr}\n\nValidated paragraph:\n{validated_caption}\n\nCaption derivatives:"
 
 
 def _cleanup_single_paragraph(text: str) -> str:
@@ -1060,6 +1060,28 @@ def _cleanup_taggy(text: str) -> str:
     text = re.sub(r"\s*,\s*", ", ", text)
     text = re.sub(r",\s*,+", ", ", text)
     return text.strip(" ,")
+
+
+def _parse_formatter_derivatives(text: str) -> tuple[str, str]:
+    """Parse the dual Pass-D response, with legacy taggy-only compatibility."""
+    raw = str(text or "").strip()
+    short_match = re.search(
+        r"(?is)(?:^|\n)\s*SHORT:\s*(.*?)(?=\s*(?:\n\s*)?TAGGY:|\Z)",
+        raw,
+    )
+    taggy_match = re.search(r"(?is)(?:^|\n)\s*TAGGY:\s*(.*?)\s*\Z", raw)
+
+    short = _cleanup_single_paragraph(short_match.group(1)) if short_match else ""
+    if taggy_match:
+        taggy = _cleanup_taggy(taggy_match.group(1))
+    elif not short_match:
+        # Custom and pre-1.0 formatter prompts may still return one unlabeled
+        # comma list. Keep that behavior and let the deterministic short
+        # generator provide the fallback.
+        taggy = _cleanup_taggy(raw)
+    else:
+        taggy = ""
+    return short, taggy
 
 
 def _prepend_metadata(text: str, trigger_word: str, user_caption_anchor: str) -> str:
@@ -1275,7 +1297,8 @@ def _normalize_txt_export_format(export_format: str) -> str:
 def _split_tag_items(text: str) -> list[str]:
     raw = str(text or "").replace("\n", ",")
     items = [re.sub(r"\s+", " ", part).strip(" ,;:\t") for part in raw.split(",")]
-    return [item for item in items if item]
+    cleaned = [re.sub(r"[.!?]+$", "", item).strip() for item in items if item]
+    return [item for item in cleaned if item]
 
 
 def _dedupe_keep_order(items: list[str]) -> list[str]:
@@ -1339,7 +1362,10 @@ def _compact_lora_short_caption(long_caption: str, taggy_caption: str, *, max_wo
         sentence_words = sentence.split()
         if not sentence_words:
             continue
-        if kept and words + len(sentence_words) > max_words:
+        if words + len(sentence_words) > max_words:
+            if not kept:
+                kept.append(" ".join(sentence_words[:max_words]))
+                words = min(len(sentence_words), max_words)
             break
         kept.append(sentence)
         words += len(sentence_words)
@@ -1352,6 +1378,17 @@ def _compact_lora_short_caption(long_caption: str, taggy_caption: str, *, max_wo
     if len(short) > max_chars:
         short = short[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
     return short.strip()
+
+
+def _limit_ai_short_caption(short_caption: str, *, max_words: int = 90, max_chars: int = 900) -> str:
+    """Enforce the advertised Pass-D short limits without adding content."""
+    text = _cleanup_single_paragraph(short_caption)
+    words = text.split()
+    if max_words > 0 and len(words) > max_words:
+        text = " ".join(words[:max_words]).rstrip(" ,;:-") + "…"
+    if max_chars > 0 and len(text) > max_chars:
+        text = text[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+    return text.strip()
 
 
 def _write_final_txt_sidecars(
@@ -1449,7 +1486,7 @@ def _reset_outputs(paths: dict[str, str], overwrite: bool) -> None:
 
 
 class JLC_CaptionForge:
-    """CaptionForge capstone node: fat draft -> VLM natural final -> taggy formatter."""
+    """CaptionForge capstone: fat draft -> VLM long -> short/taggy formatter."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1542,7 +1579,7 @@ class JLC_CaptionForge:
                 ),
                 "Formatter - prompt": (
                     "STRING",
-                    {"default": DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the text-only taggy formatter. The validated paragraph is appended automatically."},
+                    {"default": DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the text-only short/taggy formatter. The validated paragraph is appended automatically."},
                 ),
                 "Formatter - max new tokens": (
                     "INT",
@@ -1918,7 +1955,7 @@ class JLC_CaptionForge:
             if fmt_write_prompts:
                 _write_jsonl(Path(paths["taggy_prompt_jsonl"]), [{"image_key": image_key, "prompt": fmt_prompt, "model": fmt_model, "stage": "D_FORMAT_TAGGY"}], append=True)
 
-            taggy, fmt_raw = _ollama_generate_text(
+            formatter_text, fmt_raw = _ollama_generate_text(
                 ollama_url=ollama_url,
                 model=fmt_model,
                 prompt=fmt_prompt,
@@ -1930,10 +1967,15 @@ class JLC_CaptionForge:
                 keep_loaded=keep_loaded,
                 timeout=timeout,
             )
+            short_candidate, taggy_candidate = _parse_formatter_derivatives(formatter_text)
             taggy = _compact_taggy_caption(
-                _prepend_metadata(_cleanup_taggy(taggy), trigger_word, user_caption_anchor)
+                _prepend_metadata(taggy_candidate, trigger_word, user_caption_anchor)
             )
-            short = _compact_lora_short_caption(natural, taggy)
+            short = _limit_ai_short_caption(
+                _prepend_metadata(short_candidate, trigger_word, user_caption_anchor)
+            )
+            if not short:
+                short = _compact_lora_short_caption(natural, taggy)
             fmt_raw_path = _save_raw_response(
                 raw_dir if fmt_preserve_raw else None,
                 image_key,
@@ -1956,7 +1998,11 @@ class JLC_CaptionForge:
                             model=fmt_model,
                             prompt=fmt_prompt if fmt_write_prompts else "",
                             params={"max_new_tokens": fmt_num, "temperature": fmt_temp, "top_p": fmt_top_p, "top_k": fmt_top_k, "seed": fmt_seed},
-                            source={"validated_natural": natural, "raw_response_path": fmt_raw_path},
+                            source={
+                                "validated_natural": natural,
+                                "short_caption": short,
+                                "raw_response_path": fmt_raw_path,
+                            },
                             timestamp=datetime.now().isoformat(timespec="seconds"),
                         )
                     )
