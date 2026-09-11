@@ -30,11 +30,11 @@
       "replace_pairs": "",
       "download_probe_only": false,
       "image": [
-        "75",
+        "85",
         0
       ],
       "pipeline_plan": [
-        "75",
+        "85",
         1
       ],
       "template_options": [
@@ -132,7 +132,7 @@
       "custom_model_tag": "",
       "ollama_url": "http://127.0.0.1:11434",
       "keep_loaded": true,
-      "caption_template_mode": false,
+      "caption_template_mode": true,
       "caption_type": "Descriptive",
       "caption_length": "any",
       "custom_prompt_mode": false,
@@ -210,17 +210,13 @@
   },
   "67": {
     "inputs": {
-      "inputcount": 3,
+      "inputcount": 2,
       "Update inputs": null,
       "image_1": [
         "68",
         0
       ],
       "image_2": [
-        "70",
-        0
-      ],
-      "image_3": [
         "9",
         0
       ]
@@ -239,69 +235,33 @@
       "title": "Load Image"
     }
   },
-  "70": {
+  "81": {
     "inputs": {
-      "image": "ChatGPT Image Jun 20, 2026, 10_38_46 AM (7).png"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "Load Image"
-    }
-  },
-  "75": {
-    "inputs": {
-      "Planner - enabled": true,
-      "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
-      "Input - recursive": false,
-      "Input - filename glob": "*",
-      "Output - folder": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
-      "Output - run name": "New_LoRA_Captions",
-      "Output - overwrite outputs": true,
-      "LoRA - trigger word": "",
-      "LoRA - user caption anchor": "",
-      "Caption - Joy runs/image": "1",
-      "Caption - Qwen runs/image": "1",
-      "Caption - Ollama runs/image": "Disabled",
-      "Caption - base seed": 3,
-      "Caption - seed mode": "random",
-      "Caption - temperature schedule": "0.8, 0.9",
-      "Caption - top p schedule": "0.7, 0.8",
-      "Caption - top k schedule": "70, 80",
-      "Caption - max image size": 1024,
-      "Caption - max new tokens": 4096,
-      "Distiller - model": "mistral-small:24b",
-      "Distiller - custom Ollama model": "",
-      "Distiller - seed": 3,
-      "Distiller - max caption chars for LLM": 1536,
-      "Distiller - num predict": 3096,
-      "Distiller - temperature": 0.24,
-      "Distiller - top p": 0.9,
-      "Distiller - top k": 60,
-      "Distiller - write prompt JSONL": false,
-      "Distiller - preserve raw response": false,
-      "Validator - model": "gemma4:26b",
-      "Validator - custom Ollama model": "",
-      "Validator - seed": 1,
-      "Validator - num predict": 2200,
-      "Validator - temperature": 0,
-      "Validator - top p": 0.92,
-      "Validator - top k": 80,
-      "Validator - write prompt JSONL": true,
-      "Validator - preserve raw VLM response": true,
-      "Formatter - seed": 0,
-      "Final - write TXT sidecars": true,
-      "Final - write JSONL": true,
-      "Input - single image": [
-        "67",
+      "output": "",
+      "source": [
+        "84",
         0
       ]
     },
-    "class_type": "JLC_CaptionForge_Pipeline_Planner",
+    "class_type": "Display Any (rgthree)",
     "_meta": {
-      "title": " JLC CaptionForge Pipeline Planner"
+      "title": "Display Any (rgthree)"
     }
   },
-  "76": {
+  "82": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "84",
+        1
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "Display Any (rgthree)"
+    }
+  },
+  "84": {
     "inputs": {
       "Input - captions JSONL": "",
       "Input - image path": "",
@@ -320,37 +280,33 @@
       "Fat Draft - custom Ollama model": "",
       "Fat Draft - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
       "Fat Draft - max caption chars": 1536,
-      "Fat Draft - max new tokens": 5000,
-      "Fat Draft - temperature": 0.12,
-      "Fat Draft - top p": 0.88,
-      "Fat Draft - top k": 50,
+      "Fat Draft - max new tokens": 3096,
+      "Fat Draft - temperature": 0.24,
+      "Fat Draft - top p": 0.9,
+      "Fat Draft - top k": 60,
       "Validator - model": "gemma4:26b",
       "Validator - custom Ollama model": "",
       "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
       "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
-      "Validator - max new tokens": 5000,
-      "Validator - temperature": 0.05,
-      "Validator - top p": 0.88,
-      "Validator - top k": 50,
+      "Validator - max new tokens": 2112,
+      "Validator - temperature": 0.0,
+      "Validator - top p": 0.92,
+      "Validator - top k": 80,
       "Formatter - model": "mistral-small:24b",
       "Formatter - custom Ollama model": "",
-      "Formatter - prompt": "/no_think\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\nOutput exactly two labeled lines:\nSHORT: <exactly three concise sentences totaling at most 90 words>\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\nNo markdown, reasoning, notes, or other labels.",
+      "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption of at most 90 words that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
       "Formatter - max new tokens": 3200,
       "Formatter - temperature": 0.12,
       "Formatter - top p": 0.88,
       "Formatter - top k": 50,
-      "Audit - write prompt JSONL": true,
-      "Audit - preserve raw responses": true,
+      "Audit - write prompt JSONL": false,
+      "Audit - preserve raw responses": false,
       "Final - TXT export format": "natural",
       "Final - write TXT sidecars": true,
       "Final - write JSONL": true,
       "Input - single image": [
         "56",
         0
-      ],
-      "pipeline_plan": [
-        "56",
-        1
       ]
     },
     "class_type": "JLC_CaptionForge",
@@ -358,30 +314,72 @@
       "title": " JLC CaptionForge Node"
     }
   },
-  "81": {
+  "85": {
     "inputs": {
-      "output": "",
-      "source": [
-        "76",
+      "Planner - enabled": true,
+      "Input - image path": "",
+      "Input - recursive": false,
+      "Input - filename glob": "*",
+      "Output - folder": "",
+      "Output - run name": "captionforge_run",
+      "Output - overwrite outputs": true,
+      "Ollama - URL": "http://127.0.0.1:11434",
+      "Ollama - keep loaded": true,
+      "Ollama - request timeout seconds": 1800,
+      "LoRA - trigger word": "",
+      "LoRA - user caption anchor": "",
+      "Caption - Joy runs/image": "2",
+      "Caption - Qwen runs/image": "1",
+      "Caption - Ollama runs/image": "1",
+      "Caption - base seed": 3,
+      "Caption - seed mode": "increment",
+      "Caption - temperature schedule": "0.7,0.8,0.9",
+      "Caption - top p schedule": "0.6,0.7,0.8",
+      "Caption - top k schedule": "60,70,80",
+      "Caption - max image size": 1024,
+      "Caption - max new tokens": 4096,
+      "Distiller - model": "mistral-small:24b",
+      "Distiller - custom Ollama model": "",
+      "Distiller - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+      "Distiller - seed": -1,
+      "Distiller - max caption chars for LLM": 1536,
+      "Distiller - num predict": 3096,
+      "Distiller - temperature": 0.24,
+      "Distiller - top p": 0.9,
+      "Distiller - top k": 60,
+      "Distiller - write prompt JSONL": false,
+      "Distiller - preserve raw response": false,
+      "Validator - model": "gemma4:26b",
+      "Validator - custom Ollama model": "",
+      "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+      "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+      "Validator - seed": -1,
+      "Validator - num predict": 2112,
+      "Validator - temperature": 0.0,
+      "Validator - top p": 0.92,
+      "Validator - top k": 80,
+      "Validator - write prompt JSONL": false,
+      "Validator - preserve raw VLM response": false,
+      "Formatter - model": "mistral-small:24b",
+      "Formatter - custom Ollama model": "",
+      "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption of at most 90 words that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
+      "Formatter - seed": -1,
+      "Formatter - num predict": 3200,
+      "Formatter - temperature": 0.12,
+      "Formatter - top p": 0.88,
+      "Formatter - top k": 50,
+      "Formatter - write prompt JSONL": false,
+      "Formatter - preserve raw response": false,
+      "Final - write TXT sidecars": true,
+      "Final - write JSONL": true,
+      "Input - single image": [
+        "67",
         0
       ]
     },
-    "class_type": "Display Any (rgthree)",
+    "class_type": "JLC_CaptionForge_Pipeline_Planner",
     "_meta": {
-      "title": "Display Any (rgthree)"
-    }
-  },
-  "82": {
-    "inputs": {
-      "output": "",
-      "source": [
-        "76",
-        1
-      ]
-    },
-    "class_type": "Display Any (rgthree)",
-    "_meta": {
-      "title": "Display Any (rgthree)"
+      "title": " JLC CaptionForge Pipeline Planner"
     }
   }
 }

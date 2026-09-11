@@ -1,8 +1,8 @@
 {
   "id": "a4d15886-704a-4c04-9a67-e85aa6bc34bf",
   "revision": 0,
-  "last_node_id": 82,
-  "last_link_id": 188,
+  "last_node_id": 85,
+  "last_link_id": 199,
   "nodes": [
     {
       "id": 68,
@@ -60,15 +60,13 @@
       ],
       "flags": {},
       "order": 1,
-      "mode": 0,
+      "mode": 4,
       "inputs": [],
       "outputs": [
         {
           "name": "IMAGE",
           "type": "IMAGE",
-          "links": [
-            170
-          ]
+          "links": []
         },
         {
           "name": "MASK",
@@ -91,53 +89,10 @@
       }
     },
     {
-      "id": 9,
-      "type": "LoadImage",
-      "pos": [
-        -2512,
-        1584
-      ],
-      "size": [
-        232,
-        344
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            172
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.20.1",
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "Goth Blonde - 004_00006_.png",
-        "image"
-      ],
-      "widgets_values_named": {
-        "image": "Goth Blonde - 004_00006_.png",
-        "upload": "image"
-      }
-    },
-    {
       "id": 55,
       "type": "JLC_CaptionForgeExtraOptions",
       "pos": [
-        -1894.857142857143,
+        -1889,
         732
       ],
       "size": [
@@ -145,7 +100,7 @@
         824
       ],
       "flags": {},
-      "order": 3,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -238,134 +193,10 @@
       }
     },
     {
-      "id": 56,
-      "type": "JLC_CaptionForgeOllamaCaption",
-      "pos": [
-        -502.2857142857143,
-        644
-      ],
-      "size": [
-        332,
-        740
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 136
-        },
-        {
-          "name": "pipeline_plan",
-          "shape": 7,
-          "type": "CAPTIONFORGE_PIPELINE_PLAN",
-          "link": 138
-        },
-        {
-          "name": "template_options",
-          "shape": 7,
-          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
-          "link": 161
-        },
-        {
-          "name": "seed",
-          "shape": 7,
-          "type": "INT",
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "name": "image_out",
-          "type": "IMAGE",
-          "links": [
-            182
-          ]
-        },
-        {
-          "name": "pipeline_plan_out",
-          "type": "CAPTIONFORGE_PIPELINE_PLAN",
-          "links": [
-            183
-          ]
-        },
-        {
-          "name": "template_options_out",
-          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
-          "links": []
-        },
-        {
-          "name": "caption",
-          "type": "STRING",
-          "links": []
-        },
-        {
-          "name": "resolved_prompt",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui_fearnworksnodes",
-        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
-        "Node name for S&R": "JLC_CaptionForgeOllamaCaption",
-        "aux_id": "Damkohler/CaptionForge"
-      },
-      "widgets_values": [
-        "huihui_ai/gemma-4-abliterated:26b",
-        "",
-        "http://127.0.0.1:11434",
-        true,
-        false,
-        "Descriptive",
-        "any",
-        false,
-        "female_character_lora",
-        "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
-        "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
-        6000,
-        0.9,
-        0.6,
-        80,
-        1.03,
-        1024,
-        1800,
-        "",
-        "",
-        false
-      ],
-      "widgets_values_named": {
-        "model": "huihui_ai/gemma-4-abliterated:26b",
-        "custom_model_tag": "",
-        "ollama_url": "http://127.0.0.1:11434",
-        "keep_loaded": true,
-        "caption_template_mode": false,
-        "caption_type": "Descriptive",
-        "caption_length": "any",
-        "custom_prompt_mode": false,
-        "prompt_preset": "female_character_lora",
-        "system_prompt": "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
-        "custom_prompt": "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
-        "max_new_tokens": 6000,
-        "temperature": 0.9,
-        "top_p": 0.6,
-        "top_k": 80,
-        "repetition_penalty": 1.03,
-        "max_size": 1024,
-        "request_timeout_seconds": 1800,
-        "forbidden_phrases": "",
-        "replace_pairs": "",
-        "download_probe_only": false
-      }
-    },
-    {
       "id": 58,
       "type": "JLC_CaptionForgeOllamaCaption",
       "pos": [
-        -847.4285714285714,
+        -846.5,
         644
       ],
       "size": [
@@ -491,7 +322,7 @@
       "id": 52,
       "type": "JLC_CaptionForgeQwen",
       "pos": [
-        -1192.5714285714287,
+        -1190,
         644
       ],
       "size": [
@@ -610,10 +441,337 @@
       }
     },
     {
+      "id": 81,
+      "type": "Display Any (rgthree)",
+      "pos": [
+        172,
+        644
+      ],
+      "size": [
+        320,
+        464
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "source",
+          "type": "*",
+          "link": 198
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "rgthree-comfy",
+        "ver": "d92cad68a6e92a1c5d4032d3ac53f79ea44b08e4",
+        "Node name for S&R": "Display Any (rgthree)"
+      },
+      "widgets_values": [
+        "A digital illustration of a blonde woman with long, wavy hair styled in two high pigtails secured with pink hair ties. She wears pink hoop earrings and a thin pink choker necklace. Her facial features include dark eyes, defined eyebrows, subtle eyeliner, and pink lips, along with a slight smile. Her skin is smooth and glossy, with a light, even tone, featuring visible specular highlights on her chest, abdomen, and arms. She is dressed in a shiny pink two-piece set, consisting of a halter-neck bikini top with thin straps and a matching pink wrap-style sheer skirt tied at the hip, revealing her upper thighs. Her right hand is raised near her shoulder, with fingers slightly curled, while her left hand hangs straight down by her side. She is shown in a front view, with a slender body, a small waist, and visible hips. The background is plain white. The illustration has a highly polished, 3D-rendered, doll-like appearance. The image is a medium shot, focusing on her upper body and face. The lighting is even and bright, highlighting the shiny texture of her outfit with strong specular highlights.\n\nA full-body, low-angle shot of a blonde, doll-like female figure standing on a stage under purple, blue, and bright spotlights. The subject has fair, smooth, vinyl-like skin with a glossy finish and large, light-colored eyes with heavy eyeliner, mascara, and defined eyelashes. Her facial features include straight eyebrows, a small nose, and full lips painted in a pink shade. Her long, wavy blonde hair is styled in a high ponytail with a pink headband, featuring curly ends that frame her face. She wears a highly decorative, multi-colored, glittery pop-star outfit consisting of a bra-style top with sequined or metallic cups in shades of blue, pink, and yellow, paired with a short, iridescent, multi-colored skirt that reveals her midriff. Her arms are adorned with thick, multicolored striped arm warmers, and she holds a silver microphone in her right hand near her mouth, while her left hand rests on her hip. She wears pink wraps around her upper thighs and tall pink platform boots with crisscross lacing and blue and green accents. The background features blurred stage trussing and soft bokeh lights in shades of purple, blue, and pink, emphasizing the figure's bright, glittery textures and vibrant color palette. The lighting is bright and direct, creating highlights on the metallic and glittery textures of the clothing and a stage-performer aesthetic. The figure stands with legs apart in a stance with one hand on her hip and a neutral expression. The outfit includes a pink choker necklace.\n\nA medium shot photograph of a woman, front view, head and shoulders visible, with blonde, shoulder-length, wavy hair styled with a side part. She has light skin, smooth skin texture, and a slight smile. Her eyes are light-colored, with visible eyeliner and glossy pink lips. Her facial features include defined eyebrows and a small nose. She wears a dangling earring with a red accent on one ear. Her clothing consists of a silver metallic tank top with thin straps and a low neckline, revealing her shoulders, collarbones, and upper chest. The top has a shiny, reflective surface and a metallic finish. The background is a soft-focus, light blue and white gradient. The lighting is bright and soft, casting a soft shadow behind her. The image features a frontal angle and a close-up of the face. The style is realistic, with a glossy finish to the skin and a clear focus. The pose is casual, with the upper body centered. The image features a minimal makeup look with natural facial features.\n\nA full-body, 3D-rendered, doll-like illustration of a blonde woman with long, wavy hair cascading over her shoulders, posed in a low crouch against a dark background filled with out-of-focus, multicolored bokeh lights. She has a smooth, glossy skin texture, green eyes with heavy black eyeliner and thick eyelashes, and a pleasant facial expression with pink-tinted lips. She wears a shiny, metallic pink two-piece bikini consisting of a knot-front bra top with a twisted center knot and matching high-cut bottoms that reveal her midriff. A silver navel piercing is visible on her midriff. Her right hand rests on her right thigh, displaying pink nail polish, while her left arm is raised, with her hand resting behind her head. She wears silver high-heeled sandals with ankle straps and silver jewelry, including a thin necklace, small hoop earrings, and bracelets on both wrists. The lighting is bright, highlighting the reflective, metallic texture of her clothing and the smooth finish of her skin. Her facial features include defined eyebrows and slight blush on her cheeks. The figure exhibits a stylized, doll-like appearance with vibrant colors. The subject is a woman with light skin, a visible navel, a toned abdomen, and long legs. The pose is a front-facing angle, with one arm raised and the other resting on her knee. The setting is a studio-like setting with a blurred background.\n\nA medium shot, front-view photograph shows a young woman with blonde hair transitioning into bright blue tips, styled in two high pigtails secured with red plaid scrunchies, featuring bright blue-dyed tips that rest on her shoulders. She has fair skin with a smooth texture, blue eyes, and a neutral expression with a slight smile. Her makeup includes pink eyeshadow, heavy black eyeliner, and glossy pink lips. She wears a black choker, layered with silver chains holding a silver key necklace, and a black cropped t-shirt with a white \"NIRVANA\" graphic, worn as a crop top that exposes her midriff. She also wears black fishnet long sleeves, and distressed black denim shorts with frayed edges and significant rips across the thighs, paired with a silver grommet belt. Her hands are raised, resting behind her head, with arms raised. Her body is partially covered by clothing, with visible midriff and legs. The texture of her hair is smooth and shiny, and her skin appears smooth and matte. The background includes a graffiti-covered wall, weathered metal surfaces, and a large promotional poster featuring a blonde woman playing a pink electric guitar, with text including \"The Gutterflowers,\" \"Ditchly,\" \"Nude on Stage!\", and \"Y2K Blowout!\" in red and white gothic font. The lighting is bright, highlighting her features, clothing, and the textures of the distressed denim, creating sharp shadows against the background. The overall style is casual and edgy, realistic, and urban gritty. The overall color palette includes black, blue, pink, white, and red.\n\nA studio shot of a woman with long, wavy blonde hair, standing in front of a dark background featuring colorful bokeh lights in shades of pink, purple, yellow, and gold. She is wearing a tight-fitting, long-sleeved blue bodysuit made of a smooth, semi-opaque, glossy material that clings to her form, highlighting her silhouette. Her right hand rests on a dark, flat surface in the lower foreground, revealing manicured white fingernails and a silver bracelet on her wrist. She faces forward with a neutral expression, looking directly at the camera with blue eyes, defined eyebrows, and light pink lipstick. The lighting is bright and soft on the subject, creating highlights on her skin and the sheen of the fabric, while the background remains out of focus. The image has a stylized, synthetic quality typical of 3D modeling or AI generation, emphasizing the reflective texture of the clothing."
+      ],
+      "widgets_values_named": {
+        "output": "A digital illustration of a blonde woman with long, wavy hair styled in two high pigtails secured with pink hair ties. She wears pink hoop earrings and a thin pink choker necklace. Her facial features include dark eyes, defined eyebrows, subtle eyeliner, and pink lips, along with a slight smile. Her skin is smooth and glossy, with a light, even tone, featuring visible specular highlights on her chest, abdomen, and arms. She is dressed in a shiny pink two-piece set, consisting of a halter-neck bikini top with thin straps and a matching pink wrap-style sheer skirt tied at the hip, revealing her upper thighs. Her right hand is raised near her shoulder, with fingers slightly curled, while her left hand hangs straight down by her side. She is shown in a front view, with a slender body, a small waist, and visible hips. The background is plain white. The illustration has a highly polished, 3D-rendered, doll-like appearance. The image is a medium shot, focusing on her upper body and face. The lighting is even and bright, highlighting the shiny texture of her outfit with strong specular highlights.\n\nA full-body, low-angle shot of a blonde, doll-like female figure standing on a stage under purple, blue, and bright spotlights. The subject has fair, smooth, vinyl-like skin with a glossy finish and large, light-colored eyes with heavy eyeliner, mascara, and defined eyelashes. Her facial features include straight eyebrows, a small nose, and full lips painted in a pink shade. Her long, wavy blonde hair is styled in a high ponytail with a pink headband, featuring curly ends that frame her face. She wears a highly decorative, multi-colored, glittery pop-star outfit consisting of a bra-style top with sequined or metallic cups in shades of blue, pink, and yellow, paired with a short, iridescent, multi-colored skirt that reveals her midriff. Her arms are adorned with thick, multicolored striped arm warmers, and she holds a silver microphone in her right hand near her mouth, while her left hand rests on her hip. She wears pink wraps around her upper thighs and tall pink platform boots with crisscross lacing and blue and green accents. The background features blurred stage trussing and soft bokeh lights in shades of purple, blue, and pink, emphasizing the figure's bright, glittery textures and vibrant color palette. The lighting is bright and direct, creating highlights on the metallic and glittery textures of the clothing and a stage-performer aesthetic. The figure stands with legs apart in a stance with one hand on her hip and a neutral expression. The outfit includes a pink choker necklace.\n\nA medium shot photograph of a woman, front view, head and shoulders visible, with blonde, shoulder-length, wavy hair styled with a side part. She has light skin, smooth skin texture, and a slight smile. Her eyes are light-colored, with visible eyeliner and glossy pink lips. Her facial features include defined eyebrows and a small nose. She wears a dangling earring with a red accent on one ear. Her clothing consists of a silver metallic tank top with thin straps and a low neckline, revealing her shoulders, collarbones, and upper chest. The top has a shiny, reflective surface and a metallic finish. The background is a soft-focus, light blue and white gradient. The lighting is bright and soft, casting a soft shadow behind her. The image features a frontal angle and a close-up of the face. The style is realistic, with a glossy finish to the skin and a clear focus. The pose is casual, with the upper body centered. The image features a minimal makeup look with natural facial features.\n\nA full-body, 3D-rendered, doll-like illustration of a blonde woman with long, wavy hair cascading over her shoulders, posed in a low crouch against a dark background filled with out-of-focus, multicolored bokeh lights. She has a smooth, glossy skin texture, green eyes with heavy black eyeliner and thick eyelashes, and a pleasant facial expression with pink-tinted lips. She wears a shiny, metallic pink two-piece bikini consisting of a knot-front bra top with a twisted center knot and matching high-cut bottoms that reveal her midriff. A silver navel piercing is visible on her midriff. Her right hand rests on her right thigh, displaying pink nail polish, while her left arm is raised, with her hand resting behind her head. She wears silver high-heeled sandals with ankle straps and silver jewelry, including a thin necklace, small hoop earrings, and bracelets on both wrists. The lighting is bright, highlighting the reflective, metallic texture of her clothing and the smooth finish of her skin. Her facial features include defined eyebrows and slight blush on her cheeks. The figure exhibits a stylized, doll-like appearance with vibrant colors. The subject is a woman with light skin, a visible navel, a toned abdomen, and long legs. The pose is a front-facing angle, with one arm raised and the other resting on her knee. The setting is a studio-like setting with a blurred background.\n\nA medium shot, front-view photograph shows a young woman with blonde hair transitioning into bright blue tips, styled in two high pigtails secured with red plaid scrunchies, featuring bright blue-dyed tips that rest on her shoulders. She has fair skin with a smooth texture, blue eyes, and a neutral expression with a slight smile. Her makeup includes pink eyeshadow, heavy black eyeliner, and glossy pink lips. She wears a black choker, layered with silver chains holding a silver key necklace, and a black cropped t-shirt with a white \"NIRVANA\" graphic, worn as a crop top that exposes her midriff. She also wears black fishnet long sleeves, and distressed black denim shorts with frayed edges and significant rips across the thighs, paired with a silver grommet belt. Her hands are raised, resting behind her head, with arms raised. Her body is partially covered by clothing, with visible midriff and legs. The texture of her hair is smooth and shiny, and her skin appears smooth and matte. The background includes a graffiti-covered wall, weathered metal surfaces, and a large promotional poster featuring a blonde woman playing a pink electric guitar, with text including \"The Gutterflowers,\" \"Ditchly,\" \"Nude on Stage!\", and \"Y2K Blowout!\" in red and white gothic font. The lighting is bright, highlighting her features, clothing, and the textures of the distressed denim, creating sharp shadows against the background. The overall style is casual and edgy, realistic, and urban gritty. The overall color palette includes black, blue, pink, white, and red.\n\nA studio shot of a woman with long, wavy blonde hair, standing in front of a dark background featuring colorful bokeh lights in shades of pink, purple, yellow, and gold. She is wearing a tight-fitting, long-sleeved blue bodysuit made of a smooth, semi-opaque, glossy material that clings to her form, highlighting her silhouette. Her right hand rests on a dark, flat surface in the lower foreground, revealing manicured white fingernails and a silver bracelet on her wrist. She faces forward with a neutral expression, looking directly at the camera with blue eyes, defined eyebrows, and light pink lipstick. The lighting is bright and soft on the subject, creating highlights on her skin and the sheen of the fabric, while the background remains out of focus. The image has a stylized, synthetic quality typical of 3D modeling or AI generation, emphasizing the reflective texture of the clothing."
+      }
+    },
+    {
+      "id": 82,
+      "type": "Display Any (rgthree)",
+      "pos": [
+        172,
+        1168
+      ],
+      "size": [
+        320,
+        348
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "source",
+          "type": "*",
+          "link": 199
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "rgthree-comfy",
+        "ver": "d92cad68a6e92a1c5d4032d3ac53f79ea44b08e4",
+        "Node name for S&R": "Display Any (rgthree)"
+      },
+      "widgets_values": [
+        "blonde woman, long wavy hair, two high pigtails, pink hair ties, pink hoop earrings, thin pink choker, dark eyes, defined eyebrows, subtle eyeliner, pink lips, slight smile, smooth glossy skin, visible specular highlights, shiny pink two-piece set, halter-neck bikini top, thin straps, matching pink wrap-style sheer skirt, tied at hip, upper thighs revealed, right hand raised near shoulder, fingers slightly curled, left hand hangs straight down, front view, slender body, small waist, visible hips, plain white background, highly polished, 3D-rendered, doll-like appearance, medium shot, even bright lighting, strong specular highlights\n\nblonde doll-like female, stage, purple blue bright spotlights, fair smooth vinyl-like skin, glossy finish, large light-colored eyes, heavy eyeliner mascara defined eyelashes, straight eyebrows, small nose, full pink lips, long wavy blonde hair, high ponytail, pink headband, curly ends framing face, highly decorative multi-colored glittery pop-star outfit, bra-style top sequined metallic cups, short iridescent multi-colored skirt, midriff revealed, thick multicolored striped arm warmers, silver microphone, right hand near mouth, left hand on hip, pink wraps upper thighs, tall pink platform boots crisscross lacing blue green accents, blurred stage trussing, soft bokeh lights purple blue pink, bright direct lighting, highlights metallic glittery textures, stage-performer aesthetic, legs apart stance, neutral expression, pink choker necklace\n\nwoman, blonde hair, wavy hair, shoulder-length hair, light skin, slight smile, light-colored eyes, eyeliner, glossy pink lips, silver metallic tank top, thin straps, low neckline, casual pose, frontal angle, close-up face, soft-focus background, light blue and white gradient, bright soft lighting, minimal makeup, natural facial features\n\n3D-rendered, doll-like illustration, blonde woman, long wavy hair, low crouch pose, metallic pink bikini, knot-front bra top, high-cut bottoms, midriff, navel piercing, smooth glossy skin, green eyes, heavy black eyeliner, pink-tinted lips, right hand on thigh, pink nail polish, left arm raised behind head, silver high-heeled sandals, thin necklace, small hoop earrings, bracelets, dark background, out-of-focus multicolored bokeh lights, studio-like setting\n\nyoung woman, blonde hair with blue tips, high pigtails, red plaid scrunchies, fair skin, blue eyes, slight smile, pink eyeshadow, heavy black eyeliner, glossy pink lips, black choker, silver chains with key necklace, black cropped \"NIRVANA\" t-shirt, black fishnet long sleeves, distressed black denim shorts with frayed edges, significant rips across the thighs, silver grommet belt, arms raised behind head, graffiti-covered wall, weathered metal surfaces, promotional poster with blonde woman playing pink electric guitar, \"The Gutterflowers\", \"Ditchly\", \"Nude on Stage!\", \"Y2K Blowout!\", red and white gothic font, bright lighting, sharp shadows, casual and edgy style, realistic, urban gritty, black, blue, pink, white, red color palette\n\nwoman, long wavy blonde hair, dark background, bokeh lights, pink, purple, yellow, gold, tight-fitting long-sleeved blue bodysuit, smooth semi-opaque glossy material, manicured white fingernails, silver bracelet, neutral expression, blue eyes, light pink lipstick, bright soft lighting, highlights on skin, reflective texture, 3D modeling or AI generation"
+      ],
+      "widgets_values_named": {
+        "output": "blonde woman, long wavy hair, two high pigtails, pink hair ties, pink hoop earrings, thin pink choker, dark eyes, defined eyebrows, subtle eyeliner, pink lips, slight smile, smooth glossy skin, visible specular highlights, shiny pink two-piece set, halter-neck bikini top, thin straps, matching pink wrap-style sheer skirt, tied at hip, upper thighs revealed, right hand raised near shoulder, fingers slightly curled, left hand hangs straight down, front view, slender body, small waist, visible hips, plain white background, highly polished, 3D-rendered, doll-like appearance, medium shot, even bright lighting, strong specular highlights\n\nblonde doll-like female, stage, purple blue bright spotlights, fair smooth vinyl-like skin, glossy finish, large light-colored eyes, heavy eyeliner mascara defined eyelashes, straight eyebrows, small nose, full pink lips, long wavy blonde hair, high ponytail, pink headband, curly ends framing face, highly decorative multi-colored glittery pop-star outfit, bra-style top sequined metallic cups, short iridescent multi-colored skirt, midriff revealed, thick multicolored striped arm warmers, silver microphone, right hand near mouth, left hand on hip, pink wraps upper thighs, tall pink platform boots crisscross lacing blue green accents, blurred stage trussing, soft bokeh lights purple blue pink, bright direct lighting, highlights metallic glittery textures, stage-performer aesthetic, legs apart stance, neutral expression, pink choker necklace\n\nwoman, blonde hair, wavy hair, shoulder-length hair, light skin, slight smile, light-colored eyes, eyeliner, glossy pink lips, silver metallic tank top, thin straps, low neckline, casual pose, frontal angle, close-up face, soft-focus background, light blue and white gradient, bright soft lighting, minimal makeup, natural facial features\n\n3D-rendered, doll-like illustration, blonde woman, long wavy hair, low crouch pose, metallic pink bikini, knot-front bra top, high-cut bottoms, midriff, navel piercing, smooth glossy skin, green eyes, heavy black eyeliner, pink-tinted lips, right hand on thigh, pink nail polish, left arm raised behind head, silver high-heeled sandals, thin necklace, small hoop earrings, bracelets, dark background, out-of-focus multicolored bokeh lights, studio-like setting\n\nyoung woman, blonde hair with blue tips, high pigtails, red plaid scrunchies, fair skin, blue eyes, slight smile, pink eyeshadow, heavy black eyeliner, glossy pink lips, black choker, silver chains with key necklace, black cropped \"NIRVANA\" t-shirt, black fishnet long sleeves, distressed black denim shorts with frayed edges, significant rips across the thighs, silver grommet belt, arms raised behind head, graffiti-covered wall, weathered metal surfaces, promotional poster with blonde woman playing pink electric guitar, \"The Gutterflowers\", \"Ditchly\", \"Nude on Stage!\", \"Y2K Blowout!\", red and white gothic font, bright lighting, sharp shadows, casual and edgy style, realistic, urban gritty, black, blue, pink, white, red color palette\n\nwoman, long wavy blonde hair, dark background, bokeh lights, pink, purple, yellow, gold, tight-fitting long-sleeved blue bodysuit, smooth semi-opaque glossy material, manicured white fingernails, silver bracelet, neutral expression, blue eyes, light pink lipstick, bright soft lighting, highlights on skin, reflective texture, 3D modeling or AI generation"
+      }
+    },
+    {
+      "id": 9,
+      "type": "LoadImage",
+      "pos": [
+        -2520,
+        1584
+      ],
+      "size": [
+        232,
+        344
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            193
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.20.1",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "Goth Blonde - 004_00006_.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "Goth Blonde - 004_00006_.png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 67,
+      "type": "ImageBatchMulti",
+      "pos": [
+        -2516,
+        648
+      ],
+      "size": [
+        228,
+        124
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "type": "IMAGE",
+          "link": 171
+        },
+        {
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 193
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            196
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "3efb07295a829943e0935e5afd2dc4a3cf9917f4"
+      },
+      "widgets_values": [
+        2,
+        null
+      ],
+      "widgets_values_named": {
+        "inputcount": 2,
+        "Update inputs": null
+      }
+    },
+    {
+      "id": 85,
+      "type": "JLC_CaptionForge_Pipeline_Planner",
+      "pos": [
+        -2276.5,
+        648
+      ],
+      "size": [
+        376,
+        1540
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "Input - single image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 196
+        }
+      ],
+      "outputs": [
+        {
+          "name": "single_image",
+          "type": "IMAGE",
+          "links": [
+            194
+          ]
+        },
+        {
+          "name": "pipeline_plan",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            195
+          ]
+        },
+        {
+          "name": "pipeline_plan_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "captionforge",
+        "ver": "4d2124a8f40571682f395f95c98a6ccfd2551511",
+        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner"
+      },
+      "widgets_values": [
+        true,
+        "",
+        false,
+        "*",
+        "",
+        "captionforge_run",
+        true,
+        "http://127.0.0.1:11434",
+        true,
+        1800,
+        "",
+        "",
+        "2",
+        "1",
+        "1",
+        3,
+        "increment",
+        "0.7,0.8,0.9",
+        "0.6,0.7,0.8",
+        "60,70,80",
+        1024,
+        4096,
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        -1,
+        1536,
+        3096,
+        0.24,
+        0.9,
+        60,
+        false,
+        false,
+        "gemma4:26b",
+        "",
+        "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        -1,
+        2112,
+        0.0,
+        0.92,
+        80,
+        false,
+        false,
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption of at most 90 words that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
+        -1,
+        3200,
+        0.12,
+        0.88,
+        50,
+        false,
+        false,
+        true,
+        true
+      ],
+      "widgets_values_named": {
+        "Planner - enabled": true,
+        "Input - image path": "",
+        "Input - recursive": false,
+        "Input - filename glob": "*",
+        "Output - folder": "",
+        "Output - run name": "captionforge_run",
+        "Output - overwrite outputs": true,
+        "Ollama - URL": "http://127.0.0.1:11434",
+        "Ollama - keep loaded": true,
+        "Ollama - request timeout seconds": 1800,
+        "LoRA - trigger word": "",
+        "LoRA - user caption anchor": "",
+        "Caption - Joy runs/image": "2",
+        "Caption - Qwen runs/image": "1",
+        "Caption - Ollama runs/image": "1",
+        "Caption - base seed": 3,
+        "Caption - seed mode": "increment",
+        "Caption - temperature schedule": "0.7,0.8,0.9",
+        "Caption - top p schedule": "0.6,0.7,0.8",
+        "Caption - top k schedule": "60,70,80",
+        "Caption - max image size": 1024,
+        "Caption - max new tokens": 4096,
+        "Distiller - model": "mistral-small:24b",
+        "Distiller - custom Ollama model": "",
+        "Distiller - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        "Distiller - seed": -1,
+        "Distiller - max caption chars for LLM": 1536,
+        "Distiller - num predict": 3096,
+        "Distiller - temperature": 0.24,
+        "Distiller - top p": 0.9,
+        "Distiller - top k": 60,
+        "Distiller - write prompt JSONL": false,
+        "Distiller - preserve raw response": false,
+        "Validator - model": "gemma4:26b",
+        "Validator - custom Ollama model": "",
+        "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        "Validator - seed": -1,
+        "Validator - num predict": 2112,
+        "Validator - temperature": 0.0,
+        "Validator - top p": 0.92,
+        "Validator - top k": 80,
+        "Validator - write prompt JSONL": false,
+        "Validator - preserve raw VLM response": false,
+        "Formatter - model": "mistral-small:24b",
+        "Formatter - custom Ollama model": "",
+        "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption of at most 90 words that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
+        "Formatter - seed": -1,
+        "Formatter - num predict": 3200,
+        "Formatter - temperature": 0.12,
+        "Formatter - top p": 0.88,
+        "Formatter - top k": 50,
+        "Formatter - write prompt JSONL": false,
+        "Formatter - preserve raw response": false,
+        "Final - write TXT sidecars": true,
+        "Final - write JSONL": true
+      }
+    },
+    {
       "id": 51,
       "type": "JLC_CaptionForgeJoy",
       "pos": [
-        -1537.7142857142858,
+        -1533.5,
         644
       ],
       "size": [
@@ -628,13 +786,13 @@
           "name": "image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 179
+          "link": 194
         },
         {
           "name": "pipeline_plan",
           "shape": 7,
           "type": "CAPTIONFORGE_PIPELINE_PLAN",
-          "link": 180
+          "link": 195
         },
         {
           "name": "template_options",
@@ -732,204 +890,136 @@
       }
     },
     {
-      "id": 67,
-      "type": "ImageBatchMulti",
+      "id": 56,
+      "type": "JLC_CaptionForgeOllamaCaption",
       "pos": [
-        -2516,
-        648
-      ],
-      "size": [
-        228,
-        124
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image_1",
-          "type": "IMAGE",
-          "link": 171
-        },
-        {
-          "name": "image_2",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 170
-        },
-        {
-          "name": "image_3",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 172
-        }
-      ],
-      "outputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "links": [
-            181
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-kjnodes",
-        "ver": "3efb07295a829943e0935e5afd2dc4a3cf9917f4"
-      },
-      "widgets_values": [
-        3,
-        null
-      ],
-      "widgets_values_named": {
-        "inputcount": 3,
-        "Update inputs": null
-      }
-    },
-    {
-      "id": 75,
-      "type": "JLC_CaptionForge_Pipeline_Planner",
-      "pos": [
-        -2276,
-        648
-      ],
-      "size": [
-        368,
-        1080
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "Input - single image",
-          "shape": 7,
-          "type": "IMAGE",
-          "link": 181
-        }
-      ],
-      "outputs": [
-        {
-          "name": "single_image",
-          "type": "IMAGE",
-          "links": [
-            179
-          ]
-        },
-        {
-          "name": "pipeline_plan",
-          "type": "CAPTIONFORGE_PIPELINE_PLAN",
-          "links": [
-            180
-          ]
-        },
-        {
-          "name": "pipeline_plan_json",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui_fearnworksnodes",
-        "ver": "0.1.2",
-        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner"
-      },
-      "widgets_values": [
-        true,
-        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
-        false,
-        "*",
-        "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
-        "New_LoRA_Captions",
-        true,
-        "",
-        "",
-        "1",
-        "1",
-        "Disabled",
-        3,
-        "random",
-        "0.8, 0.9",
-        "0.7, 0.8",
-        "70, 80",
-        1024,
-        4096,
-        "mistral-small:24b",
-        "",
-        3,
-        1536,
-        3096,
-        0.24,
-        0.9,
-        60,
-        false,
-        false,
-        "gemma4:26b",
-        "",
-        1,
-        2200,
-        0,
-        0.92,
-        80,
-        true,
-        true,
-        0,
-        true,
-        true
-      ],
-      "widgets_values_named": {
-        "Planner - enabled": true,
-        "Input - image path": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
-        "Input - recursive": false,
-        "Input - filename glob": "*",
-        "Output - folder": "C:\\Users\\josel\\Stable_Diffusion\\ComfyUI_V89\\custom_nodes\\CaptionForge\\.tests\\Release_1.0.1_Test01\\smoke_test",
-        "Output - run name": "New_LoRA_Captions",
-        "Output - overwrite outputs": true,
-        "LoRA - trigger word": "",
-        "LoRA - user caption anchor": "",
-        "Caption - Joy runs/image": "1",
-        "Caption - Qwen runs/image": "1",
-        "Caption - Ollama runs/image": "Disabled",
-        "Caption - base seed": 3,
-        "Caption - seed mode": "random",
-        "Caption - temperature schedule": "0.8, 0.9",
-        "Caption - top p schedule": "0.7, 0.8",
-        "Caption - top k schedule": "70, 80",
-        "Caption - max image size": 1024,
-        "Caption - max new tokens": 4096,
-        "Distiller - model": "mistral-small:24b",
-        "Distiller - custom Ollama model": "",
-        "Distiller - seed": 3,
-        "Distiller - max caption chars for LLM": 1536,
-        "Distiller - num predict": 3096,
-        "Distiller - temperature": 0.24,
-        "Distiller - top p": 0.9,
-        "Distiller - top k": 60,
-        "Distiller - write prompt JSONL": false,
-        "Distiller - preserve raw response": false,
-        "Validator - model": "gemma4:26b",
-        "Validator - custom Ollama model": "",
-        "Validator - seed": 1,
-        "Validator - num predict": 2200,
-        "Validator - temperature": 0,
-        "Validator - top p": 0.92,
-        "Validator - top k": 80,
-        "Validator - write prompt JSONL": true,
-        "Validator - preserve raw VLM response": true,
-        "Formatter - seed": 0,
-        "Final - write TXT sidecars": true,
-        "Final - write JSONL": true
-      }
-    },
-    {
-      "id": 76,
-      "type": "JLC_CaptionForge",
-      "pos": [
-        -157.14285714285714,
+        -503,
         644
       ],
       "size": [
         332,
+        740
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 136
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 138
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 161
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            197
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": []
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": []
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_fearnworksnodes",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeOllamaCaption",
+        "aux_id": "Damkohler/CaptionForge"
+      },
+      "widgets_values": [
+        "huihui_ai/gemma-4-abliterated:26b",
+        "",
+        "http://127.0.0.1:11434",
+        true,
+        true,
+        "Descriptive",
+        "any",
+        false,
+        "female_character_lora",
+        "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        6000,
+        0.9,
+        0.6,
+        80,
+        1.03,
+        1024,
+        1800,
+        "",
+        "",
+        false
+      ],
+      "widgets_values_named": {
+        "model": "huihui_ai/gemma-4-abliterated:26b",
+        "custom_model_tag": "",
+        "ollama_url": "http://127.0.0.1:11434",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "Descriptive",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "female_character_lora",
+        "system_prompt": "You are a multimodal image captioning engine for female character LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone caption.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "custom_prompt": "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        "max_new_tokens": 6000,
+        "temperature": 0.9,
+        "top_p": 0.6,
+        "top_k": 80,
+        "repetition_penalty": 1.03,
+        "max_size": 1024,
+        "request_timeout_seconds": 1800,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
+    },
+    {
+      "id": 84,
+      "type": "JLC_CaptionForge",
+      "pos": [
+        -160,
+        644
+      ],
+      "size": [
+        320,
         1220
       ],
       "flags": {},
@@ -940,13 +1030,13 @@
           "name": "Input - single image",
           "shape": 7,
           "type": "IMAGE",
-          "link": 182
+          "link": 197
         },
         {
           "name": "pipeline_plan",
           "shape": 7,
           "type": "CAPTIONFORGE_PIPELINE_PLAN",
-          "link": 183
+          "link": null
         },
         {
           "name": "Distiller seed",
@@ -972,14 +1062,14 @@
           "name": "natural_captions",
           "type": "STRING",
           "links": [
-            187
+            198
           ]
         },
         {
           "name": "taggy_captions",
           "type": "STRING",
           "links": [
-            188
+            199
           ]
         },
         {
@@ -999,8 +1089,8 @@
         }
       ],
       "properties": {
-        "cnr_id": "comfyui_fearnworksnodes",
-        "ver": "0.1.2",
+        "cnr_id": "captionforge",
+        "ver": "4d2124a8f40571682f395f95c98a6ccfd2551511",
         "Node name for S&R": "JLC_CaptionForge"
       },
       "widgets_values": [
@@ -1021,27 +1111,27 @@
         "",
         "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
         1536,
-        5000,
-        0.12,
-        0.88,
-        50,
+        3096,
+        0.24,
+        0.9,
+        60,
         "gemma4:26b",
         "",
         "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
         "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
-        5000,
-        0.05,
-        0.88,
-        50,
+        2112,
+        0.0,
+        0.92,
+        80,
         "mistral-small:24b",
         "",
-        "/no_think\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\nOutput exactly two labeled lines:\nSHORT: <exactly three concise sentences totaling at most 90 words>\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\nNo markdown, reasoning, notes, or other labels.",
+        "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption of at most 90 words that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
         3200,
         0.12,
         0.88,
         50,
-        true,
-        true,
+        false,
+        false,
         "natural",
         true,
         true
@@ -1064,100 +1154,30 @@
         "Fat Draft - custom Ollama model": "",
         "Fat Draft - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
         "Fat Draft - max caption chars": 1536,
-        "Fat Draft - max new tokens": 5000,
-        "Fat Draft - temperature": 0.12,
-        "Fat Draft - top p": 0.88,
-        "Fat Draft - top k": 50,
+        "Fat Draft - max new tokens": 3096,
+        "Fat Draft - temperature": 0.24,
+        "Fat Draft - top p": 0.9,
+        "Fat Draft - top k": 60,
         "Validator - model": "gemma4:26b",
         "Validator - custom Ollama model": "",
         "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
         "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
-        "Validator - max new tokens": 5000,
-        "Validator - temperature": 0.05,
-        "Validator - top p": 0.88,
-        "Validator - top k": 50,
+        "Validator - max new tokens": 2112,
+        "Validator - temperature": 0.0,
+        "Validator - top p": 0.92,
+        "Validator - top k": 80,
         "Formatter - model": "mistral-small:24b",
         "Formatter - custom Ollama model": "",
-        "Formatter - prompt": "/no_think\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\nOutput exactly two labeled lines:\nSHORT: <exactly three concise sentences totaling at most 90 words>\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\nNo markdown, reasoning, notes, or other labels.",
+        "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption of at most 90 words that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
         "Formatter - max new tokens": 3200,
         "Formatter - temperature": 0.12,
         "Formatter - top p": 0.88,
         "Formatter - top k": 50,
-        "Audit - write prompt JSONL": true,
-        "Audit - preserve raw responses": true,
+        "Audit - write prompt JSONL": false,
+        "Audit - preserve raw responses": false,
         "Final - TXT export format": "natural",
         "Final - write TXT sidecars": true,
         "Final - write JSONL": true
-      }
-    },
-    {
-      "id": 81,
-      "type": "Display Any (rgthree)",
-      "pos": [
-        196,
-        644
-      ],
-      "size": [
-        320,
-        464
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "dir": 3,
-          "name": "source",
-          "type": "*",
-          "link": 187
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "rgthree-comfy",
-        "ver": "d92cad68a6e92a1c5d4032d3ac53f79ea44b08e4",
-        "Node name for S&R": "Display Any (rgthree)"
-      },
-      "widgets_values": [
-        "A digital illustration of a blonde woman with long, wavy hair in pink hair ties, styled into pigtails, wearing a shiny pink bikini top and a sheer pink sarong. Her skin is smooth and glossy, with a light, even tone. She has dark eyes with subtle eyeliner and pink eyeshadow, and a slight smile. Her lips are pink. She is standing in a front view, with her right hand raised near her head and her left hand resting at her side. Her body is slender with a small waist and visible hips. The background is plain white. The illustration has a highly realistic, polished, and stylized 3D-rendered style, with detailed textures on the clothing and skin. The image is a medium shot, focusing on her upper body, face, and exposed midsection. The lighting is even and bright, highlighting her features and the shiny texture of her outfit. She is also wearing pink hoop earrings and a pink choker, with a doll-like appearance.\n\nA full-body shot in a side view captures a model on a runway, with bright lights and a stylized, doll-like appearance. The model has long, blonde curly hair, light skin, and glossy skin. The eyes feature purple eyes and pink eyeshadow, and the lips have pink lipstick. The model is wearing a blue metallic bikini top and bottoms, as well as light purple strappy high heels, with a confident expression. The model is standing with the right leg slightly forward and the right arm relaxed by the side. The background features purple and pink lights, purple-blue lighting, and an audience seated in the background. The stage has a reflective surface and a branded backdrop with \"DOLLORA\" text in white, and a Victoria's Secret Collection sign. The model is looking at the camera with front lighting, and the overall visual style is colorful, shiny, and high fashion, featuring a glamorous, runway model pose with a toned body, slim waist, visible hips, visible thighs, and visible legs.\n\nA photograph of a doll-like female pop star performing on stage, shown in a full-body, front view. She has blonde, curly hair in a high ponytail with a pink headband. Her skin is pale with a smooth texture, and she has large light blue eyes with pink and purple eyeshadow and eyeliner. She is wearing a pink and blue glittery bra, a short, iridescent, holographic skirt with a white sheer overlay, and pink arm warmers with colorful patterns. She also wears pink, high-platform, lace-up boots and pink leg warmers. The background includes stage lights and a blurred, colorful backdrop. Bright, colorful lighting highlights the performer, creating a stylized, glossy, and vibrant visual style. The shot is taken from a low angle.\n\nA photograph of a young woman with blonde pigtails featuring blue streaks and red bows, wearing a black fishnet long-sleeve top over a black Nirvana crop top, a key necklace, a black choker, black distressed denim shorts, and a black belt with silver eyelets. Her skin is fair, her makeup includes pink eyeshadow and dark eyeliner, with a slight smile. She stands with her hands behind her head, arms raised, posing confidently. The background includes a graffiti-covered wall and a poster featuring a blonde woman holding a pink electric guitar, with text \"The Gutterflowers\" in red and \"Y2K Blowout!\" visible. The lighting is even, highlighting her features and clothing. The image is a medium shot, taken from a front view. Her midriff and legs are visible. The texture of her hair is smooth and shiny, and her skin appears smooth. The overall style is casual and edgy, with an urban gritty background."
-      ],
-      "widgets_values_named": {
-        "output": "A digital illustration of a blonde woman with long, wavy hair in pink hair ties, styled into pigtails, wearing a shiny pink bikini top and a sheer pink sarong. Her skin is smooth and glossy, with a light, even tone. She has dark eyes with subtle eyeliner and pink eyeshadow, and a slight smile. Her lips are pink. She is standing in a front view, with her right hand raised near her head and her left hand resting at her side. Her body is slender with a small waist and visible hips. The background is plain white. The illustration has a highly realistic, polished, and stylized 3D-rendered style, with detailed textures on the clothing and skin. The image is a medium shot, focusing on her upper body, face, and exposed midsection. The lighting is even and bright, highlighting her features and the shiny texture of her outfit. She is also wearing pink hoop earrings and a pink choker, with a doll-like appearance.\n\nA full-body shot in a side view captures a model on a runway, with bright lights and a stylized, doll-like appearance. The model has long, blonde curly hair, light skin, and glossy skin. The eyes feature purple eyes and pink eyeshadow, and the lips have pink lipstick. The model is wearing a blue metallic bikini top and bottoms, as well as light purple strappy high heels, with a confident expression. The model is standing with the right leg slightly forward and the right arm relaxed by the side. The background features purple and pink lights, purple-blue lighting, and an audience seated in the background. The stage has a reflective surface and a branded backdrop with \"DOLLORA\" text in white, and a Victoria's Secret Collection sign. The model is looking at the camera with front lighting, and the overall visual style is colorful, shiny, and high fashion, featuring a glamorous, runway model pose with a toned body, slim waist, visible hips, visible thighs, and visible legs.\n\nA photograph of a doll-like female pop star performing on stage, shown in a full-body, front view. She has blonde, curly hair in a high ponytail with a pink headband. Her skin is pale with a smooth texture, and she has large light blue eyes with pink and purple eyeshadow and eyeliner. She is wearing a pink and blue glittery bra, a short, iridescent, holographic skirt with a white sheer overlay, and pink arm warmers with colorful patterns. She also wears pink, high-platform, lace-up boots and pink leg warmers. The background includes stage lights and a blurred, colorful backdrop. Bright, colorful lighting highlights the performer, creating a stylized, glossy, and vibrant visual style. The shot is taken from a low angle.\n\nA photograph of a young woman with blonde pigtails featuring blue streaks and red bows, wearing a black fishnet long-sleeve top over a black Nirvana crop top, a key necklace, a black choker, black distressed denim shorts, and a black belt with silver eyelets. Her skin is fair, her makeup includes pink eyeshadow and dark eyeliner, with a slight smile. She stands with her hands behind her head, arms raised, posing confidently. The background includes a graffiti-covered wall and a poster featuring a blonde woman holding a pink electric guitar, with text \"The Gutterflowers\" in red and \"Y2K Blowout!\" visible. The lighting is even, highlighting her features and clothing. The image is a medium shot, taken from a front view. Her midriff and legs are visible. The texture of her hair is smooth and shiny, and her skin appears smooth. The overall style is casual and edgy, with an urban gritty background."
-      }
-    },
-    {
-      "id": 82,
-      "type": "Display Any (rgthree)",
-      "pos": [
-        192,
-        1160
-      ],
-      "size": [
-        324,
-        348
-      ],
-      "flags": {},
-      "order": 12,
-      "mode": 0,
-      "inputs": [
-        {
-          "dir": 3,
-          "name": "source",
-          "type": "*",
-          "link": 188
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "rgthree-comfy",
-        "ver": "d92cad68a6e92a1c5d4032d3ac53f79ea44b08e4",
-        "Node name for S&R": "Display Any (rgthree)"
-      },
-      "widgets_values": [
-        "blonde woman, long wavy hair, pink hair ties, pigtails, shiny pink bikini top, sheer pink sarong, smooth glossy skin, light even tone, dark eyes, subtle eyeliner, pink eyeshadow, slight smile, pink lips, front view, right hand raised, left hand at side, slender body, small waist, visible hips, plain white background, highly realistic, polished, stylized 3D-rendered, detailed textures, medium shot, upper body, face, exposed midsection, even bright lighting, pink hoop earrings, pink choker, doll-like appearance\n\nfull-body shot, side view, runway, bright lights, doll-like appearance, long blonde curly hair, light skin, glossy skin, purple eyes, pink eyeshadow, pink lipstick, blue metallic bikini top, blue metallic bikini bottoms, light purple strappy high heels, confident expression, right leg forward, right arm relaxed, purple lights, pink lights, purple-blue lighting, audience seated, reflective surface, branded backdrop, \"DOLLORA\" text, white text, Victoria's Secret Collection sign, front lighting, colorful, shiny, high fashion, glamorous, runway model pose, toned body, slim waist, visible hips, visible thighs, visible legs\n\ndoll-like female pop star, performing on stage, full-body, front view, blonde curly hair, high ponytail, pink headband, pale skin, smooth texture, large light blue eyes, pink and purple eyeshadow, eyeliner, pink and blue glittery bra, short iridescent holographic skirt, white sheer overlay, pink arm warmers, colorful patterns, pink high-platform lace-up boots, pink leg warmers, stage lights, blurred colorful backdrop, bright colorful lighting, stylized, glossy, vibrant visual style, low angle\n\nyoung woman, blonde pigtails, blue streaks, red bows, black fishnet long-sleeve top, black Nirvana crop top, key necklace, black choker, black distressed denim shorts, black belt, silver eyelets, fair skin, pink eyeshadow, dark eyeliner, slight smile, hands behind head, arms raised, confident pose, graffiti-covered wall, poster, blonde woman, pink electric guitar, text \"The Gutterflowers\", text \"Y2K Blowout!\", even lighting, medium shot, front view, midriff visible, legs visible, smooth hair, shiny hair, smooth skin, casual style, edgy style, urban background, gritty background"
-      ],
-      "widgets_values_named": {
-        "output": "blonde woman, long wavy hair, pink hair ties, pigtails, shiny pink bikini top, sheer pink sarong, smooth glossy skin, light even tone, dark eyes, subtle eyeliner, pink eyeshadow, slight smile, pink lips, front view, right hand raised, left hand at side, slender body, small waist, visible hips, plain white background, highly realistic, polished, stylized 3D-rendered, detailed textures, medium shot, upper body, face, exposed midsection, even bright lighting, pink hoop earrings, pink choker, doll-like appearance\n\nfull-body shot, side view, runway, bright lights, doll-like appearance, long blonde curly hair, light skin, glossy skin, purple eyes, pink eyeshadow, pink lipstick, blue metallic bikini top, blue metallic bikini bottoms, light purple strappy high heels, confident expression, right leg forward, right arm relaxed, purple lights, pink lights, purple-blue lighting, audience seated, reflective surface, branded backdrop, \"DOLLORA\" text, white text, Victoria's Secret Collection sign, front lighting, colorful, shiny, high fashion, glamorous, runway model pose, toned body, slim waist, visible hips, visible thighs, visible legs\n\ndoll-like female pop star, performing on stage, full-body, front view, blonde curly hair, high ponytail, pink headband, pale skin, smooth texture, large light blue eyes, pink and purple eyeshadow, eyeliner, pink and blue glittery bra, short iridescent holographic skirt, white sheer overlay, pink arm warmers, colorful patterns, pink high-platform lace-up boots, pink leg warmers, stage lights, blurred colorful backdrop, bright colorful lighting, stylized, glossy, vibrant visual style, low angle\n\nyoung woman, blonde pigtails, blue streaks, red bows, black fishnet long-sleeve top, black Nirvana crop top, key necklace, black choker, black distressed denim shorts, black belt, silver eyelets, fair skin, pink eyeshadow, dark eyeliner, slight smile, hands behind head, arms raised, confident pose, graffiti-covered wall, poster, blonde woman, pink electric guitar, text \"The Gutterflowers\", text \"Y2K Blowout!\", even lighting, medium shot, front view, midriff visible, legs visible, smooth hair, shiny hair, smooth skin, casual style, edgy style, urban background, gritty background"
       }
     }
   ],
@@ -1243,14 +1263,6 @@
       "CAPTIONFORGE_EXTRA_OPTIONS"
     ],
     [
-      170,
-      70,
-      0,
-      67,
-      1,
-      "IMAGE"
-    ],
-    [
       171,
       68,
       0,
@@ -1259,64 +1271,56 @@
       "IMAGE"
     ],
     [
-      172,
+      193,
       9,
       0,
       67,
-      2,
+      1,
       "IMAGE"
     ],
     [
-      179,
-      75,
+      194,
+      85,
       0,
       51,
       0,
       "IMAGE"
     ],
     [
-      180,
-      75,
+      195,
+      85,
       1,
       51,
       1,
       "CAPTIONFORGE_PIPELINE_PLAN"
     ],
     [
-      181,
+      196,
       67,
       0,
-      75,
+      85,
       0,
       "IMAGE"
     ],
     [
-      182,
+      197,
       56,
       0,
-      76,
+      84,
       0,
       "IMAGE"
     ],
     [
-      183,
-      56,
-      1,
-      76,
-      1,
-      "CAPTIONFORGE_PIPELINE_PLAN"
-    ],
-    [
-      187,
-      76,
+      198,
+      84,
       0,
       81,
       0,
       "STRING"
     ],
     [
-      188,
-      76,
+      199,
+      84,
       1,
       82,
       0,
@@ -1327,10 +1331,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.47272727272729625,
+      "scale": 0.2668422214799844,
       "offset": [
-        2016.1297333032562,
-        -191.6111430543107
+        3442.2673138802456,
+        222.5123933212859
       ]
     },
     "frontendVersion": "1.49.6"

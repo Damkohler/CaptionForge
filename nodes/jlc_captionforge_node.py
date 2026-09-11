@@ -149,6 +149,13 @@ import numpy as np
 import torch
 from PIL import Image
 
+from ..engines.captionforge_prompt_defaults import (
+    DEFAULT_FAT_DRAFT_INSTRUCTIONS,
+    DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
+    DEFAULT_VALIDATOR_INSTRUCTIONS,
+    DEFAULT_VALIDATOR_SYSTEM_PROMPT,
+)
+
 try:
     import folder_paths
 except Exception:  # pragma: no cover - useful outside ComfyUI smoke tests
@@ -201,67 +208,6 @@ DEFAULT_FORMAT_MODELS = ["mistral-small:24b", "VladimirGav/gemma4-26b-16GB-VRAM-
 DEFAULT_DISTILLER_MODEL = "mistral-small:24b"
 DEFAULT_VALIDATOR_MODEL = "gemma4:26b"
 DEFAULT_FORMAT_MODEL = "mistral-small:24b"
-
-DEFAULT_FAT_DRAFT_INSTRUCTIONS = """/no_think
-
-You are a detail-preserving caption merger for LoRA dataset preparation.
-
-You receive multiple captions of the same image. You do NOT see the image.
-
-Task:
-Merge all non-contradictory caption details into one deliberately over-complete draft caption.
-
-Rules:
-- Do not validate against the image.
-- Do not decide that details are false just because they appear once.
-- Do not summarize aggressively.
-- Preserve concrete details from all captions.
-- Split contradictions by choosing cautious wording or listing the alternative only when needed.
-- Prefer specific visual language over generic language.
-- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.
-- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.
-- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.
-- Do not add details absent from the captions.
-- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.
-- Output only one paragraph, no notes, no JSON."""
-
-DEFAULT_VALIDATOR_SYSTEM_PROMPT = (
-    "/no_think\n"
-    "You are a direct image validation engine. Inspect the image and answer only with the requested caption."
-)
-
-DEFAULT_VALIDATOR_INSTRUCTIONS = """/no_think
-
-Look at the image and validate this draft caption.
-
-Task:
-Return a corrected caption paragraph that keeps only image-supported details.
-
-Rules:
-- Output only the corrected caption.
-- One paragraph.
-- No reasoning, no notes, no JSON.
-- Keep all true visible details from the draft.
-- Delete unsupported details.
-- Correct small visible errors.
-- Do not add new details unless needed to correct an error already present.
-- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.
-- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.
-- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image."""
-
-DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS = """/no_think
-You are a LoRA caption format converter. The validated paragraph is your only source of truth.
-Output exactly two labeled lines:
-SHORT: <exactly three concise sentences totaling at most 90 words>
-TAGGY: <one compact comma-separated caption>
-
-SHORT must preserve the image's distinctive training identity across the whole source:
-1. subject, defining face/hair/body traits, and every major outfit piece/material;
-2. pose/action and key accessories or unusual visible details;
-3. setting, lighting, framing, and visual medium/style.
-Omit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.
-TAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.
-No markdown, reasoning, notes, or other labels."""
 
 _SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 
@@ -532,7 +478,7 @@ def _resolve_stage_audit_settings(
     widget_write_prompts: Any,
     widget_preserve_raw: Any,
 ) -> dict[str, bool]:
-    """Resolve independent B/C Planner audit controls and capstone-owned D controls."""
+    """Resolve independent Planner-owned B/C/D audit controls when planned."""
     standalone_write = _safe_bool(widget_write_prompts, False)
     standalone_raw = _safe_bool(widget_preserve_raw, False)
     return {
@@ -580,9 +526,30 @@ def _resolve_stage_audit_settings(
             ),
             False,
         ),
-        # The Planner intentionally has no Pass D audit policy in this release.
-        "fmt_write_prompts": standalone_write,
-        "fmt_preserve_raw": standalone_raw,
+        "fmt_write_prompts": _safe_bool(
+            _resolve_setting(
+                plan,
+                standalone_write,
+                "formatter.write_prompt_jsonl",
+                "format.write_prompt_jsonl",
+                "pass_d.write_prompt_jsonl",
+                "pass_d_formatter.write_prompt_jsonl",
+                default=False,
+            ),
+            False,
+        ),
+        "fmt_preserve_raw": _safe_bool(
+            _resolve_setting(
+                plan,
+                standalone_raw,
+                "formatter.preserve_raw_response",
+                "format.preserve_raw_response",
+                "pass_d.preserve_raw_response",
+                "pass_d_formatter.preserve_raw_response",
+                default=False,
+            ),
+            False,
+        ),
     }
 
 
@@ -1547,11 +1514,11 @@ class JLC_CaptionForge:
                 "Fat Draft - max caption chars": ("INT", {"default": 1536, "min": 0, "max": 12000, "step": 64}),
                 "Fat Draft - max new tokens": (
                     "INT",
-                    {"default": 5000, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
+                    {"default": 3096, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
                 ),
-                "Fat Draft - temperature": ("FLOAT", {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01}),
-                "Fat Draft - top p": ("FLOAT", {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "Fat Draft - top k": ("INT", {"default": 50, "min": 0, "max": 500, "step": 1}),
+                "Fat Draft - temperature": ("FLOAT", {"default": 0.24, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "Fat Draft - top p": ("FLOAT", {"default": 0.90, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "Fat Draft - top k": ("INT", {"default": 60, "min": 0, "max": 500, "step": 1}),
                 "Validator - model": (VALIDATOR_MODEL_CHOICES, {"default": DEFAULT_VALIDATOR_MODEL}),
                 "Validator - custom Ollama model": (
                     "STRING",
@@ -1567,11 +1534,11 @@ class JLC_CaptionForge:
                 ),
                 "Validator - max new tokens": (
                     "INT",
-                    {"default": 5000, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
+                    {"default": 2112, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
                 ),
-                "Validator - temperature": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 2.0, "step": 0.01}),
-                "Validator - top p": ("FLOAT", {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "Validator - top k": ("INT", {"default": 50, "min": 0, "max": 500, "step": 1}),
+                "Validator - temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "Validator - top p": ("FLOAT", {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "Validator - top k": ("INT", {"default": 80, "min": 0, "max": 500, "step": 1}),
                 "Formatter - model": (FORMAT_MODEL_CHOICES, {"default": DEFAULT_FORMAT_MODEL}),
                 "Formatter - custom Ollama model": (
                     "STRING",
@@ -1658,12 +1625,41 @@ class JLC_CaptionForge:
             Path(caption_jsonl).resolve().parent,
         ])
 
-        ollama_url = _normalize_ollama_url(str(kwargs.get("Ollama - URL", DEFAULT_OLLAMA_URL)))
-        keep_loaded = _safe_bool(kwargs.get("Ollama - keep loaded", True), True)
-        timeout = float(_coerce_int(kwargs.get("Ollama - request timeout seconds", 1800), 1800, 10, 7200))
+        ollama_url = _normalize_ollama_url(
+            str(
+                _resolve_setting(
+                    plan,
+                    kwargs.get("Ollama - URL"),
+                    "ollama.url",
+                    default=DEFAULT_OLLAMA_URL,
+                )
+            )
+        )
+        keep_loaded = _safe_bool(
+            _resolve_setting(
+                plan,
+                kwargs.get("Ollama - keep loaded"),
+                "ollama.keep_loaded",
+                default=True,
+            ),
+            True,
+        )
+        timeout = float(
+            _coerce_int(
+                _resolve_setting(
+                    plan,
+                    kwargs.get("Ollama - request timeout seconds"),
+                    "ollama.request_timeout_seconds",
+                    default=1800,
+                ),
+                1800,
+                10,
+                7200,
+            )
+        )
         # Standalone mode keeps the capstone's global audit widgets. In planned
-        # mode, Pass B and Pass C resolve audit settings independently from their
-        # Planner namespaces. Pass D continues to use the global audit policy.
+        # mode, Pass B/C/D resolve audit settings independently from their
+        # Planner namespaces.
         audit = _resolve_stage_audit_settings(
             plan,
             kwargs.get("Audit - write prompt JSONL", False),
@@ -1705,11 +1701,20 @@ class JLC_CaptionForge:
                 default=None,
             )
         )
-        fat_num = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - max new tokens"), "distiller.num_predict", "pass_b.num_predict", "pass_b_distiller.num_predict", default=5000), 5000, 64, 12000)
-        fat_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - temperature"), "distiller.temperature", "pass_b.temperature", "pass_b_distiller.temperature", default=0.12), 0.12, 0.0, 2.0)
-        fat_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - top p"), "distiller.top_p", "pass_b.top_p", "pass_b_distiller.top_p", default=0.88), 0.88, 0.0, 1.0)
-        fat_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - top k"), "distiller.top_k", "pass_b.top_k", "pass_b_distiller.top_k", default=50), 50, 0, 500)
-        fat_prompt_instructions = str(kwargs.get("Fat Draft - prompt") or DEFAULT_FAT_DRAFT_INSTRUCTIONS)
+        fat_num = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - max new tokens"), "distiller.num_predict", "pass_b.num_predict", "pass_b_distiller.num_predict", default=3096), 3096, 64, 12000)
+        fat_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - temperature"), "distiller.temperature", "pass_b.temperature", "pass_b_distiller.temperature", default=0.24), 0.24, 0.0, 2.0)
+        fat_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Fat Draft - top p"), "distiller.top_p", "pass_b.top_p", "pass_b_distiller.top_p", default=0.90), 0.90, 0.0, 1.0)
+        fat_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Fat Draft - top k"), "distiller.top_k", "pass_b.top_k", "pass_b_distiller.top_k", default=60), 60, 0, 500)
+        fat_prompt_instructions = str(
+            _resolve_setting(
+                plan,
+                kwargs.get("Fat Draft - prompt"),
+                "distiller.prompt",
+                "pass_b.prompt",
+                "pass_b_distiller.prompt",
+                default=DEFAULT_FAT_DRAFT_INSTRUCTIONS,
+            )
+        )
         max_caption_chars = _resolve_fat_draft_max_caption_chars(
             plan,
             kwargs.get("Fat Draft - max caption chars"),
@@ -1740,12 +1745,30 @@ class JLC_CaptionForge:
                 default=None,
             )
         )
-        val_num = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - max new tokens"), "validator.num_predict", "pass_c.num_predict", "pass_c_vlm_validator.num_predict", default=5000), 5000, 64, 12000)
-        val_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - temperature"), "validator.temperature", "pass_c.temperature", "pass_c_vlm_validator.temperature", default=0.05), 0.05, 0.0, 2.0)
-        val_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - top p"), "validator.top_p", "pass_c.top_p", "pass_c_vlm_validator.top_p", default=0.88), 0.88, 0.0, 1.0)
-        val_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - top k"), "validator.top_k", "pass_c.top_k", "pass_c_vlm_validator.top_k", default=50), 50, 0, 500)
-        val_system = str(kwargs.get("Validator - system prompt") or DEFAULT_VALIDATOR_SYSTEM_PROMPT)
-        val_prompt_instructions = str(kwargs.get("Validator - prompt") or DEFAULT_VALIDATOR_INSTRUCTIONS)
+        val_num = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - max new tokens"), "validator.num_predict", "pass_c.num_predict", "pass_c_vlm_validator.num_predict", default=2112), 2112, 64, 12000)
+        val_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - temperature"), "validator.temperature", "pass_c.temperature", "pass_c_vlm_validator.temperature", default=0.0), 0.0, 0.0, 2.0)
+        val_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Validator - top p"), "validator.top_p", "pass_c.top_p", "pass_c_vlm_validator.top_p", default=0.92), 0.92, 0.0, 1.0)
+        val_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Validator - top k"), "validator.top_k", "pass_c.top_k", "pass_c_vlm_validator.top_k", default=80), 80, 0, 500)
+        val_system = str(
+            _resolve_setting(
+                plan,
+                kwargs.get("Validator - system prompt"),
+                "validator.system_prompt",
+                "pass_c.system_prompt",
+                "pass_c_vlm_validator.system_prompt",
+                default=DEFAULT_VALIDATOR_SYSTEM_PROMPT,
+            )
+        )
+        val_prompt_instructions = str(
+            _resolve_setting(
+                plan,
+                kwargs.get("Validator - prompt"),
+                "validator.prompt",
+                "pass_c.prompt",
+                "pass_c_vlm_validator.prompt",
+                default=DEFAULT_VALIDATOR_INSTRUCTIONS,
+            )
+        )
 
         fmt_model_choice = _resolve_setting(
             plan,
@@ -1755,6 +1778,9 @@ class JLC_CaptionForge:
             "pass_d.model",
             "formatter.ollama_model",
             "format.ollama_model",
+            "pass_d.ollama_model",
+            "pass_d_formatter.model",
+            "pass_d_formatter.ollama_model",
             default=DEFAULT_FORMAT_MODEL,
         )
         fmt_model = _resolve_ollama_model_name(fmt_model_choice, kwargs.get("Formatter - custom Ollama model"), DEFAULT_FORMAT_MODEL)
@@ -1772,11 +1798,21 @@ class JLC_CaptionForge:
                 default=None,
             )
         )
-        fmt_num = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - max new tokens"), "formatter.num_predict", "format.num_predict", "pass_d.num_predict", default=3200), 3200, 64, 12000)
-        fmt_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Formatter - temperature"), "formatter.temperature", "format.temperature", "pass_d.temperature", default=0.12), 0.12, 0.0, 2.0)
-        fmt_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Formatter - top p"), "formatter.top_p", "format.top_p", "pass_d.top_p", default=0.88), 0.88, 0.0, 1.0)
-        fmt_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - top k"), "formatter.top_k", "format.top_k", "pass_d.top_k", default=50), 50, 0, 500)
-        fmt_prompt_instructions = str(kwargs.get("Formatter - prompt") or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
+        fmt_num = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - max new tokens"), "formatter.num_predict", "format.num_predict", "pass_d.num_predict", "pass_d_formatter.num_predict", default=3200), 3200, 64, 12000)
+        fmt_temp = _coerce_float(_resolve_setting(plan, kwargs.get("Formatter - temperature"), "formatter.temperature", "format.temperature", "pass_d.temperature", "pass_d_formatter.temperature", default=0.12), 0.12, 0.0, 2.0)
+        fmt_top_p = _coerce_float(_resolve_setting(plan, kwargs.get("Formatter - top p"), "formatter.top_p", "format.top_p", "pass_d.top_p", "pass_d_formatter.top_p", default=0.88), 0.88, 0.0, 1.0)
+        fmt_top_k = _coerce_int(_resolve_setting(plan, kwargs.get("Formatter - top k"), "formatter.top_k", "format.top_k", "pass_d.top_k", "pass_d_formatter.top_k", default=50), 50, 0, 500)
+        fmt_prompt_instructions = str(
+            _resolve_setting(
+                plan,
+                kwargs.get("Formatter - prompt"),
+                "formatter.prompt",
+                "format.prompt",
+                "pass_d.prompt",
+                "pass_d_formatter.prompt",
+                default=DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
+            )
+        )
 
         txt_export_format = str(_resolve_setting(plan, kwargs.get("Final - TXT export format"), "final.txt_export_format", default="natural") or "natural")
         txt_export_format = _normalize_txt_export_format(txt_export_format)

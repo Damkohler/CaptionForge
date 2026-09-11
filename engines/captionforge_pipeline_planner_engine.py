@@ -113,9 +113,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .captionforge_prompt_defaults import (
+    DEFAULT_FAT_DRAFT_INSTRUCTIONS,
+    DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
+    DEFAULT_VALIDATOR_INSTRUCTIONS,
+    DEFAULT_VALIDATOR_SYSTEM_PROMPT,
+)
+
 MAX_SEED_32 = 0xFFFFFFFF
 PIPELINE_PLAN_TYPE = "captionforge_pipeline_plan"
 PIPELINE_PLAN_VERSION = 6
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 MAX_PASS_A_RUNS_PER_MODEL = 5
 PASS_A_SEED_NAMESPACE = b"captionforge-pass-a-seed-v1"
 
@@ -369,8 +377,8 @@ def build_captionforge_pipeline_plan(
     run_name: str = "captionforge_run",
     overwrite_outputs: bool = True,
     joy_runs_per_image: Any = 2,
-    qwen_runs_per_image: Any = 2,
-    ollama_runs_per_image: Any = "Disabled",
+    qwen_runs_per_image: Any = 1,
+    ollama_runs_per_image: Any = 1,
     ollama_caption_runs_per_image: Any | None = None,
     caption_ollama_runs_per_image: Any | None = None,
     ollama_vlm_runs_per_image: Any | None = None,
@@ -385,8 +393,12 @@ def build_captionforge_pipeline_plan(
     max_new_tokens: int = 4096,
     trigger_word: str = "",
     user_caption_anchor: str = "",
+    ollama_url: str = DEFAULT_OLLAMA_URL,
+    ollama_keep_loaded: bool = True,
+    ollama_request_timeout_seconds: int = 1800,
     distiller_model_family: str = "Llama",
     distiller_base_seed: int | None = None,
+    distiller_prompt: str = DEFAULT_FAT_DRAFT_INSTRUCTIONS,
     # Compatibility-only. Pass B owns one fixed seed; modes are ignored.
     distiller_seed_mode: str = "fixed",
     # Compatibility-only argument for older callers. Production Pass B is
@@ -401,14 +413,24 @@ def build_captionforge_pipeline_plan(
     distiller_preserve_raw_response: bool = False,
     validator_model_family: str = "Llama Vision",
     validator_base_seed: int | None = None,
+    validator_system_prompt: str = DEFAULT_VALIDATOR_SYSTEM_PROMPT,
+    validator_prompt: str = DEFAULT_VALIDATOR_INSTRUCTIONS,
     # Compatibility-only. Pass C owns one fixed seed; modes are ignored.
     validator_seed_mode: str = "fixed",
-    validator_num_predict: int = 2200,
+    validator_num_predict: int = 2112,
     validator_temperature: float = 0.0,
     validator_top_p: float = 0.92,
     validator_top_k: int = 80,
     validator_write_prompt_jsonl: bool = False,
     validator_preserve_raw_vlm_response: bool = False,
+    formatter_model: str = "mistral-small:24b",
+    formatter_prompt: str = DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
+    formatter_num_predict: int = 3200,
+    formatter_temperature: float = 0.12,
+    formatter_top_p: float = 0.88,
+    formatter_top_k: int = 50,
+    formatter_write_prompt_jsonl: bool = False,
+    formatter_preserve_raw_response: bool = False,
     # Compatibility-only argument for older callers. Production always exports
     # the invariant long/short/taggy sidecar set.
     final_caption_style: str = "narrative",
@@ -418,8 +440,8 @@ def build_captionforge_pipeline_plan(
     distiller_seed: int | None = None,
     validator_seed: int | None = None,
     formatter_seed: int | None = None,
-    distiller_model: str = "llama3.1:8b",
-    validator_model: str = "llama3.2-vision:11b",
+    distiller_model: str = "mistral-small:24b",
+    validator_model: str = "gemma4:26b",
     captions_per_image: int | None = None,
     # Deprecated compatibility-only parameters. Intentionally ignored.
     pass_c_deterministic: bool = True,
@@ -427,9 +449,9 @@ def build_captionforge_pipeline_plan(
     semantic_profile: str = "",
 ) -> dict[str, Any]:
     joy_runs = _normalize_runs_per_image(joy_runs_per_image, 2)
-    qwen_runs = _normalize_runs_per_image(qwen_runs_per_image, 2)
+    qwen_runs = _normalize_runs_per_image(qwen_runs_per_image, 1)
     ollama_runs = max(
-        _normalize_runs_per_image(value, "Disabled")
+        _normalize_runs_per_image(value, 1)
         for value in (
             ollama_runs_per_image,
             ollama_caption_runs_per_image,
@@ -495,10 +517,17 @@ def build_captionforge_pipeline_plan(
     # Pass A JSONL/audit artifacts, so point it at the run working directory.
     shared["output_dir"] = paths["output_dir"]
 
+    ollama = {
+        "url": str(ollama_url or DEFAULT_OLLAMA_URL).strip() or DEFAULT_OLLAMA_URL,
+        "keep_loaded": _coerce_bool(ollama_keep_loaded, True),
+        "request_timeout_seconds": _coerce_int(ollama_request_timeout_seconds, 1800, 10, 7200),
+    }
+
     distiller = {
         "backend": "ollama",
         "model_family": str(distiller_model_family or "Llama").strip() or "Llama",
-        "model": str(distiller_model or "llama3.1:8b").strip() or "llama3.1:8b",
+        "model": str(distiller_model or "mistral-small:24b").strip() or "mistral-small:24b",
+        "prompt": str(distiller_prompt or DEFAULT_FAT_DRAFT_INSTRUCTIONS),
         "seed": d_seed,
         "max_caption_chars_for_llm": _coerce_int(distiller_max_caption_chars_for_llm, 1536, 0, 12000),
         "num_predict": _coerce_int(distiller_num_predict, 3096, 64, 12000),
@@ -512,10 +541,12 @@ def build_captionforge_pipeline_plan(
     validator = {
         "backend": "ollama",
         "model_family": str(validator_model_family or "Llama Vision").strip() or "Llama Vision",
-        "model": str(validator_model or "llama3.2-vision:11b").strip() or "llama3.2-vision:11b",
+        "model": str(validator_model or "gemma4:26b").strip() or "gemma4:26b",
+        "system_prompt": str(validator_system_prompt or DEFAULT_VALIDATOR_SYSTEM_PROMPT),
+        "prompt": str(validator_prompt or DEFAULT_VALIDATOR_INSTRUCTIONS),
         "seed": v_seed,
         "image_root": input_path_n,
-        "num_predict": _coerce_int(validator_num_predict, 2200, 64, 12000),
+        "num_predict": _coerce_int(validator_num_predict, 2112, 64, 12000),
         "temperature": _coerce_float(validator_temperature, 0.0, 0.0, 2.0),
         "top_p": _coerce_float(validator_top_p, 0.92, 0.0, 1.0),
         "top_k": _coerce_int(validator_top_k, 80, 0, 500),
@@ -524,7 +555,16 @@ def build_captionforge_pipeline_plan(
         "role": "image_aware_precision_validation",
     }
     formatter = {
+        "backend": "ollama",
+        "model": str(formatter_model or "mistral-small:24b").strip() or "mistral-small:24b",
+        "prompt": str(formatter_prompt or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS),
         "seed": f_seed,
+        "num_predict": _coerce_int(formatter_num_predict, 3200, 64, 12000),
+        "temperature": _coerce_float(formatter_temperature, 0.12, 0.0, 2.0),
+        "top_p": _coerce_float(formatter_top_p, 0.88, 0.0, 1.0),
+        "top_k": _coerce_int(formatter_top_k, 50, 0, 500),
+        "write_prompt_jsonl": _coerce_bool(formatter_write_prompt_jsonl, False),
+        "preserve_raw_response": _coerce_bool(formatter_preserve_raw_response, False),
         "role": "text_only_taggy_formatting",
     }
     final = {
@@ -539,6 +579,7 @@ def build_captionforge_pipeline_plan(
         "captionforge_config_type": PIPELINE_PLAN_TYPE,
         "captionforge_config_version": PIPELINE_PLAN_VERSION,
         "shared": shared,
+        "ollama": ollama,
         "paths": paths,
         "pass_a": {
             "joy": {"model_key": "joy", "enabled": joy_runs > 0, "runs_per_image": joy_runs, "role": "rich_descriptive_caption_witness"},

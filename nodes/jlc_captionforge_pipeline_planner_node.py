@@ -127,6 +127,21 @@ except Exception:  # pragma: no cover - useful for direct local smoke tests
     from captionforge_ollama_model_dropdowns import load_ollama_model_dropdowns
 
 try:
+    from ..engines.captionforge_prompt_defaults import (
+        DEFAULT_FAT_DRAFT_INSTRUCTIONS,
+        DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
+        DEFAULT_VALIDATOR_INSTRUCTIONS,
+        DEFAULT_VALIDATOR_SYSTEM_PROMPT,
+    )
+except Exception:  # pragma: no cover - useful for direct local smoke tests
+    from engines.captionforge_prompt_defaults import (
+        DEFAULT_FAT_DRAFT_INSTRUCTIONS,
+        DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
+        DEFAULT_VALIDATOR_INSTRUCTIONS,
+        DEFAULT_VALIDATOR_SYSTEM_PROMPT,
+    )
+
+try:
     import folder_paths
 except Exception:
     folder_paths = None
@@ -151,8 +166,11 @@ DEFAULT_CAPTION_MAX_NEW_TOKENS = 4096
 _MODEL_DROPDOWNS = load_ollama_model_dropdowns(__file__)
 DISTILLER_MODEL_CHOICES = _MODEL_DROPDOWNS["distiller_models"]
 VALIDATOR_MODEL_CHOICES = _MODEL_DROPDOWNS["validator_models"]
+FORMAT_MODEL_CHOICES = _MODEL_DROPDOWNS["format_models"]
 DEFAULT_DISTILLER_MODEL = _MODEL_DROPDOWNS["distiller_default"]
 DEFAULT_VALIDATOR_MODEL = _MODEL_DROPDOWNS["validator_default"]
+DEFAULT_FORMAT_MODEL = _MODEL_DROPDOWNS["format_default"]
+DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 def _default_output_dir() -> str:
     if folder_paths is not None:
         try:
@@ -227,6 +245,12 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
         shared.setdefault("single_image_connected", bool(kwargs.get("single_image_connected", False)))
         shared.setdefault("overwrite_outputs", bool(kwargs.get("overwrite_outputs", True)))
 
+    plan["ollama"] = {
+        "url": kwargs.get("ollama_url", DEFAULT_OLLAMA_URL),
+        "keep_loaded": kwargs.get("ollama_keep_loaded", True),
+        "request_timeout_seconds": kwargs.get("ollama_request_timeout_seconds", 1800),
+    }
+
     # Concrete model names are stored in several compatible locations because
     # older and newer capstone nodes look in slightly different namespaces.
     distiller_model = str(kwargs.get("distiller_model") or DEFAULT_DISTILLER_MODEL).strip() or DEFAULT_DISTILLER_MODEL
@@ -257,6 +281,7 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
             "backend": "ollama",
             "model": distiller_model,
             "ollama_model": distiller_model,
+            "prompt": kwargs.get("distiller_prompt", DEFAULT_FAT_DRAFT_INSTRUCTIONS),
             "seed": distiller_seed,
         })
 
@@ -266,6 +291,8 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
             "backend": "ollama",
             "model": validator_model,
             "ollama_model": validator_model,
+            "system_prompt": kwargs.get("validator_system_prompt", DEFAULT_VALIDATOR_SYSTEM_PROMPT),
+            "prompt": kwargs.get("validator_prompt", DEFAULT_VALIDATOR_INSTRUCTIONS),
             "seed": validator_seed,
         })
 
@@ -273,6 +300,7 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
         "model": distiller_model,
         "ollama_model": distiller_model,
         "model_family": distiller_model,
+        "prompt": kwargs.get("distiller_prompt", DEFAULT_FAT_DRAFT_INSTRUCTIONS),
         "seed": distiller_seed,
         "max_caption_chars_for_llm": kwargs.get("distiller_max_caption_chars_for_llm", 1536),
         "num_predict": kwargs.get("distiller_num_predict", 3096),
@@ -289,8 +317,10 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
         "model": validator_model,
         "ollama_model": validator_model,
         "model_family": validator_model,
+        "system_prompt": kwargs.get("validator_system_prompt", DEFAULT_VALIDATOR_SYSTEM_PROMPT),
+        "prompt": kwargs.get("validator_prompt", DEFAULT_VALIDATOR_INSTRUCTIONS),
         "seed": validator_seed,
-        "num_predict": kwargs.get("validator_num_predict", 2200),
+        "num_predict": kwargs.get("validator_num_predict", 2112),
         "temperature": kwargs.get("validator_temperature", 0.0),
         "top_p": kwargs.get("validator_top_p", 0.92),
         "top_k": kwargs.get("validator_top_k", 80),
@@ -300,7 +330,20 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
     plan["validator"] = dict(validator_common)
     plan["pass_c"] = dict(validator_common)
 
-    formatter_common = {"seed": formatter_seed}
+    formatter_model = str(kwargs.get("formatter_model") or DEFAULT_FORMAT_MODEL).strip() or DEFAULT_FORMAT_MODEL
+    formatter_common = {
+        "model": formatter_model,
+        "ollama_model": formatter_model,
+        "model_family": formatter_model,
+        "prompt": kwargs.get("formatter_prompt", DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS),
+        "seed": formatter_seed,
+        "num_predict": kwargs.get("formatter_num_predict", 3200),
+        "temperature": kwargs.get("formatter_temperature", 0.12),
+        "top_p": kwargs.get("formatter_top_p", 0.88),
+        "top_k": kwargs.get("formatter_top_k", 50),
+        "write_prompt_jsonl": kwargs.get("formatter_write_prompt_jsonl", False),
+        "preserve_raw_response": kwargs.get("formatter_preserve_raw_response", False),
+    }
     plan["formatter"] = dict(formatter_common)
     plan["pass_d"] = dict(formatter_common)
     plan["pass_d_formatter"] = dict(formatter_common)
@@ -618,6 +661,35 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
 
                 # -----------------------------------------------------------------
+                # Shared Ollama runtime controls for Passes B/C/D.
+                # -----------------------------------------------------------------
+                "Ollama - URL": (
+                    "STRING",
+                    {
+                        "default": DEFAULT_OLLAMA_URL,
+                        "multiline": False,
+                        "tooltip": "Planner-owned local Ollama server URL for Passes B, C, and D.",
+                    },
+                ),
+                "Ollama - keep loaded": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "Planner-owned keep_alive policy for Passes B, C, and D.",
+                    },
+                ),
+                "Ollama - request timeout seconds": (
+                    "INT",
+                    {
+                        "default": 1800,
+                        "min": 10,
+                        "max": 7200,
+                        "step": 10,
+                        "tooltip": "Planner-owned HTTP patience for Passes B, C, and D; does not affect caption quality.",
+                    },
+                ),
+
+                # -----------------------------------------------------------------
                 # LoRA metadata immediately after outputs.
                 # -----------------------------------------------------------------
                 "LoRA - trigger word": (
@@ -654,14 +726,14 @@ class JLC_CaptionForge_Pipeline_Planner:
                 "Caption - Qwen runs/image": (
                     CAPTION_RUNS,
                     {
-                        "default": "2",
+                        "default": "1",
                         "tooltip": "Qwen Caption runs per image. Set to Disabled to omit Qwen from this run. Dropdown is capped at 5 to prevent accidental giant runs.",
                     },
                 ),
                 "Caption - Ollama runs/image": (
                     CAPTION_RUNS,
                     {
-                        "default": "Disabled",
+                        "default": "1",
                         "tooltip": (
                             "Ollama Caption runs per image for each connected JLC CaptionForge Ollama Caption node. "
                             "The actual Ollama model tag is selected in each Ollama Caption node. Connecting multiple "
@@ -735,6 +807,17 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "tooltip": "Used only when Distiller - model is custom, e.g. my-model:latest.",
                     },
                 ),
+                "Distiller - prompt": (
+                    "STRING",
+                    {
+                        "default": DEFAULT_FAT_DRAFT_INSTRUCTIONS,
+                        "multiline": True,
+                        "tooltip": (
+                            "Planner-owned instructions for the text-only fat draft LLM. "
+                            "Pass A captions are appended automatically."
+                        ),
+                    },
+                ),
                 "Distiller - seed": (
                     "INT",
                     {
@@ -751,7 +834,13 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Distiller - num predict": (
                     "INT",
-                    {"default": 3096, "min": 64, "max": 12000, "step": 64},
+                    {
+                        "default": 3096,
+                        "min": 64,
+                        "max": 12000,
+                        "step": 64,
+                        "tooltip": "Planner token budget for Pass B; maps to Ollama num_predict.",
+                    },
                 ),
                 "Distiller - temperature": (
                     "FLOAT",
@@ -795,6 +884,25 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "tooltip": "Used only when Validator - model is custom, e.g. gemma4:e4b or another installed VLM tag.",
                     },
                 ),
+                "Validator - system prompt": (
+                    "STRING",
+                    {
+                        "default": DEFAULT_VALIDATOR_SYSTEM_PROMPT,
+                        "multiline": True,
+                        "tooltip": "Planner-owned system prompt for the image-aware VLM validator.",
+                    },
+                ),
+                "Validator - prompt": (
+                    "STRING",
+                    {
+                        "default": DEFAULT_VALIDATOR_INSTRUCTIONS,
+                        "multiline": True,
+                        "tooltip": (
+                            "Planner-owned instructions for the image-aware VLM validator. "
+                            "The fat draft is appended automatically."
+                        ),
+                    },
+                ),
                 "Validator - seed": (
                     "INT",
                     {
@@ -807,7 +915,13 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Validator - num predict": (
                     "INT",
-                    {"default": 2200, "min": 64, "max": 12000, "step": 64},
+                    {
+                        "default": 2112,
+                        "min": 64,
+                        "max": 12000,
+                        "step": 64,
+                        "tooltip": "Planner token budget for Pass C; maps to Ollama num_predict.",
+                    },
                 ),
                 "Validator - temperature": (
                     "FLOAT",
@@ -830,6 +944,38 @@ class JLC_CaptionForge_Pipeline_Planner:
                     {"default": False},
                 ),
 
+                # -----------------------------------------------------------------
+                # Formatter controls.
+                # -----------------------------------------------------------------
+                "Formatter - model": (
+                    FORMAT_MODEL_CHOICES,
+                    {
+                        "default": DEFAULT_FORMAT_MODEL,
+                        "tooltip": (
+                            "Concrete Ollama text model tag for the SHORT + TAGGY formatter. "
+                            "Use custom to enter any other installed Ollama text model."
+                        ),
+                    },
+                ),
+                "Formatter - custom Ollama model": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": False,
+                        "tooltip": "Used only when Formatter - model is custom.",
+                    },
+                ),
+                "Formatter - prompt": (
+                    "STRING",
+                    {
+                        "default": DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
+                        "multiline": True,
+                        "tooltip": (
+                            "Planner-owned SHORT + TAGGY instructions for the text-only formatter. "
+                            "The validated LONG caption is appended automatically."
+                        ),
+                    },
+                ),
                 "Formatter - seed": (
                     "INT",
                     {
@@ -839,6 +985,36 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "step": 1,
                         "tooltip": "Fixed seed used by the taggy formatter for every image. -1 means omit seed.",
                     },
+                ),
+                "Formatter - num predict": (
+                    "INT",
+                    {
+                        "default": 3200,
+                        "min": 64,
+                        "max": 12000,
+                        "step": 64,
+                        "tooltip": "Planner token budget for Pass D; maps to Ollama num_predict.",
+                    },
+                ),
+                "Formatter - temperature": (
+                    "FLOAT",
+                    {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01},
+                ),
+                "Formatter - top p": (
+                    "FLOAT",
+                    {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01},
+                ),
+                "Formatter - top k": (
+                    "INT",
+                    {"default": 50, "min": 0, "max": 500, "step": 1},
+                ),
+                "Formatter - write prompt JSONL": (
+                    "BOOLEAN",
+                    {"default": False},
+                ),
+                "Formatter - preserve raw response": (
+                    "BOOLEAN",
+                    {"default": False},
                 ),
 
                 # -----------------------------------------------------------------
@@ -896,11 +1072,16 @@ class JLC_CaptionForge_Pipeline_Planner:
             kwargs.get("Validator - custom Ollama model", ""),
             DEFAULT_VALIDATOR_MODEL,
         )
+        formatter_model = _resolve_ollama_model_name(
+            kwargs.get("Formatter - model", DEFAULT_FORMAT_MODEL),
+            kwargs.get("Formatter - custom Ollama model", ""),
+            DEFAULT_FORMAT_MODEL,
+        )
 
         planner_enabled = _as_bool(kwargs.get("Planner - enabled", True))
         joy_runs = _runs_per_image(kwargs.get("Caption - Joy runs/image", "2"), "2")
-        qwen_runs = _runs_per_image(kwargs.get("Caption - Qwen runs/image", "2"), "2")
-        ollama_runs = _runs_per_image(kwargs.get("Caption - Ollama runs/image", "Disabled"), "Disabled")
+        qwen_runs = _runs_per_image(kwargs.get("Caption - Qwen runs/image", "1"), "1")
+        ollama_runs = _runs_per_image(kwargs.get("Caption - Ollama runs/image", "1"), "1")
         smolvlm_runs = 0
 
         if not planner_enabled:
@@ -935,8 +1116,17 @@ class JLC_CaptionForge_Pipeline_Planner:
             max_new_tokens=int(_value_or_default(kwargs.get("Caption - max new tokens", DEFAULT_CAPTION_MAX_NEW_TOKENS), DEFAULT_CAPTION_MAX_NEW_TOKENS)),
             trigger_word=str(kwargs.get("LoRA - trigger word", "") or "").strip(),
             user_caption_anchor=str(kwargs.get("LoRA - user caption anchor", "") or "").strip(),
+            ollama_url=str(kwargs.get("Ollama - URL", DEFAULT_OLLAMA_URL) or DEFAULT_OLLAMA_URL),
+            ollama_keep_loaded=_as_bool(kwargs.get("Ollama - keep loaded", True)),
+            ollama_request_timeout_seconds=int(
+                _value_or_default(kwargs.get("Ollama - request timeout seconds", 1800), 1800)
+            ),
             distiller_model=distiller_model,
             distiller_model_family=distiller_model,
+            distiller_prompt=str(
+                kwargs.get("Distiller - prompt", DEFAULT_FAT_DRAFT_INSTRUCTIONS)
+                or DEFAULT_FAT_DRAFT_INSTRUCTIONS
+            ),
             distiller_seed=int(_value_or_default(kwargs.get("Distiller - seed", -1), -1)),
             distiller_max_caption_chars_for_llm=int(_value_or_default(kwargs.get("Distiller - max caption chars for LLM", 1536), 1536)),
             distiller_num_predict=int(kwargs.get("Distiller - num predict", 3096) or 3096),
@@ -947,14 +1137,33 @@ class JLC_CaptionForge_Pipeline_Planner:
             distiller_preserve_raw_response=_as_bool(kwargs.get("Distiller - preserve raw response", False)),
             validator_model=validator_model,
             validator_model_family=validator_model,
+            validator_system_prompt=str(
+                kwargs.get("Validator - system prompt", DEFAULT_VALIDATOR_SYSTEM_PROMPT)
+                or DEFAULT_VALIDATOR_SYSTEM_PROMPT
+            ),
+            validator_prompt=str(
+                kwargs.get("Validator - prompt", DEFAULT_VALIDATOR_INSTRUCTIONS)
+                or DEFAULT_VALIDATOR_INSTRUCTIONS
+            ),
             validator_seed=int(_value_or_default(kwargs.get("Validator - seed", -1), -1)),
-            validator_num_predict=int(kwargs.get("Validator - num predict", 2200) or 2200),
+            validator_num_predict=int(kwargs.get("Validator - num predict", 2112) or 2112),
             validator_temperature=float(kwargs.get("Validator - temperature", 0.0) or 0.0),
             validator_top_p=float(_value_or_default(kwargs.get("Validator - top p", 0.92), 0.92)),
             validator_top_k=int(_value_or_default(kwargs.get("Validator - top k", 80), 80)),
             validator_write_prompt_jsonl=_as_bool(kwargs.get("Validator - write prompt JSONL", False)),
             validator_preserve_raw_vlm_response=_as_bool(kwargs.get("Validator - preserve raw VLM response", False)),
+            formatter_model=formatter_model,
+            formatter_prompt=str(
+                kwargs.get("Formatter - prompt", DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
+                or DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS
+            ),
             formatter_seed=int(_value_or_default(kwargs.get("Formatter - seed", -1), -1)),
+            formatter_num_predict=int(kwargs.get("Formatter - num predict", 3200) or 3200),
+            formatter_temperature=float(kwargs.get("Formatter - temperature", 0.12) or 0.0),
+            formatter_top_p=float(_value_or_default(kwargs.get("Formatter - top p", 0.88), 0.88)),
+            formatter_top_k=int(_value_or_default(kwargs.get("Formatter - top k", 50), 50)),
+            formatter_write_prompt_jsonl=_as_bool(kwargs.get("Formatter - write prompt JSONL", False)),
+            formatter_preserve_raw_response=_as_bool(kwargs.get("Formatter - preserve raw response", False)),
             final_write_txt_sidecars=_as_bool(kwargs.get("Final - write TXT sidecars", True)),
             final_write_jsonl=_as_bool(kwargs.get("Final - write JSONL", True)),
             overwrite_outputs=_as_bool(kwargs.get("Output - overwrite outputs", True)),
