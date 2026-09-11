@@ -4,6 +4,10 @@ Date: 2026-09-09
 
 Baseline: `5568f74dbb103b99bd6603481a247aee6033f753`
 
+Release disposition: the dual-output Pass-D refinement described below was
+adopted for CaptionForge 1.0.0. The corpus name is retained as historical study
+provenance; it is not the package version.
+
 ## Question
 
 Evaluate the current `_long.txt`, `_short.txt`, and `_taggy.txt` outputs before

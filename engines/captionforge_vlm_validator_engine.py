@@ -8,11 +8,9 @@ CaptionForge VLM Validator Engine
   - Repository:
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Engine Purpose
     - The **CaptionForge VLM Validator Engine** is the Pass C image-aware
@@ -58,9 +56,8 @@ CaptionForge VLM Validator Engine
 
     - The engine writes structured JSONL records and optional readable sidecars.
 
-    - The module also contains an experimental cleaner function used by the
-      quarantined reversed-pipeline branch; that path is not the recommended
-      mainline v0.1.0 workflow.
+    - The module also contains an experimental cleaner retained for historical
+      diagnostics; it is not part of the production CaptionForge 1.0 workflow.
 
 - Design Philosophy
     - The distiller is recall-oriented; the VLM validator is grounding-oriented.
@@ -77,10 +74,10 @@ CaptionForge VLM Validator Engine
     - Final candidate captions should remain rich, visually grounded, and
       auditable.
 
-- Development Status
-    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
-    - Prompt contracts, parser behavior, image-resolution heuristics, and audit
-      fields may evolve before a stable CaptionForge release.
+- Reference Status
+    - This CLI-oriented engine is retained for reference, diagnostics, and
+      controlled experiments. It is not imported or registered by the active
+      ComfyUI pipeline; production Pass C runs inside ``jlc_captionforge_node``.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
@@ -134,7 +131,7 @@ from typing import Any, Iterable, Optional
 @dataclass
 class VLMValidatorConfig:
     engine_name: str = "CaptionForge VLM Validator Engine"
-    engine_version: str = "0.2.0"
+    engine_version: str = CAPTIONFORGE_VERSION
 
     vlm_backend: str = "ollama"  # ollama, manual_json, prompt_only
     vlm_model: str = ""
@@ -2148,7 +2145,7 @@ def _cf_cleaner_record(
     return {
         "captionforge_pass": CLEANER_PASS,
         "engine": "CaptionForge VLM Validator Engine",
-        "engine_version": getattr(config, "engine_version", "0.2.0"),
+        "engine_version": getattr(config, "engine_version", CAPTIONFORGE_VERSION),
         "contract": "vlm_statement_cleaner_v0.1",
         "image_key": _cf_cleaner_record_key(source_record),
         "image": str(source_record.get("image") or ""),

@@ -8,11 +8,9 @@ JLC CaptionForge Ollama Caption — ComfyUI Node Wrapper
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Node Purpose
     - The **JLC CaptionForge Ollama Caption** node provides a ComfyUI
@@ -142,12 +140,10 @@ JLC CaptionForge Ollama Caption — ComfyUI Node Wrapper
       clean separation between the ComfyUI interface and the backend model
       service.
 
-- ⚠️ Development Status
-    - This is early CaptionForge Ollama-backed raw-caption infrastructure.
-    - The UI, model-tag config, prompt behavior, and output audit fields may
-      evolve as the multi-pass CaptionForge pipeline matures.
-    - The node is intended for local dataset preparation and controlled caption
-      audit workflows.
+- Production Status
+    - Active CaptionForge 1.0 Pass-A witness node. The selected Ollama VLM tag
+      remains local to this node; a connected Planner owns shared run counts and
+      sampling schedules.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**

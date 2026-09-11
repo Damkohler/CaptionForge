@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "captionforge"
-version = "0.1.1"
-description = "CaptionForge is a local ComfyUI captioning toolkit for preparing better LoRA-ready image datasets. It runs multiple caption witnesses, compares their agreements and contradictions, distills the strongest visual claims, validates them against the image with a VLM, and exports long, short, and taggy TXT captions alongside JSONL audit trails. CaptionForge does not ship model weights: Python-backed Hugging Face models such as Joy and Qwen are downloaded on demand and cached locally, while Ollama-backed stages require a local Ollama installation with the selected model tags installed or pullable."
+version = "1.0.0"
+description = "Local, auditable ComfyUI captioning for LoRA datasets: multi-witness evidence, text-LLM synthesis, image-aware VLM validation, and LONG/SHORT/TAGGY exports."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 license = { text = "MIT" }
@@ -78,25 +78,30 @@ Issues = "https://github.com/Damkohler/CaptionForge/issues"
 supported_comfyui_version = ">=0.2"
 PublisherId = "damkohler"
 DisplayName = "CaptionForge"
-Icon = "https://raw.githubusercontent.com/Damkohler/jlc-comfyui-nodes/main/assets/icons/jlc-comfyui-nodes_Logo-0512.png"
+Icon = "https://raw.githubusercontent.com/Damkohler/CaptionForge/main/assets/icons/jlc-comfyui-nodes_Logo-0512.png"
 Category = "nodes"
 Homepage = "https://github.com/Damkohler/CaptionForge"
 
 [tool.setuptools]
-include-package-data = true
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = [
-    "engines*",
-    "nodes*",
+include-package-data = false
+packages = [
+    "CaptionForge",
+    "CaptionForge.engines",
+    "CaptionForge.nodes",
+    "CaptionForge.nodes.caption_nodes",
 ]
 
+[tool.setuptools.package-dir]
+CaptionForge = "."
+"CaptionForge.engines" = "engines"
+"CaptionForge.nodes" = "nodes"
+"CaptionForge.nodes.caption_nodes" = "nodes/caption_nodes"
+
 [tool.setuptools.package-data]
-"*" = [
+CaptionForge = [
     "config/*.json",
-    "config/**/*.json",
-    "assets/**/*",
+    "assets/icons/*",
+    "assets/workflows/*",
     "web/**/*",
 ]
 

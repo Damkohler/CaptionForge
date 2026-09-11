@@ -8,11 +8,9 @@ CaptionForge Ollama Model Dropdown Helper
   - Repository:
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Helper Purpose
     - The **CaptionForge Ollama Model Dropdown Helper** centralizes loading of
@@ -57,17 +55,17 @@ CaptionForge Ollama Model Dropdown Helper
     - CaptionForge should avoid duplicated dropdown constants spread across
       multiple node wrappers.
 
-    - A single helper makes pre-release cleanup easier, keeps ComfyUI widgets
+    - A single helper keeps release configuration centralized, keeps ComfyUI widgets
       consistent, and allows users to edit one JSON file rather than patching
       several Python files.
 
     - The helper favors explicitness, reproducibility, and predictable fallback
       behavior over clever model discovery.
 
-- Development Status
-    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
-    - This helper is active shared infrastructure, but the exact JSON schema may
-      evolve before the first stable CaptionForge release.
+- Production Status
+    - Active CaptionForge 1.0 configuration support. It reads concrete Ollama
+      model tags for Pass-A captioning and the production B/C/D stages without
+      performing inference itself.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**

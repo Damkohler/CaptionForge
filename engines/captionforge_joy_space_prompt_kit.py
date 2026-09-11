@@ -8,11 +8,9 @@ CaptionForge Joy Space Prompt Kit
   - Repository:
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Module Purpose
     - The **CaptionForge Joy Space Prompt Kit** is a small, dependency-free
@@ -69,10 +67,10 @@ CaptionForge Joy Space Prompt Kit
     - Prompt metadata should make it clear which caption type, length, options,
       name input, and system prompt were used for a Joy caption run.
 
-- Development Status
-    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
-    - Joy prompt templates and option lists may evolve as the local CaptionForge
-      Joy node matures.
+- Production Status
+    - Active CaptionForge 1.0 Pass-A support code. It owns the Joy-specific
+      prompt contract while model loading and inference remain in the Joy
+      engine.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**

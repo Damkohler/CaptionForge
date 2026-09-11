@@ -8,11 +8,9 @@ CaptionForge — ComfyUI Package Entry Point
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 provides a production A/B/C/D caption pipeline for LoRA
+  dataset preparation: independent witness captions, text-LLM synthesis,
+  image-aware VLM validation, SHORT/TAGGY formatting, and JSONL audit trails.
 
 - Package Purpose
     - This file is the ComfyUI registration entry point for the CaptionForge
@@ -27,12 +25,8 @@ CaptionForge — ComfyUI Package Entry Point
             • display the nodes in the Add Node menu
             • register the package as a unified CaptionForge node collection
 
-    - The package currently registers:
-            • JLC Qwen Caption
-            • JLC Joy Caption
-            • JLC Qwen Caption (Lite)
-            • JLC Joy Caption (Lite)
-            • JLC CaptionForge Claim Extractor
+    - The package registers the Pipeline Planner, Template Options helper,
+      Joy/Qwen/Ollama Pass-A caption nodes, and the JLC CaptionForge capstone.
 
 - Package Structure
     - CaptionForge keeps ComfyUI-facing node wrappers separate from reusable
@@ -46,12 +40,8 @@ CaptionForge — ComfyUI Package Entry Point
       export, model cache behavior, and Pass B claim extraction.
 
 - Web / Icon Assets
-    - JavaScript/icon registration is intentionally disabled in this entry point
-      for now to avoid frontend branding conflicts while the package structure
-      stabilizes.
-
-    - A future version may re-enable WEB_DIRECTORY after confirming that the
-      CaptionForge frontend assets do not conflict with other JLC node packages.
+    - ``WEB_DIRECTORY`` exposes the package's current ComfyUI frontend assets.
+      Node registration remains entirely explicit through the mappings below.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
@@ -136,9 +126,7 @@ NODE_DISPLAY_NAME_MAPPINGS.update(CAPTIONFORGE_DISPLAY_NAME_MAPPINGS)
 
 WEB_DIRECTORY = "./web"
 
-CAPTIONFORGE_ICON = "⚒"
-CAPTIONFORGE_PREFIX = f"{CAPTIONFORGE_ICON}  CaptionForge"
-print(f"{CAPTIONFORGE_PREFIX} loaded ({len(NODE_CLASS_MAPPINGS)} nodes)")
+print(f"CaptionForge loaded ({len(NODE_CLASS_MAPPINGS)} nodes)")
 
 __all__ = [
     "NODE_CLASS_MAPPINGS",

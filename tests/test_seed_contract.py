@@ -1,3 +1,5 @@
+"""CPU tests for the shared Pass-A and standalone seed contracts."""
+
 from __future__ import annotations
 
 import importlib

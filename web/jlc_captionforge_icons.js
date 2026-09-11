@@ -3,11 +3,12 @@ import { app } from "/scripts/app.js";
 const ICON_SIZE = 12;
 
 const CAPTIONFORGE_NODE_NAMES = new Set([
-    "JLC_QwenCaption",
-    "JLC_JoyCaption",
-    "JLC_QwenCaptionLite",
-    "JLC_JoyCaptionLite",
-    "JLC_CaptionForgeClaimExtractor",
+    "JLC_CaptionForge_Pipeline_Planner",
+    "JLC_CaptionForgeExtraOptions",
+    "JLC_CaptionForgeJoy",
+    "JLC_CaptionForgeQwen",
+    "JLC_CaptionForgeOllamaCaption",
+    "JLC_CaptionForge",
 ]);
 
 const iconImage = new Image();

@@ -1,4 +1,9 @@
-"""Shared prompt defaults for CaptionForge planner/capstone contracts."""
+"""Frozen CaptionForge 1.0 prompt defaults shared by Planner and Capstone.
+
+These strings define the production B/C/D contract: a recall-oriented text
+draft, image-grounded LONG validation, and one text-only SHORT/TAGGY format
+call. Keeping them here prevents the two control surfaces from drifting.
+"""
 
 from __future__ import annotations
 

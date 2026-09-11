@@ -8,11 +8,9 @@ JLC CaptionForge Qwen Caption — ComfyUI Node Wrapper
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Node Purpose
     - The **JLC CaptionForge Qwen Caption** node provides a ComfyUI
@@ -133,12 +131,10 @@ JLC CaptionForge Qwen Caption — ComfyUI Node Wrapper
       clean separation between the ComfyUI interface and the backend model
       engine.
 
-- ⚠️ Development Status
-    - This is early CaptionForge raw-caption infrastructure.
-    - The UI, model registry, prompt behavior, and output audit fields may
-      evolve as the multi-pass CaptionForge pipeline matures.
-    - The node is intended for local dataset preparation and controlled caption
-      audit workflows.
+- Production Status
+    - Active CaptionForge 1.0 Pass-A witness node. In planned mode the Planner
+      owns run counts and sampling schedules; in standalone mode this node's
+      visible controls are authoritative.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**

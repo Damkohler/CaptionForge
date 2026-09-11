@@ -8,11 +8,9 @@ JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Node Purpose
     - The **JLC CaptionForge Node** is the production capstone for the current
@@ -99,10 +97,10 @@ JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
     - The node prioritizes auditable local caption refinement, explicit model
       selection, deterministic output paths, and high-value LoRA captions.
 
-- ⚠️ Development Status
-    - This is release-candidate CaptionForge capstone infrastructure.
-    - Output schema details may evolve as the release candidate is tested across
-      local Ollama/VLM installations.
+- Production Status
+    - This is the active CaptionForge 1.0 B/C/D implementation. It remains fully
+      usable standalone; when a Planner is connected, Planner-owned values take
+      precedence over matching local controls.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
@@ -124,7 +122,7 @@ MANIFEST = {
     "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
-        "Release-candidate CaptionForge capstone node. Consumes Pass A raw caption "
+        "CaptionForge 1.0 capstone node. Consumes Pass A raw caption "
         "JSONL directly or through a CAPTIONFORGE_PIPELINE_PLAN, builds a text-only "
         "fat draft with an Ollama LLM, validates it against the image with an Ollama "
         "VLM to produce the natural final caption, derives short and taggy variants "
@@ -190,7 +188,7 @@ except Exception:  # pragma: no cover - keeps direct/local smoke tests importabl
     _captionforge_unload_all = None
 
 
-CAPTIONFORGE_NODE_VERSION = "0.2.0"
+CAPTIONFORGE_NODE_VERSION = CAPTIONFORGE_VERSION
 TXT_EXPORT_FORMATS = ["natural", "taggy", "both_separate"]
 
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
@@ -1042,7 +1040,7 @@ def _parse_formatter_derivatives(text: str) -> tuple[str, str]:
     if taggy_match:
         taggy = _cleanup_taggy(taggy_match.group(1))
     elif not short_match:
-        # Custom and pre-1.0 formatter prompts may still return one unlabeled
+        # Custom and legacy formatter prompts may still return one unlabeled
         # comma list. Keep that behavior and let the deterministic short
         # generator provide the fallback.
         taggy = _cleanup_taggy(raw)
@@ -1367,9 +1365,9 @@ def _write_final_txt_sidecars(
     *,
     overwrite: bool = True,
 ) -> list[str]:
-    """Write v0.1.x final sidecars beside the resolved source image.
+    """Write CaptionForge 1.0 final sidecars beside the resolved source image.
 
-    v0.1.x intentionally keeps the rich validated caption, while also exporting
+    CaptionForge keeps the rich validated caption while also exporting
     a shorter LoRA-length caption and a compact taggy caption.
     """
     written: list[str] = []
@@ -1453,7 +1451,7 @@ def _reset_outputs(paths: dict[str, str], overwrite: bool) -> None:
 
 
 class JLC_CaptionForge:
-    """CaptionForge capstone: fat draft -> VLM long -> short/taggy formatter."""
+    """Production B/C/D capstone: draft -> VLM LONG -> SHORT/TAGGY."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1485,24 +1483,24 @@ class JLC_CaptionForge:
                 ),
                 "Output - run name": (
                     "STRING",
-                    {"default": "captionforge_run", "multiline": False, "tooltip": "Run-root used for B/C/D/E JSONL and TXT artifacts."},
+                    {"default": "captionforge_run", "multiline": False, "tooltip": "Base name used for the run working folder and B/C/D JSONL/audit files."},
                 ),
-                "Output - overwrite outputs": ("BOOLEAN", {"default": True}),
+                "Output - overwrite outputs": ("BOOLEAN", {"default": True, "tooltip": "Replace run-level files that already use this folder and run name. Final image sidecars are also replaced when enabled."}),
                 "Ollama - URL": (
                     "STRING",
                     {"default": DEFAULT_OLLAMA_URL, "multiline": False, "tooltip": "Local Ollama server URL."},
                 ),
                 "Ollama - keep loaded": (
                     "BOOLEAN",
-                    {"default": True, "tooltip": "Pass keep_alive to Ollama. Ollama ultimately owns model residency."},
+                    {"default": True, "tooltip": "Ask Ollama to keep the most recently used model in memory between calls. Ollama makes the final residency decision."},
                 ),
                 "Ollama - request timeout seconds": (
                     "INT",
                     {"default": 1800, "min": 10, "max": 7200, "step": 10, "tooltip": "HTTP patience for Ollama calls. This does not affect caption quality."},
                 ),
-                "LoRA - trigger word": ("STRING", {"default": "", "multiline": False}),
-                "LoRA - user caption anchor": ("STRING", {"default": "", "multiline": False}),
-                "Fat Draft - model": (DISTILLER_MODEL_CHOICES, {"default": DEFAULT_DISTILLER_MODEL}),
+                "LoRA - trigger word": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional LoRA trigger token or phrase preserved in final captions as training metadata."}),
+                "LoRA - user caption anchor": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional phrase you want preserved when it remains compatible with the image, such as a character or rendering-style anchor."}),
+                "Fat Draft - model": (DISTILLER_MODEL_CHOICES, {"default": DEFAULT_DISTILLER_MODEL, "tooltip": "Concrete Ollama text-model tag for Pass B. Choose custom to enter another installed tag below."}),
                 "Fat Draft - custom Ollama model": (
                     "STRING",
                     {"default": "", "multiline": False, "tooltip": "Used only when Fat Draft - model is Custom."},
@@ -1511,15 +1509,15 @@ class JLC_CaptionForge:
                     "STRING",
                     {"default": DEFAULT_FAT_DRAFT_INSTRUCTIONS, "multiline": True, "tooltip": "Instructions for the text-only fat draft LLM. Captions are appended automatically."},
                 ),
-                "Fat Draft - max caption chars": ("INT", {"default": 1536, "min": 0, "max": 12000, "step": 64}),
+                "Fat Draft - max caption chars": ("INT", {"default": 1536, "min": 0, "max": 12000, "step": 64, "tooltip": "Maximum characters kept from each source witness caption before Pass B. 0 keeps the complete caption."}),
                 "Fat Draft - max new tokens": (
                     "INT",
-                    {"default": 3096, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
+                    {"default": 3096, "min": 64, "max": 12000, "step": 64, "tooltip": "Maximum Pass-B output-token budget sent to Ollama (num_predict)."},
                 ),
-                "Fat Draft - temperature": ("FLOAT", {"default": 0.24, "min": 0.0, "max": 2.0, "step": 0.01}),
-                "Fat Draft - top p": ("FLOAT", {"default": 0.90, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "Fat Draft - top k": ("INT", {"default": 60, "min": 0, "max": 500, "step": 1}),
-                "Validator - model": (VALIDATOR_MODEL_CHOICES, {"default": DEFAULT_VALIDATOR_MODEL}),
+                "Fat Draft - temperature": ("FLOAT", {"default": 0.24, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": "Pass-B variation level. Lower values are steadier; higher values permit more varied wording."}),
+                "Fat Draft - top p": ("FLOAT", {"default": 0.90, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Pass-B nucleus-sampling limit. Lower values restrict the model to more likely tokens."}),
+                "Fat Draft - top k": ("INT", {"default": 60, "min": 0, "max": 500, "step": 1, "tooltip": "Pass-B token-choice limit. Lower values are more restrictive; 0 lets the backend disable top-k filtering."}),
+                "Validator - model": (VALIDATOR_MODEL_CHOICES, {"default": DEFAULT_VALIDATOR_MODEL, "tooltip": "Concrete Ollama vision-model tag for image-aware Pass C. Choose custom to enter another installed VLM tag below."}),
                 "Validator - custom Ollama model": (
                     "STRING",
                     {"default": "", "multiline": False, "tooltip": "Used only when Validator - model is Custom."},
@@ -1534,12 +1532,12 @@ class JLC_CaptionForge:
                 ),
                 "Validator - max new tokens": (
                     "INT",
-                    {"default": 2112, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
+                    {"default": 2112, "min": 64, "max": 12000, "step": 64, "tooltip": "Maximum Pass-C output-token budget sent to Ollama (num_predict)."},
                 ),
-                "Validator - temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01}),
-                "Validator - top p": ("FLOAT", {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "Validator - top k": ("INT", {"default": 80, "min": 0, "max": 500, "step": 1}),
-                "Formatter - model": (FORMAT_MODEL_CHOICES, {"default": DEFAULT_FORMAT_MODEL}),
+                "Validator - temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": "Pass-C variation level. Zero requests the most deterministic image-validation result."}),
+                "Validator - top p": ("FLOAT", {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Pass-C nucleus-sampling limit. Lower values restrict the validator to more likely tokens."}),
+                "Validator - top k": ("INT", {"default": 80, "min": 0, "max": 500, "step": 1, "tooltip": "Pass-C token-choice limit. Lower values are more restrictive; 0 lets the backend disable top-k filtering."}),
+                "Formatter - model": (FORMAT_MODEL_CHOICES, {"default": DEFAULT_FORMAT_MODEL, "tooltip": "Concrete Ollama text-model tag for the Pass-D SHORT/TAGGY formatter. Choose custom to enter another installed tag below."}),
                 "Formatter - custom Ollama model": (
                     "STRING",
                     {"default": "", "multiline": False, "tooltip": "Used only when Formatter - model is Custom."},
@@ -1550,16 +1548,16 @@ class JLC_CaptionForge:
                 ),
                 "Formatter - max new tokens": (
                     "INT",
-                    {"default": 3200, "min": 64, "max": 12000, "step": 64, "tooltip": "Maps to Ollama num_predict."},
+                    {"default": 3200, "min": 64, "max": 12000, "step": 64, "tooltip": "Maximum Pass-D output-token budget sent to Ollama (num_predict)."},
                 ),
-                "Formatter - temperature": ("FLOAT", {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01}),
-                "Formatter - top p": ("FLOAT", {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "Formatter - top k": ("INT", {"default": 50, "min": 0, "max": 500, "step": 1}),
-                "Audit - write prompt JSONL": ("BOOLEAN", {"default": False}),
-                "Audit - preserve raw responses": ("BOOLEAN", {"default": False}),
-                "Final - TXT export format": (TXT_EXPORT_FORMATS, {"default": "natural"}),
-                "Final - write TXT sidecars": ("BOOLEAN", {"default": True}),
-                "Final - write JSONL": ("BOOLEAN", {"default": True}),
+                "Formatter - temperature": ("FLOAT", {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": "Pass-D variation level. Lower values make SHORT/TAGGY formatting more consistent."}),
+                "Formatter - top p": ("FLOAT", {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Pass-D nucleus-sampling limit. Lower values restrict the formatter to more likely tokens."}),
+                "Formatter - top k": ("INT", {"default": 50, "min": 0, "max": 500, "step": 1, "tooltip": "Pass-D token-choice limit. Lower values are more restrictive; 0 lets the backend disable top-k filtering."}),
+                "Audit - write prompt JSONL": ("BOOLEAN", {"default": False, "tooltip": "Write full B/C/D prompts to separate JSONL audit files. This can substantially increase output size."}),
+                "Audit - preserve raw responses": ("BOOLEAN", {"default": False, "tooltip": "Keep unparsed B/C/D model responses in audit records for troubleshooting."}),
+                "Final - TXT export format": (TXT_EXPORT_FORMATS, {"default": "natural", "tooltip": "Select the primary final_caption field in JSONL: natural uses LONG, taggy uses TAGGY, and both_separate keeps LONG primary while retaining separate named fields. TXT sidecars always include LONG, SHORT, and TAGGY files."}),
+                "Final - write TXT sidecars": ("BOOLEAN", {"default": True, "tooltip": "Write LONG, SHORT, and TAGGY text variants beside each resolved source image, plus the selected plain .txt training sidecar."}),
+                "Final - write JSONL": ("BOOLEAN", {"default": True, "tooltip": "Write the final run-level JSONL containing LONG, SHORT, and TAGGY captions for every processed image."}),
             },
             "optional": {
                 "Input - single image": (

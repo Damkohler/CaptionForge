@@ -2,11 +2,17 @@
 
 **Accurate, auditable image captions for LoRA dataset preparation in ComfyUI.**
 
-CaptionForge is built around a simple idea: one captioner can be useful, but one captioner is also easy to fool. Instead of asking a single model to describe an image and hoping it gets everything right, CaptionForge can ask multiple independent captioning engines to produce separate “witness accounts” of the same image. Those accounts are then merged by a text-LLM distillation pass that looks for agreement, preserves useful details, and separates likely contradictions or unsupported claims. The resulting draft is checked against the image by a final vision-language model, which acts as the image-aware judge before the final captions are exported.
+CaptionForge is a local, model-agnostic captioning framework built around a simple idea: a single image captioner can be useful, but it should not be treated as authoritative.
 
-The goal is not magic, and it is not perfection. CaptionForge is meant for automated captioning of large image archives and LoRA training sets where hand-captioning would be too slow, but where the usual hallucinations, omissions, and inconsistencies from a single captioning model are still a problem. The pipeline is intentionally heavier than a normal caption node, so it is best used when caption quality, auditability, and consistency matter enough to justify the extra computation.
+CaptionForge can collect several independent **Pass A witness captions**, synthesize them with a text LLM, validate the result against the original image with a VLM, and then export three useful caption forms from the same validated semantic result:
 
-The current v0.1.x workflow is tuned primarily for character, fashion, portrait, doll/render, cosplay, pageant, glamour, and style-LoRA datasets, where visible details such as face, hair, eyes, expression, pose, body shape, clothing construction, accessories, colors, materials, lighting, background, framing, and visual style matter.
+- **`*_long.txt`** — authoritative image-validated natural-language caption
+- **`*_short.txt`** — AI-compressed natural-language caption intended for modern LoRA training workflows such as FLUX-family training
+- **`*_taggy.txt`** — compact comma-separated caption suited to tag-oriented SD-style training workflows
+
+CaptionForge also writes JSONL audit records so intermediate evidence, prompts, model settings, and final outputs can be inspected rather than treated as a black box.
+
+> **Current release:** **CaptionForge 1.0.0.** The A/B/C/D semantic pipeline, Planner/Capstone authority model, seed contract, and production defaults are frozen for this release.
 
 ---
 
@@ -18,420 +24,439 @@ The current v0.1.x workflow is tuned primarily for character, fashion, portrait,
 
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom%20Nodes-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
-![Status](https://img.shields.io/badge/status-v0.1.x%20preview-orange)
-![Version](https://img.shields.io/badge/version-0.1.0-orange)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 
-## Starter workflow
+---
 
-A full workflow sample is included as a PNG with embedded ComfyUI workflow metadata:
+## Why CaptionForge exists
 
-```text
-assets/workflows/CaptionForge_FullWorkflow.png
-```
+Different captioning models often notice different parts of the same image.
 
-<p align="center">
-  <a href="assets/workflows/CaptionForge_FullWorkflow.png">Download workflow PNG</a>
-</p>
+One may describe the face well but miss garment construction. Another may notice materials or accessories but misread the pose. A third may catch scene or style details that the others omit. CaptionForge treats these captions as **witness statements**, not final truth.
 
-<p align="center">
-  <img src="assets/workflows/CaptionForge_FullWorkflow.png" alt="CaptionForge full starter workflow" width="900">
-</p>
-
-A separate JSON export of the same workflow is also included:
+The production pipeline separates those roles deliberately:
 
 ```text
-assets/workflows/CaptionForge_FullWorkflow.json
+Pass A — Witnesses
+    independent visual observations
+
+Pass B — Distiller
+    synthesize witness evidence into a rich draft
+
+Pass C — Validator
+    inspect the actual source image and correct the draft
+
+Pass D — Formatter
+    derive SHORT and TAGGY forms from the validated LONG caption
 ```
 
-<p align="center">
-  <a href="assets/workflows/CaptionForge_FullWorkflow.json">Download workflow JSON</a>
-</p>
+The image-aware Pass C result is the semantic authority. Pass D does not reinterpret the image; it reformats already validated information.
 
-In ComfyUI, load the workflow by dragging either `CaptionForge_FullWorkflow.png` or `CaptionForge_FullWorkflow.json` onto the canvas.
+CaptionForge is intentionally heavier than a single caption node. It is most useful when caption quality, consistency, and auditability justify the extra compute.
 
-## Install
+---
 
-Clone CaptionForge into your ComfyUI custom nodes folder:
+# Production pipeline
 
-```bash
-git clone https://github.com/Damkohler/CaptionForge.git ComfyUI/custom_nodes/CaptionForge
-```
+## Pass A — independent caption witnesses
 
-Or copy the repository manually so the folder layout is:
+CaptionForge currently supports three production witness families:
+
+- **Joy Caption** — Python / Hugging Face
+- **Qwen Caption** — Python / Hugging Face
+- **Ollama VLM Caption** — local Ollama-backed witness
+
+Current production Planner defaults:
 
 ```text
-ComfyUI/custom_nodes/CaptionForge/
+Joy runs/image:     2
+Qwen runs/image:    1
+Ollama runs/image:  1
 ```
 
-Then restart ComfyUI.
+These defaults came from fixed-corpus testing. A second Joy sample frequently added useful evidence, while repeated Qwen runs showed much stronger diminishing returns and more formatting/contradiction noise. A third run of either family was not cost-effective in the study corpus.
 
-If your ComfyUI environment does not already include the needed Python packages, install CaptionForge dependencies from inside your ComfyUI Python environment. The exact command depends on how your ComfyUI install is managed, but typical options are:
+Pass A captions are **evidence**, not final captions.
 
-```bash
-cd ComfyUI/custom_nodes/CaptionForge
-pip install -e .
-```
+### Pass A seed behavior
 
-or, if you maintain dependencies manually:
+In planned mode, the Pipeline Planner owns the Pass A seed schedule:
 
-```bash
-pip install torch transformers accelerate huggingface-hub pillow numpy safetensors qwen-vl-utils
-```
+- one base seed + one seed mode define the N-run sequence
+- the same N-seed schedule is reused for every image
+- image ordinal does not modify the sequence
+- fixed / increment / decrement schedules are deterministic
+- random mode is deterministic and hash-derived
+- `-1` means intentionally unseeded
 
-Optional 8-bit loading may require:
+Standalone Joy, Qwen, and Ollama caption nodes accept an optional seed input. If no seed is connected, generation is intentionally unseeded.
 
-```bash
-pip install bitsandbytes
-```
+---
 
-Ollama-backed stages require a working local Ollama installation and installed Ollama model tags.
+## Pass B — text-LLM distillation
 
-Example:
+Pass B receives the raw witness captions for one image and builds a rich draft.
 
-```bash
-ollama pull mistral-small:24b
-ollama pull gemma4:26b
-```
-
-CaptionForge does **not** ship model weights. Joy, Qwen, and Ollama model downloads remain user-controlled.
-
-## What the workflow does
-
-CaptionForge's main pipeline is:
+Production default model:
 
 ```text
-Pass A — raw witness captions
-  Joy Caption xN
-  Qwen Caption xN
-  optional Ollama VLM Caption xN
-
-Pass B — text-LLM distillation
-  combine witness captions
-  preserve repeated and useful details
-  separate contradictions and weak claims
-  build a rich draft caption
-
-Pass C — image-aware VLM validation
-  inspect the actual image
-  keep image-supported details
-  remove unsupported hallucinations
-  correct visible errors
-  produce the authoritative long caption
-
-Pass D — text-only derivative formatting
-  write the validated long caption
-  derive a balanced LoRA-length short caption
-  derive a compact taggy caption in the same formatter call
-  compact and bound both derivatives deterministically
-  write TXT and JSONL audit records
+mistral-small:24b
 ```
 
-The important distinction is that the expensive semantic work ends at the VLM-validated long caption. The text-only formatter derives both shorter outputs from that validated caption in one call and is explicitly forbidden to add, infer, or correct visual claims. Deterministic cleanup bounds the results, and a conservative extractive short remains available as a fallback for legacy/custom taggy-only formatter prompts.
+The distiller is text-only. It is expected to:
 
-## Current status
+- reconcile multiple witness descriptions
+- preserve useful repeated details
+- retain plausible singleton details for later visual checking
+- avoid treating one witness as automatically authoritative
+- produce a rich draft for the image-aware Validator
 
-CaptionForge v0.1.0 is a working experimental preview for ComfyUI users and node developers who want to test a multi-pass captioning pipeline.
+The production implementation is in the main CaptionForge node path; older standalone distiller prototypes are retained only as reference/experimental code.
 
-It is not presented as a universal replacement for a strong standalone captioner. If JoyCaption, Qwen, Florence, BLIP, WD14, or another captioning tool already gives you exactly what your dataset needs, you may not need CaptionForge. This project is aimed at cases where a single captioner is not accurate, complete, consistent, or auditable enough.
+---
 
-Expected v0.1.x realities:
+## Pass C — image-aware VLM validation
 
-- the workflow is computationally heavy
-- large models may be slow
-- model choices matter a lot
-- output schemas may still evolve
-- prompts and defaults may continue to be refined
-- not every dataset will benefit equally
-- comparison feedback is welcome
+Pass C is the semantic authority of the pipeline.
 
-This is a heavy tool. Use it when the extra caption quality and audit trail of large automated jobs are worth the runtime cost.
-
-## Why use this instead of a standalone captioner?
-
-You may want CaptionForge when:
-
-- one captioner notices the face but misses clothing details
-- another captioner notices clothing but misreads the pose
-- a third captioner catches style or material details the others miss
-- you want an LLM to consolidate agreement instead of merely accepting one model's wording
-- you want a final VLM to check the draft against the actual image
-- you want intermediate JSONL records for debugging and audit
-- you want final captions written as sidecars beside the source images
-- you need both long natural captions and compact LoRA-style derivatives
-
-The project question is practical:
-
-> Can independent caption witnesses plus text distillation plus image-aware validation produce better dataset captions than a single captioning model alone?
-
-For some datasets, the answer may be yes. For others, a simpler captioner may be enough. CaptionForge is designed to make that comparison visible.
-
-## What CaptionForge tries to optimize
-
-CaptionForge currently favors captions that are:
-
-- rich enough for LoRA training
-- visually grounded
-- less hallucinated than unvalidated text-only synthesis
-- explicit about visible, trainable details
-- auditable through JSONL records
-- locally runnable
-- model-agnostic enough to improve as better captioners, distillers, and validators become available
-
-Useful caption details often include:
-
-- subject type and visible style
-- face shape and facial traits
-- hair color and hairstyle
-- eye color and makeup as separate details
-- expression and pose
-- hands and body position
-- body shape and visible proportions when relevant
-- clothing construction, layers, fit, and materials
-- accessories, jewelry, nails, props, and distinctive details
-- colors, textures, lighting, background, framing, and crop
-
-Visible glamour, swimwear, lingerie, revealing clothing, cleavage, side openings, exposed midriff, or similar styling may be described neutrally when it is actually visible and relevant to the dataset. CaptionForge prompts should not invent hidden anatomy, unseen clothing, explicit acts, or contradicted details.
-
-## Active node families
-
-Node categories are being normalized under:
-
-```text
-Captioning/CaptionForge
-```
-
-with active caption nodes under:
-
-```text
-Captioning/CaptionForge/Caption Nodes
-```
-
-### JLC CaptionForge Pipeline Planner
-
-The central planning node for normal runs.
-
-It coordinates:
-
-- input image path or direct image passthrough
-- recursive folder traversal
-- filename glob filtering
-- output directory
-- run name
-- overwrite behavior
-- Pass A witness run counts
-- seed schedules
-- sampling schedules
-- max image size
-- max token budget
-- LoRA trigger word
-- user caption anchor
-- distiller settings
-- validator settings
-- final export settings
-- derived JSONL/TXT/config paths
-
-### JLC CaptionForge
-
-The main capstone/orchestration node.
-
-It consumes Pass A raw caption records, runs the distillation and validation stages, and exports final captions. The VLM-validated natural paragraph is the authoritative long caption. Formatting stages should not blindly rewrite that natural caption.
-
-### JLC CaptionForge Joy Caption
-
-Python/Hugging Face JoyCaption/LLaVA-family Pass A witness.
-
-Joy is treated as a first-class CaptionForge caption source and is often one of the strongest raw caption witnesses.
-
-### JLC CaptionForge Qwen Caption
-
-Python/Hugging Face Qwen-family Pass A witness.
-
-Qwen is useful as a second independent captioning voice, especially when its behavior complements Joy. Optional 8-bit loading may be available where supported.
-
-### JLC CaptionForge Ollama Caption
-
-Ollama-backed VLM Pass A witness.
-
-This node delegates image-caption generation to a local Ollama server rather than loading Hugging Face/PyTorch weights inside ComfyUI. It can use configured Ollama VLM tags such as:
+Production default model:
 
 ```text
 gemma4:26b
-qwen3.6:35B-A3B
-huihui_ai/gemma-4-abliterated:26b
 ```
 
-Its purpose is to provide access to other raw-caption witness alternatives. It's function is parallel to the Joy Caption and Qwen Caption nodes, and should not be confused with the later VLM validator/capstone role.
+The Validator receives the Pass B draft **and the source image**. It is expected to:
 
-### JLC CaptionForge Template Options
+- inspect the actual image
+- retain supported details
+- remove unsupported claims
+- correct visible errors
+- preserve useful LoRA-training information
+- produce the authoritative natural-language final caption
 
-Shared prompt-option sidecar for caption nodes.
+That result becomes **`*_long.txt`**.
 
-Template Options let one sidecar node feed consistent LoRA-relevant prompt modifiers into Joy, Qwen, Ollama, and later caption witnesses without duplicating the same option widgets on every caption node.
+---
 
-## Model and memory behavior
+## Pass D — SHORT + TAGGY formatting
 
-CaptionForge uses two model ecosystems:
-
-1. **Python / Hugging Face model folders** for Joy and Qwen witness engines.
-2. **Ollama models** for text-LLM distillation, image-aware VLM validation, optional formatting, and Ollama-backed caption witnesses.
-
-Joy and Qwen use Python/Hugging Face engines that integrate with the CaptionForge process-local model cache. Those engines manage Python model residency, reuse, and eviction before loading heavyweight caption models.
-
-Ollama-facing stages are different. Ollama models live in the Ollama daemon, not inside the CaptionForge Python model cache. Before handing work to Ollama, the Ollama Caption node and the CaptionForge capstone clear any resident CaptionForge Python/HF caption models if needed. After that handoff, Ollama owns Ollama model residency.
-
-In short:
+Production default model:
 
 ```text
-Joy/Qwen engines:
-  manage Python-hosted caption models through captionforge_model_cache
-
-Ollama Caption and CaptionForge capstone:
-  clear Python-hosted models before calling the Ollama daemon
-
-Ollama daemon:
-  owns Ollama model loading and residency
+mistral-small:24b
 ```
 
-## Model locations
+Pass D receives the already validated Pass C paragraph and produces both:
 
-Large model weights are intentionally not stored in this repository.
+```text
+SHORT: <concise natural-language caption, at most 90 words>
+TAGGY: <compact comma-separated caption>
+```
 
-Python-based witness models are expected under ComfyUI model folders, for example:
+### SHORT
+
+`*_short.txt` is **AI semantic compression**, not deterministic truncation.
+
+The formatter is instructed to preserve useful information across the whole validated caption, including where present:
+
+- subject and defining identity traits
+- face / hair / body traits
+- major clothing pieces and materials
+- pose and action
+- accessories and unusual details
+- setting
+- lighting
+- framing
+- visual medium / style
+
+The default prompt explicitly tells the model to **compress wording, not category coverage** and not merely copy the beginning of the source caption.
+
+For FLUX-family LoRA training, `_short` is the recommended default CaptionForge export.
+
+### TAGGY
+
+`*_taggy.txt` is also generated by Pass D, then deterministically normalized/compacted.
+
+It is intended for tag-oriented training workflows such as traditional SD-family captioning pipelines.
+
+Fixed-corpus testing found the current taggy path compact and semantically faithful enough that no redesign was justified before 1.0.
+
+---
+
+# Planner and Capstone ownership
+
+CaptionForge has two complementary control surfaces.
+
+## Pipeline Planner
+
+The **Pipeline Planner** is the authoritative project-level controller in a full workflow.
+
+It owns:
+
+- input/folder routing
+- output routing
+- run name and overwrite behavior
+- Pass A witness counts and seed schedule
+- Pass B Distiller controls
+- Pass C Validator controls
+- Pass D Formatter controls
+- shared Ollama connection / keep-alive / timeout behavior
+- audit/preservation policy
+- final output policy
+
+## CaptionForge / Capstone
+
+The **CaptionForge** node is fully capable of standalone B/C/D operation.
+
+A useful mental model is:
+
+```text
+Capstone = principal engineer
+Planner  = project leader
+```
+
+The Capstone keeps complete local controls so it can be used independently.
+
+When a Planner is connected:
+
+```text
+Planner values override corresponding Capstone values.
+```
+
+For every shared Pass B/C/D semantic control, current production defaults are aligned between Planner and Capstone.
+
+---
+
+# Current production defaults
+
+## Shared Ollama
+
+```text
+URL:          http://127.0.0.1:11434
+keep loaded:  true
+timeout:      1800 s
+```
+
+## Pass B — Distiller
+
+```text
+model:                  mistral-small:24b
+custom model:           blank
+source caption cap:     1536 characters
+num_predict:            3096
+temperature:            0.24
+top_p:                  0.90
+top_k:                  60
+default seed:           unseeded
+prompt audit:           false
+raw response preserve:  false
+```
+
+## Pass C — Validator
+
+```text
+model:                  gemma4:26b
+custom model:           blank
+num_predict:            2112
+temperature:            0.00
+top_p:                  0.92
+top_k:                  80
+default seed:           unseeded
+prompt audit:           false
+raw response preserve:  false
+```
+
+## Pass D — Formatter
+
+```text
+model:                  mistral-small:24b
+custom model:           blank
+num_predict:            3200
+temperature:            0.12
+top_p:                  0.88
+top_k:                  50
+default seed:           unseeded
+prompt audit:           false
+raw response preserve:  false
+```
+
+These values are based primarily on the configuration that produced the successful six-image extended smoke test used during final 1.0 release polish.
+
+---
+
+# Outputs
+
+A normal planned run can produce:
+
+```text
+<image>_long.txt
+<image>_short.txt
+<image>_taggy.txt
+```
+
+as well as run-level audit files.
+
+The final export JSONL carries all three caption forms together per image.
+
+Typical audit/output artifacts include:
+
+```text
+<run_name>__A_RAW_CAPTIONS.jsonl
+<run_name>__B_DISTILL.jsonl
+<run_name>__C_VLM_VALIDATED.jsonl
+<run_name>__D_FORMAT_TAGGY.jsonl
+<run_name>__D_FINAL_EXPORT.jsonl
+<run_name>__output_paths.json
+```
+
+The Planner also returns the complete run configuration as JSON through its `pipeline_plan_json` output. Model-specific standalone Pass-A nodes can write timestamped run-config JSON files during planned folder runs. Optional prompt and raw-response audit artifacts are written when the corresponding controls are enabled.
+
+---
+
+# Which final caption should I train with?
+
+| Output | Recommended use |
+|---|---|
+| `_long.txt` | audit, inspection, maximum descriptive fidelity |
+| `_short.txt` | **default for FLUX-family / natural-language LoRA training** |
+| `_taggy.txt` | **tag-oriented SD-family LoRA training** |
+
+The choice still depends on trainer, base model, dataset, trigger strategy, and training objective. CaptionForge deliberately exports all three so you do not have to destroy information to change training style later.
+
+---
+
+# Canonical workflow
+
+Canonical workflow assets:
+
+```text
+assets/workflows/CaptionForge_FullWorkflow.json
+assets/workflows/CaptionForge_FullWorkflow_API.json
+assets/workflows/CaptionForge_FullWorkflow.png
+```
+
+The PNG contains embedded ComfyUI workflow metadata and can be dragged directly into ComfyUI.
+
+The JSON, API JSON, and embedded PNG workflow are maintained as synchronized artifacts.
+
+---
+
+# Main node families
+
+In ComfyUI, Planner/Capstone/support nodes appear under `Caption/CaptionForge`; witness nodes appear under `Caption/CaptionForge/Caption Nodes`.
+
+### `JLC CaptionForge Pipeline Planner`
+
+Central control surface for a planned CaptionForge run.
+
+### `JLC CaptionForge Node`
+
+Capstone/orchestration node implementing production Pass B, C, and D behavior.
+
+### `JLC CaptionForge Template Options`
+
+Shared Pass A prompt-option sidecar used to request consistent LoRA-relevant visual detail without forcing every witness backend to use the same internal prompt implementation.
+
+### `JLC CaptionForge Joy Caption`
+
+JoyCaption/LLaVA-family Pass A witness.
+
+### `JLC CaptionForge Qwen Caption`
+
+Qwen-family Pass A witness.
+
+### `JLC CaptionForge Ollama Caption`
+
+Ollama-backed Pass A VLM witness.
+
+Experimental engines/nodes may exist in explicitly marked experimental paths, but they do not define the production pipeline.
+
+---
+
+# Model ecosystems
+
+CaptionForge uses two local model ecosystems.
+
+## Python / Hugging Face
+
+Joy and Qwen witness models are loaded inside the ComfyUI Python process.
+
+Typical local model roots include:
 
 ```text
 ComfyUI/models/LLM/JLC_JoyCaption/
 ComfyUI/models/LLM/JLC_QwenCaption/
 ```
 
-Ollama models must be installed and runnable through Ollama outside this repository.
+CaptionForge includes conservative model-cache / eviction behavior to reduce accidental heavyweight Python-model co-residency on limited-VRAM systems.
 
-CaptionForge does not require every supported backend to be installed for every workflow. Users can test smaller subsets first.
+## Ollama
 
-## Ollama model dropdown configuration
+Pass B, Pass C, Pass D, and optional Ollama witnesses communicate with a local Ollama server.
 
-The file:
+Default URL:
+
+```text
+http://127.0.0.1:11434
+```
+
+Before an Ollama handoff, CaptionForge can evict resident Python/Hugging Face witness models so the two model ecosystems do not unnecessarily compete for VRAM.
+
+---
+
+# Ollama model configuration
+
+User-editable dropdowns are configured through:
 
 ```text
 config/captionforge_ollama_models.json
 ```
 
-defines user-editable Ollama model tags for dropdowns used by distiller, validator, formatter, and Ollama caption-witness nodes.
-
-Example:
-
-```json
-{
-  "distiller_models": [
-    "mistral-small:24b",
-    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
-    "deepseek-r1:32b",
-    "tarruda/neuraldaredevil-8b-abliterated:fp16",
-    "gpt-oss:20b"
-  ],
-  "validator_models": [
-    "gemma4:26b",
-    "qwen3.6:35B-A3B",
-    "huihui_ai/gemma-4-abliterated:26b"
-  ],
-  "format_models": [
-    "mistral-small:24b",
-    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
-    "gpt-oss:20b",
-    "deepseek-r1:32b"
-  ],
-  "caption_models": [
-    "gemma4:26b",
-    "qwen3.6:35B-A3B",
-    "huihui_ai/gemma-4-abliterated:26b"
-  ],
-  "defaults": {
-    "distiller_model": "mistral-small:24b",
-    "validator_model": "gemma4:26b",
-    "format_model": "mistral-small:24b",
-    "caption_model": "gemma4:26b"
-  },
-  "include_custom": true
-}
-```
-
-Terminology:
+Roles:
 
 ```text
-distiller_model   text-only LLM for Pass B distillation
-validator_model   image-aware VLM for Pass C validation
-format_model      text-only LLM for formatting/taggy conversion when used
-caption_model     Ollama-backed Pass A image-caption witness model
+distiller_model   -> Pass B text LLM
+validator_model   -> Pass C image-aware VLM
+format_model      -> Pass D text LLM
+caption_model     -> optional Pass A Ollama VLM witness
 ```
 
-Values should be concrete Ollama model tags used exactly as written.
+Values are concrete Ollama model tags and must exist in the user's local Ollama installation.
 
-## Output layout
+CaptionForge does not ship model weights.
 
-CaptionForge writes auditable run artifacts and final sidecars during planned runs.
+---
 
-A typical planned run uses this structure:
+# Installation
 
-```text
-<output_root>/
-  opt_images/
-    comfy_image_0000.png
-    comfy_image_0000_long.txt
-    comfy_image_0000_short.txt
-    comfy_image_0000_taggy.txt
-    comfy_image_0001.png
-    comfy_image_0001_long.txt
-    comfy_image_0001_short.txt
-    comfy_image_0001_taggy.txt
+Clone CaptionForge into the ComfyUI custom-nodes directory:
 
-  <run_name>__working/
-    <run_name>__A_RAW_CAPTIONS.jsonl
-    <run_name>__B_DISTILL.jsonl
-    <run_name>__B_DISTILL_readable.jsonl
-    <run_name>__B_DISTILL_readable.json
-    <run_name>__B_DISTILL_prompts.jsonl
-    <run_name>__C_VLM_VALIDATED.jsonl
-    <run_name>__C_VLM_VALIDATED_readable/
-    <run_name>__C_VLM_VALIDATOR_prompts.jsonl
-    <run_name>__D_FINAL_EXPORT.jsonl
-    <run_name>__output_paths.json
-    <run_name>__run_config.json
+```bash
+cd ComfyUI/custom_nodes
+git clone https://github.com/Damkohler/CaptionForge.git
 ```
 
-Folder-input images keep their source locations, and final TXT sidecars are written beside those original images.
+Install the project into the same Python environment that runs ComfyUI, then restart ComfyUI:
 
-Optional direct `IMAGE` inputs are copied into a visible output-root folder:
-
-```text
-<output_root>/opt_images/
+```bash
+cd CaptionForge
+python -m pip install -e .
 ```
 
-Final caption sidecars are written beside the resolved source image. For folder-input images, that means beside the original image. For optional direct images, that means beside the saved optional image inside `opt_images/`.
+For a portable ComfyUI build, replace `python` with that installation's embedded Python executable. The optional `bitsandbytes` dependency is only needed for compatible quantized Hugging Face configurations:
 
-Final sidecars currently include:
-
-```text
-<image_stem>_long.txt
-<image_stem>_short.txt
-<image_stem>_taggy.txt
+```bash
+python -m pip install -e ".[quantization]"
 ```
 
-Meaning:
+Ollama-backed stages require a working local Ollama installation and configured model tags, for example:
 
-```text
-_long.txt    the authoritative VLM-validated natural caption
-_short.txt   a balanced LoRA-length natural caption derived from the validated long caption
-_taggy.txt   a compact comma-separated caption derived in the same text-only formatter call
+```bash
+ollama pull mistral-small:24b
+ollama pull gemma4:26b
 ```
 
-Long captions are intentional in v0.1.x. The current release-candidate strategy favors preserving visible, trainable detail in the validated long caption, then deriving shorter and taggy outputs from that result.
-
-Exact JSONL schemas may evolve during the preview phase.
-
-## Dependencies
-
-Python dependencies are declared in `pyproject.toml` where applicable.
-
-Typical local use may involve:
+Python/Hugging Face witnesses may also require packages such as:
 
 ```text
 torch
@@ -442,91 +467,143 @@ pillow
 numpy
 safetensors
 qwen-vl-utils
+bitsandbytes   # optional / configuration-dependent
 ```
 
-Optional quantization support may involve:
+The editable project install supplies the required Python packages. When model download is enabled, missing Hugging Face weights are downloaded on first use and cached locally; CaptionForge itself does not bundle weights.
+
+## First run
+
+1. Start Ollama and confirm the selected model tags are installed.
+2. Restart ComfyUI after installing CaptionForge.
+3. Drag `assets/workflows/CaptionForge_FullWorkflow.png` onto the ComfyUI canvas, or load the canonical JSON workflow.
+4. In the Pipeline Planner, choose the image file/folder, output folder, and run name. Keep the validated defaults for a first run.
+5. Queue the workflow. Use `_short.txt` for most FLUX-family/natural-language LoRA training, `_taggy.txt` for tag-oriented SD-style training, and `_long.txt` for maximum detail or review.
+
+---
+
+# Hardware notes
+
+CaptionForge is designed for local inference, but the production workflow uses substantial models.
+
+The main development and release-validation environment has included:
 
 ```text
-bitsandbytes
+NVIDIA RTX 4090 Laptop GPU
+16 GB VRAM
 ```
 
-Ollama-backed stages require a working local Ollama installation and installed Ollama model tags.
+This is a reference environment, not a stated minimum.
 
-## Hardware notes
+Runtime and memory behavior depend on selected models, quantization, image dimensions, token budgets, Ollama model size, GPU VRAM, system RAM, and local software versions.
 
-CaptionForge is designed for local workflows, but strong results may require large local models.
+---
 
-Practical performance depends on:
+# Auditability
 
-- GPU VRAM
-- system RAM
-- model size
-- quantization mode
-- Ollama version
-- context length
-- image size
-- number of Pass A witness runs
-- whether models are kept loaded or unloaded between runs
+Depending on enabled controls, a run can preserve:
 
-The author's active development environment includes an RTX 4090 Laptop GPU with 16 GB VRAM. Larger models may be slow, may require careful quantization, or may need more capable hardware.
+- raw Pass A captions
+- model family
+- run index
+- seed
+- generation parameters
+- prompts
+- raw LLM/VLM responses
+- Pass B drafts
+- Pass C validated captions
+- Pass D SHORT / TAGGY output
+- final LONG / SHORT / TAGGY exports
+- run configuration
+- output path manifest
 
-## Experimental branches
+Audit controls are optional because retaining every prompt and raw response can create substantial output volume.
 
-Some experimental or unsupported code may exist in the repository for future A/B testing or research.
+---
 
-Experimental branches should be:
+# Design principles
 
-- clearly labeled
-- kept out of the normal ComfyUI registration path
-- not imported by `__init__.py`
-- not shown as mainline nodes unless deliberately enabled
-- treated as unsupported starting points rather than stable user features
+CaptionForge 1.0 is guided by a few practical principles:
 
-The active public workflow should be the main Planner → Pass A witnesses → Distiller → VLM Validator → Export path.
+- **multiple witnesses are evidence, not authority**
+- **the image-aware Validator is the final semantic authority**
+- **SHORT and TAGGY derive only from validated content**
+- **Planner controls the full workflow; Capstone remains fully capable standalone**
+- **seed behavior should be explicit and reproducible**
+- **auditability matters**
+- **local execution matters**
+- **successful caption semantics take priority over architectural elegance**
 
-## Development principles
+CaptionForge is not intended to solve every possible captioning domain through a universal ontology. Its prompts are currently tuned most strongly toward character, portrait, fashion, render/doll, cosplay, glamour, and style-oriented LoRA datasets, but the pipeline is model- and prompt-configurable.
 
-CaptionForge currently prioritizes:
+Visible details may be described neutrally when relevant to the image. The pipeline should not invent unseen anatomy, hidden clothing, backstory, explicit acts, or details contradicted by the source image.
 
-- local execution
-- auditable intermediate records
-- JSONL sidecars
-- reusable engines separated from ComfyUI node wrappers
-- planner-driven workflows
-- model cache and VRAM hygiene
-- strong defaults for LoRA captioning
-- explicit prompt roles
-- model-agnostic backends
-- visible, trainable detail over generic caption prose
-- practical feedback from real datasets
+---
 
-## Feedback wanted
+# Validation status for 1.0.0
 
-Useful feedback includes:
+CaptionForge 1.0.0 release validation included:
 
-- comparisons against standalone JoyCaption, Qwen, or other captioners
-- examples where CaptionForge improves caption quality
-- examples where CaptionForge makes captions worse
-- hallucination reports
-- missed-detail reports
-- model recommendations
-- prompt improvements
-- broken node reports
-- workflow usability feedback
-- VRAM/performance observations
-- JSONL/audit trail suggestions
+- fixed-corpus LONG / SHORT / TAGGY quality analysis
+- replacement of deterministic SHORT truncation with AI semantic compression
+- witness-diversity testing on a fixed 19-image corpus
+- production Pass-A defaults selected as `2 Joy / 1 Qwen / 1 Ollama`
+- downstream Planner ↔ Capstone ownership reconciliation
+- B/C/D production-default parity
+- seed-contract hardening
+- canonical JSON / API JSON / PNG synchronization
+- workflow widget-order regression coverage
+- CPU contract tests
+- Python compilation checks
+- Ruff correctness checks on changed production files
+- real ComfyUI smoke testing
+- independent loading of canonical JSON and PNG workflows in separate ComfyUI instances
 
-Please include enough context to reproduce the issue or evaluate the result: selected nodes, model tags, relevant settings, whether the run used direct IMAGE input or a folder path, and a small sample of generated captions when possible.
+The semantic caption pipeline is considered frozen for the 1.0 release unless further testing reveals a concrete defect.
 
-## Attribution & License
+The fixed-corpus downstream formatting study is preserved in [`docs/quality-study-2026-09.md`](docs/quality-study-2026-09.md).
+
+---
+
+# Development / experimental code
+
+Experimental or historical implementations may remain under explicitly marked local paths such as:
+
+```text
+nodes/experimental/
+engines/experimental/
+.backups/
+```
+
+These paths are not registered or shipped as production packages. Older standalone Distiller/Validator implementations at the root of `engines/` are reference/CLI code and are not the authoritative production B/C/D implementation.
+
+The authoritative downstream production path is coordinated by:
+
+```text
+nodes/jlc_captionforge_node.py
+```
+
+---
+
+# Attribution
 
 Concept and implementation by **J. L. Córdova**, with development assistance from **ChatGPT (OpenAI)**.
 
-CaptionForge's Joy/template-option workflow is locally adapted and was inspired in part by the practical template interface pattern used by the public JoyCaption Beta One Hugging Face Space:
+Designed for use with:
 
 ```text
-https://huggingface.co/spaces/fffiloni/JoyCaption-Beta-One
+https://github.com/comfyanonymous/ComfyUI
 ```
+
+Repository:
+
+```text
+https://github.com/Damkohler/CaptionForge
+```
+
+---
+
+# License
 
 Copyright (c) 2026 J. L. Córdova
 

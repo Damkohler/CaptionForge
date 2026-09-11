@@ -8,11 +8,9 @@ JLC CaptionForge Template Options — ComfyUI Node Wrapper
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Node Purpose
     - The **JLC CaptionForge Template Options** node provides a shared
@@ -85,12 +83,10 @@ JLC CaptionForge Template Options — ComfyUI Node Wrapper
       Joy, Qwen, Ollama VLMs, or future caption models without duplicating
       every checkbox in every caption node.
 
-- ⚠️ Development Status
-    - This is active CaptionForge raw-caption infrastructure.
-    - The UI, option taxonomy, payload schema, and future configuration-file
-      support may evolve as CaptionForge matures.
-    - The node is intended for local dataset preparation and controlled caption
-      audit workflows.
+- Production Status
+    - Active CaptionForge 1.0 Pass-A support node. It supplies shared prompt
+      modifiers only; each witness backend retains its own prompt dialect and
+      model behavior.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**

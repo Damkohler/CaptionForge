@@ -1,3 +1,5 @@
+"""CPU contract tests for production defaults and frozen workflow artifacts."""
+
 from __future__ import annotations
 
 import importlib
@@ -542,7 +544,15 @@ class WorkflowAssetContractTests(unittest.TestCase):
         for name, artifact in (("ui", ui), ("api", api), ("png", png)):
             serialized = json.dumps(artifact).lower()
             with self.subTest(artifact=name):
-                for forbidden in ("c:\\\\users\\\\josel", ".tests\\\\", "release_1.0.1_test01", "smoke_test"):
+                # Both the former and current local test-corpus names are forbidden
+                # from public workflow assets; the old name remains a regression guard.
+                for forbidden in (
+                    "c:\\\\users\\\\josel",
+                    ".tests\\\\",
+                    "release_1.0.1_test01",
+                    "release_1.0.0_tests",
+                    "smoke_test",
+                ):
                     self.assertNotIn(forbidden, serialized)
 
 

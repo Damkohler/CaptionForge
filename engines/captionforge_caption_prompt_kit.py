@@ -8,19 +8,16 @@ CaptionForge Caption Prompt Kit
   - Repository:
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Module Purpose
-    - The **CaptionForge Caption Prompt Kit** is a shared, dependency-free
-      prompt builder for non-Joy CaptionForge caption witnesses.
+    - The **CaptionForge Caption Prompt Kit** is the shared, dependency-free
+      prompt builder for active Qwen and Ollama caption witnesses.
 
-    - It provides a common caption-prompt vocabulary for Qwen, SmolVLM, and
-      future lightweight or generic caption engines while still allowing
-      model-dialect-specific wording.
+    - It retains generic and model-dialect-specific wording helpers so active
+      witnesses can share controls without sharing identical prompts.
 
     - It defines:
             • caption length choices
@@ -65,10 +62,10 @@ CaptionForge Caption Prompt Kit
       JSONL audit trails so users can understand what each caption witness was
       asked to do.
 
-- Development Status
-    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
-    - Caption types, extra options, and dialect wording may evolve as additional
-      caption engines are tested.
+- Production Status
+    - Active CaptionForge 1.0 Pass-A support code used by Qwen and Ollama
+      witnesses. ``PROMPT_KIT_VERSION`` below identifies its internal prompt
+      contract and is intentionally separate from the package release version.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
@@ -94,7 +91,7 @@ MANIFEST = {
         "Shared dependency-free prompt builder for non-Joy CaptionForge caption "
         "witnesses. Provides caption length choices, caption type choices, "
         "extra-option text, dialect normalization, prompt construction helpers, "
-        "and prompt metadata for Qwen, SmolVLM, Ollama, and future generic "
+        "and prompt metadata for Qwen, Ollama, and future generic "
         "caption engines."
     ),
 }

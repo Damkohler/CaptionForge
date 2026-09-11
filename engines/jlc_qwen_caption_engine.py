@@ -9,12 +9,9 @@ JLC Qwen Caption Engine
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-  - CaptionForge focuses on practical dataset-captioning infrastructure for:
-        • LoRA dataset preparation
-        • multi-engine caption generation
-        • JSONL audit trails
-        • claim extraction and refinement
-        • consensus-oriented caption improvement
+  - CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+    image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+    produce grounded LoRA dataset captions.
 
 - Module Purpose
     - The **JLC Qwen Caption Engine** provides the shared importable backend for
@@ -112,12 +109,10 @@ JLC Qwen Caption Engine
     - The engine therefore prioritizes reproducibility, auditability, and clean
       separation between model-specific inference code and ComfyUI node wrappers.
 
-- ⚠️ Development Status
-    - This is early CaptionForge Pass A engine infrastructure.
-    - Registry entries should be expanded only after model-class, processor, and
-      memory behavior are tested.
-    - Quantization, prompt presets, compatibility patches, and audit fields may
-      evolve as the multi-pass CaptionForge pipeline matures.
+- Production Status
+    - Active CaptionForge 1.0 Qwen witness backend. Registry expansion remains
+      conservative because processor/model compatibility, quantization, and
+      VRAM behavior are model-specific.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**

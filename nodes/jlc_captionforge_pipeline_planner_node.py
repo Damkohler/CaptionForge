@@ -8,11 +8,9 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
   - Repository
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Node Purpose
     - The **JLC CaptionForge Pipeline Planner** is the ordinary-run control
@@ -29,6 +27,7 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
             • caption seed, sampling, image-size, and token policy
             • Distiller model/settings selection
             • Validator model/settings selection
+            • SHORT/TAGGY Formatter model/settings selection
             • final export policy
             • JSON serialization of the plan for audit/debugging
 
@@ -36,15 +35,17 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
             captionforge_pipeline_planner_engine.py
 
 - Ollama Model Dropdowns
-    - Distiller and Validator dropdown values are explicit Ollama model tags.
+    - Distiller, Validator, and Formatter dropdown values are explicit Ollama
+      model tags.
     - Caption-stage Ollama models are intentionally selected on each
       **JLC CaptionForge Ollama Caption** node, not in this Planner.
-    - Dropdown choices for Distiller/Validator are loaded at node-import time
+    - Dropdown choices for Distiller/Validator/Formatter are loaded at node-import time
       from:
             config/captionforge_ollama_models.json
     - If the JSON file is missing or malformed, the node falls back to:
-            Distiller: llama3.1:8b
-            Validator: gemma4:e4b
+            Distiller: mistral-small:24b
+            Validator: gemma4:26b
+            Formatter: mistral-small:24b
     - The optional custom choice lets users enter any installed Ollama model tag
       without editing Python.
 
@@ -58,14 +59,14 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
               -> JLC CaptionForge capstone node
                    -> Pass B fat draft (text Ollama call)
                    -> Pass C image-aware validator (Ollama VLM call)
-                   -> Pass D taggy formatter (text Ollama call)
+                   -> Pass D SHORT + TAGGY formatter (text Ollama call)
                    -> final deterministic TXT/JSONL export
 
     - The standalone CLI-oriented distiller and validator engines are
       prototype/reference implementations, not the production runtime path.
 
-    - SmolVLM is not exposed in the current mainline Planner UI. It may remain
-      available as a standalone/experimental node and can be revisited later.
+    - Historical SmolVLM experiments are not registered or exposed by the
+      CaptionForge 1.0 production package.
 
 - Design Philosophy
     - CaptionForge is an original concept and implementation, not derived from
@@ -79,10 +80,10 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
       low UI ambiguity, and clean separation between ComfyUI UI and reusable
       pipeline logic.
 
-- ⚠️ Development Status
-    - This is release-candidate CaptionForge infrastructure.
-    - Widget names, output schema details, and downstream validation strategy may
-      evolve as CaptionForge matures.
+- Production Status
+    - This is the active CaptionForge 1.0 project-level control surface. When
+      connected, Planner values override corresponding Capstone controls; the
+      frozen production defaults are aligned between both nodes.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
@@ -106,7 +107,7 @@ MANIFEST = {
         "caption nodes and the JLC CaptionForge capstone node. Exposes Joy, Qwen, "
         "and generic Ollama Caption run counts for the current supported Pass A set. "
         "Caption-stage Ollama model tags are selected directly on each Ollama Caption "
-        "node. Loads explicit Ollama Distiller/Validator dropdown tags from "
+        "node. Loads explicit Ollama Distiller/Validator/Formatter dropdown tags from "
         "config/captionforge_ollama_models.json, with no family aliases or shorthand "
         "model substitutions. The selected output folder is treated as an output root; "
         "the planner derives a run-specific working directory for JSON/JSONL artifacts. "
@@ -471,7 +472,7 @@ def _patch_supported_caption_witnesses(
 
 
 def _patch_v010_working_image_paths(plan: dict[str, Any]) -> dict[str, Any]:
-    """Normalize v0.1.x optional-image directories in the emitted plan.
+    """Normalize legacy optional-image directories in the emitted plan.
 
     The planner engine owns most path derivation. This wrapper patch keeps
     JSON/JSONL/audit artifacts inside the run working directory while promoting
@@ -753,7 +754,14 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Caption - seed mode": (
                     SEED_MODES,
-                    {"default": "fixed"},
+                    {
+                        "default": "fixed",
+                        "tooltip": (
+                            "How the base seed changes across witness runs: fixed reuses it, "
+                            "increment/decrement step by one, and random creates a repeatable "
+                            "hash-derived schedule. A base seed of -1 remains unseeded in every mode."
+                        ),
+                    },
                 ),
                 "Caption - temperature schedule": (
                     "STRING",
@@ -765,15 +773,38 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Caption - top p schedule": (
                     "STRING",
-                    {"default": DEFAULT_CAPTION_TOP_P_SCHEDULE, "multiline": False},
+                    {
+                        "default": DEFAULT_CAPTION_TOP_P_SCHEDULE,
+                        "multiline": False,
+                        "tooltip": (
+                            "Comma-separated nucleus-sampling values for Pass-A runs. Lower values "
+                            "limit choices to more likely tokens; the final value repeats as needed."
+                        ),
+                    },
                 ),
                 "Caption - top k schedule": (
                     "STRING",
-                    {"default": DEFAULT_CAPTION_TOP_K_SCHEDULE, "multiline": False},
+                    {
+                        "default": DEFAULT_CAPTION_TOP_K_SCHEDULE,
+                        "multiline": False,
+                        "tooltip": (
+                            "Comma-separated token-choice limits for Pass-A runs. Lower values are "
+                            "more restrictive; the final value repeats as needed."
+                        ),
+                    },
                 ),
                 "Caption - max image size": (
                     "INT",
-                    {"default": DEFAULT_CAPTION_MAX_IMAGE_SIZE, "min": 0, "max": 4096, "step": 64},
+                    {
+                        "default": DEFAULT_CAPTION_MAX_IMAGE_SIZE,
+                        "min": 0,
+                        "max": 4096,
+                        "step": 64,
+                        "tooltip": (
+                            "Maximum longest image side sent to Pass-A captioners. Larger images are "
+                            "resized proportionally; 0 keeps their original size."
+                        ),
+                    },
                 ),
                 "Caption - max new tokens": (
                     "INT",
@@ -830,7 +861,16 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Distiller - max caption chars for LLM": (
                     "INT",
-                    {"default": 1536, "min": 0, "max": 12000, "step": 64},
+                    {
+                        "default": 1536,
+                        "min": 0,
+                        "max": 12000,
+                        "step": 64,
+                        "tooltip": (
+                            "Maximum characters retained from each Pass-A source caption before "
+                            "building the Pass-B prompt. 0 keeps the complete caption."
+                        ),
+                    },
                 ),
                 "Distiller - num predict": (
                     "INT",
@@ -844,23 +884,23 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Distiller - temperature": (
                     "FLOAT",
-                    {"default": 0.24, "min": 0.0, "max": 2.0, "step": 0.01},
+                    {"default": 0.24, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": "Pass-B variation level. Lower values are steadier; higher values permit more varied wording."},
                 ),
                 "Distiller - top p": (
                     "FLOAT",
-                    {"default": 0.90, "min": 0.0, "max": 1.0, "step": 0.01},
+                    {"default": 0.90, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Pass-B nucleus-sampling limit. Lower values restrict the model to more likely tokens."},
                 ),
                 "Distiller - top k": (
                     "INT",
-                    {"default": 60, "min": 0, "max": 500, "step": 1},
+                    {"default": 60, "min": 0, "max": 500, "step": 1, "tooltip": "Pass-B token-choice limit. Lower values are more restrictive; 0 lets the backend disable top-k filtering."},
                 ),
                 "Distiller - write prompt JSONL": (
                     "BOOLEAN",
-                    {"default": False},
+                    {"default": False, "tooltip": "Write the complete Pass-B prompt to a separate JSONL audit file. This can substantially increase output size."},
                 ),
                 "Distiller - preserve raw response": (
                     "BOOLEAN",
-                    {"default": False},
+                    {"default": False, "tooltip": "Keep the unparsed Pass-B model response in audit records for troubleshooting."},
                 ),
 
                 # -----------------------------------------------------------------
@@ -925,23 +965,23 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Validator - temperature": (
                     "FLOAT",
-                    {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01},
+                    {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": "Pass-C variation level. Zero requests the most deterministic image-validation result."},
                 ),
                 "Validator - top p": (
                     "FLOAT",
-                    {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01},
+                    {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Pass-C nucleus-sampling limit. Lower values restrict the validator to more likely tokens."},
                 ),
                 "Validator - top k": (
                     "INT",
-                    {"default": 80, "min": 0, "max": 500, "step": 1},
+                    {"default": 80, "min": 0, "max": 500, "step": 1, "tooltip": "Pass-C token-choice limit. Lower values are more restrictive; 0 lets the backend disable top-k filtering."},
                 ),
                 "Validator - write prompt JSONL": (
                     "BOOLEAN",
-                    {"default": False},
+                    {"default": False, "tooltip": "Write the complete image-validation prompt to a separate JSONL audit file."},
                 ),
                 "Validator - preserve raw VLM response": (
                     "BOOLEAN",
-                    {"default": False},
+                    {"default": False, "tooltip": "Keep the unparsed Pass-C VLM response in audit records for troubleshooting."},
                 ),
 
                 # -----------------------------------------------------------------
@@ -983,7 +1023,7 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "min": -1,
                         "max": MAX_SEED_32,
                         "step": 1,
-                        "tooltip": "Fixed seed used by the taggy formatter for every image. -1 means omit seed.",
+                        "tooltip": "Fixed seed used by the SHORT/TAGGY formatter for every image. -1 means omit seed.",
                     },
                 ),
                 "Formatter - num predict": (
@@ -998,23 +1038,23 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Formatter - temperature": (
                     "FLOAT",
-                    {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01},
+                    {"default": 0.12, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": "Pass-D variation level. Lower values make SHORT/TAGGY formatting more consistent."},
                 ),
                 "Formatter - top p": (
                     "FLOAT",
-                    {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01},
+                    {"default": 0.88, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Pass-D nucleus-sampling limit. Lower values restrict the formatter to more likely tokens."},
                 ),
                 "Formatter - top k": (
                     "INT",
-                    {"default": 50, "min": 0, "max": 500, "step": 1},
+                    {"default": 50, "min": 0, "max": 500, "step": 1, "tooltip": "Pass-D token-choice limit. Lower values are more restrictive; 0 lets the backend disable top-k filtering."},
                 ),
                 "Formatter - write prompt JSONL": (
                     "BOOLEAN",
-                    {"default": False},
+                    {"default": False, "tooltip": "Write the complete Pass-D SHORT/TAGGY prompt to a separate JSONL audit file."},
                 ),
                 "Formatter - preserve raw response": (
                     "BOOLEAN",
-                    {"default": False},
+                    {"default": False, "tooltip": "Keep the unparsed Pass-D model response in audit records for troubleshooting."},
                 ),
 
                 # -----------------------------------------------------------------
@@ -1031,7 +1071,7 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
                 "Final - write JSONL": (
                     "BOOLEAN",
-                    {"default": True},
+                    {"default": True, "tooltip": "Write the final run-level JSONL containing LONG, SHORT, and TAGGY captions for every processed image."},
                 ),
             },
             "optional": {
@@ -1082,7 +1122,6 @@ class JLC_CaptionForge_Pipeline_Planner:
         joy_runs = _runs_per_image(kwargs.get("Caption - Joy runs/image", "2"), "2")
         qwen_runs = _runs_per_image(kwargs.get("Caption - Qwen runs/image", "1"), "1")
         ollama_runs = _runs_per_image(kwargs.get("Caption - Ollama runs/image", "1"), "1")
-        smolvlm_runs = 0
 
         if not planner_enabled:
             plan: dict[str, Any] = {}

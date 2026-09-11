@@ -8,11 +8,9 @@ CaptionForge Distiller Engine
   - Repository:
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Engine Purpose
     - The **CaptionForge Distiller Engine** is the Pass B text-LLM
@@ -72,10 +70,10 @@ CaptionForge Distiller Engine
     - Draft captions should be rich enough for LoRA dataset preparation while
       remaining auditable through their source claims and metadata.
 
-- Development Status
-    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
-    - Prompt contracts, audit fields, and parser behavior may evolve before a
-      stable CaptionForge release.
+- Reference Status
+    - This CLI-oriented engine is retained for reference, diagnostics, and
+      controlled experiments. It is not imported or registered by the active
+      ComfyUI pipeline; production Pass B runs inside ``jlc_captionforge_node``.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
@@ -126,23 +124,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-
-ENGINE_NAME = "captionforge_distiller_engine"
-ENGINE_VERSION = "0.2.0"
-CAPTIONFORGE_PASS = "B_DISTILL"
-DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-
-MANIFEST = {
-    "name": "CaptionForge Distiller Engine",
-    "version": ENGINE_VERSION,
-    "author": "J. L. Córdova",
-    "description": (
-        "CLI-first CaptionForge Pass B pollster/copywriter engine. Consumes Pass A "
-        "caption JSONL records, groups captions by image, asks a text LLM to "
-        "vote/organize visual claims, and emits accepted evidence, singleton "
-        "candidates, rejected conflicts, and rich/taggy draft captions."
-    ),
-}
 
 DEFAULT_DISTILLER_INSTRUCTIONS = (
     "You are CaptionForge Pass B: a caption ballot pollster and rich-caption copywriter. "
@@ -1355,7 +1336,7 @@ def process_batch(batch: BatchConfig, config: DistillerConfig) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="CaptionForge Distiller Engine v0.2.0")
+    p = argparse.ArgumentParser(description=f"CaptionForge Distiller Engine v{ENGINE_VERSION}")
 
     p.add_argument("--input-jsonl", required=True, help="Pass A captions JSONL input.")
     p.add_argument("--output-jsonl", default="", help="Full output JSONL path. Default: <input>_distilled.jsonl")

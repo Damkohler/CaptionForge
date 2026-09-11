@@ -1,2 +1,3 @@
-# captionforge_version.py
-CAPTIONFORGE_VERSION = "0.1.0"
+"""Single authoritative package/release version for CaptionForge."""
+
+CAPTIONFORGE_VERSION = "1.0.0"

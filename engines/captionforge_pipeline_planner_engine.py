@@ -8,11 +8,9 @@ CaptionForge Pipeline Planner Engine
   - Repository:
     https://github.com/Damkohler/CaptionForge
 
-- CaptionForge focuses on practical dataset-captioning infrastructure for
-  LoRA dataset preparation, using multi-engine caption generation, JSONL
-  audit trails, claim extraction and refinement, text-LLM distillation,
-  image-aware VLM validation, and consensus-oriented caption improvement
-  to produce grounded, auditable training captions.
+- CaptionForge 1.0 uses independent Pass-A witnesses, text-LLM synthesis,
+  image-aware validation, SHORT/TAGGY formatting, and JSONL audit trails to
+  produce grounded LoRA dataset captions.
 
 - Engine Purpose
     - The **CaptionForge Pipeline Planner Engine** builds reusable
@@ -71,10 +69,10 @@ CaptionForge Pipeline Planner Engine
     - The planner favors explicit dictionaries, predictable filenames, and
       auditable JSONL-oriented handoff between passes.
 
-- Development Status
-    - CaptionForge v0.1.0 experimental developer-preview infrastructure.
-    - Plan schema, supported witness families, and downstream defaults may evolve
-      before a stable CaptionForge release.
+- Production Status
+    - Active CaptionForge 1.0 planning support. The Planner is authoritative in
+      connected workflows, and its shared B/C/D defaults are kept in parity with
+      the standalone Capstone controls.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
