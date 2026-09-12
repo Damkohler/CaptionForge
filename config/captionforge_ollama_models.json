@@ -20,10 +20,8 @@
   },
   "distiller_models": [
     "mistral-small:24b",
-    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
-    "deepseek-r1:32b",
-    "tarruda/neuraldaredevil-8b-abliterated:fp16",
-    "gpt-oss:20b"
+    "gpt-oss:20b",
+    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored"
   ],
   "validator_models": [
     "gemma4:26b",
@@ -32,9 +30,8 @@
   ],
   "format_models": [
     "mistral-small:24b",
-    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored",
     "gpt-oss:20b",
-    "deepseek-r1:32b"
+    "VladimirGav/gemma4-26b-16GB-VRAM-Uncensored"
   ],
   "caption_models": [
     "gemma4:26b",
