@@ -1,5 +1,5 @@
 """
-JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
+JLC CaptionForge Orchestrator
 
 - CaptionForge
   - This node is part of **CaptionForge**, a model-agnostic captioning
@@ -13,7 +13,7 @@ JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
   produce grounded LoRA dataset captions.
 
 - Node Purpose
-    - The **JLC CaptionForge Node** is the production capstone for the current
+    - The **JLC CaptionForge Orchestrator** is the production capstone for the current
       CaptionForge mainline.
 
     - This file is the **ComfyUI-facing wrapper**, not a caption model. It is
@@ -91,7 +91,7 @@ JLC CaptionForge Node — ComfyUI Capstone Node Wrapper
     - CaptionForge is an original concept and implementation, not derived from
       or based on another ComfyUI workflow.
 
-    - The capstone keeps orchestration and ComfyUI UI concerns separate from
+    - The Orchestrator keeps coordination and ComfyUI UI concerns separate from
       model-specific caption generation.
 
     - The node prioritizes auditable local caption refinement, explicit model
@@ -118,11 +118,11 @@ from __future__ import annotations
 from ..captionforge_version import CAPTIONFORGE_VERSION
 
 MANIFEST = {
-    "name": "JLC CaptionForge Node",
+    "name": "JLC CaptionForge Orchestrator",
     "version": CAPTIONFORGE_VERSION,
     "author": "J. L. Córdova",
     "description": (
-        "CaptionForge 1.0 capstone node. Consumes Pass A raw caption "
+        "CaptionForge Orchestrator 1.0 node. Consumes Pass A raw caption "
         "JSONL directly or through a CAPTIONFORGE_PIPELINE_PLAN, builds a text-only "
         "fat draft with an Ollama LLM, validates it against the image with an Ollama "
         "VLM to produce the natural final caption, derives short and taggy variants "
@@ -213,9 +213,9 @@ _SUPPORTED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", "
 
 
 def _evict_python_models_before_ollama_if_needed(caller: str) -> None:
-    """Unload resident Python/HF CaptionForge models before capstone Ollama calls.
+    """Unload resident Python/HF CaptionForge models before Orchestrator Ollama calls.
 
-    The capstone's B/C/D stages are served by the local Ollama daemon. Joy/Qwen
+    The Orchestrator's B/C/D stages are served by the local Ollama daemon. Joy/Qwen
     and other Python-side caption models may still be resident after Pass A, so
     clear the CaptionForge process-local cache once before the first Ollama
     request. Because Ollama models are not registered in this cache, this does
@@ -306,7 +306,7 @@ def _load_ollama_model_dropdowns() -> dict[str, Any]:
             if isinstance(loaded, dict):
                 data = loaded
     except Exception as exc:
-        print(f"[JLC CaptionForge Node] Could not read Ollama model config {path}: {exc}", flush=True)
+        print(f"[JLC CaptionForge Orchestrator] Could not read Ollama model config {path}: {exc}", flush=True)
 
     defaults = data.get("defaults") if isinstance(data.get("defaults"), dict) else {}
     include_custom = bool(data.get("include_custom", True))
@@ -610,7 +610,7 @@ def _resolve_run_name(widget_value: str, plan: dict[str, Any]) -> str:
 
 
 def _derive_paths(output_dir: Path, run_name: str, plan: dict[str, Any]) -> dict[str, str]:
-    """Resolve capstone artifact paths.
+    """Resolve Orchestrator artifact paths.
 
     Planned runs receive paths from the Pipeline Planner. Standalone runs treat
     the visible Output folder as an output root and create a run-specific working
@@ -722,7 +722,7 @@ def _save_single_image_inputs_for_validator(image_tensor: Any, image_dir: Path) 
         stem = f"comfy_image_{index:04d}"
         audit_target = image_dir / f"{stem}.png"
         pil.save(audit_target, format="PNG")
-    print(f"[JLC CaptionForge Node] Saved optional IMAGE input(s) for validator: {image_dir}", flush=True)
+    print(f"[JLC CaptionForge Orchestrator] Saved optional IMAGE input(s) for validator: {image_dir}", flush=True)
     return str(image_dir)
 
 def _basename_cross_platform(value: Any) -> str:
@@ -1266,7 +1266,7 @@ def _ollama_chat_image(
         return text, chat_data
 
     print(
-        f"[JLC CaptionForge Node] /api/chat returned empty text for '{model}'. Trying /api/generate fallback. "
+        f"[JLC CaptionForge Orchestrator] /api/chat returned empty text for '{model}'. Trying /api/generate fallback. "
         f"{_summarize_ollama_response(chat_data)}",
         flush=True,
     )
@@ -1442,6 +1442,28 @@ def _write_final_txt_sidecars(
 
     return written
 
+
+def _final_sidecar_output_paths(
+    image_path: Path,
+    long_caption: str,
+    short_caption: str,
+    taggy_caption: str,
+    *,
+    enabled: bool,
+) -> dict[str, str]:
+    """Return the named final sidecar paths exposed to automation consumers."""
+    if not enabled:
+        return {"long": "", "short": "", "taggy": ""}
+
+    parent = image_path.parent
+    stem = image_path.stem
+    return {
+        "long": str(parent / f"{stem}_long.txt") if long_caption else "",
+        "short": str(parent / f"{stem}_short.txt") if short_caption else "",
+        "taggy": str(parent / f"{stem}_taggy.txt") if taggy_caption else "",
+    }
+
+
 def _make_final_failure_record(
     *,
     image_key: str,
@@ -1463,6 +1485,11 @@ def _make_final_failure_record(
         "error": error,
         "export_format": "",
         "final_caption": "",
+        "long": "",
+        "short": "",
+        "taggy": "",
+        "final_caption_long": "",
+        "final_caption_short": "",
         "final_caption_natural": "",
         "final_caption_taggy": "",
         "fat_draft": "",
@@ -1471,6 +1498,8 @@ def _make_final_failure_record(
         "models": models,
         "selected_caption_count": int(selected_caption_count),
         "source_caption_families": source_caption_families,
+        "outputs": {"long": "", "short": "", "taggy": ""},
+        "sidecar_paths": [],
         "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
 
@@ -1500,7 +1529,7 @@ def _reset_outputs(paths: dict[str, str], overwrite: bool) -> None:
 
 
 class JLC_CaptionForge:
-    """Production B/C/D capstone: draft -> VLM LONG -> SHORT/TAGGY."""
+    """Production B/C/D Orchestrator: draft -> VLM LONG -> SHORT/TAGGY."""
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -1633,7 +1662,7 @@ class JLC_CaptionForge:
         }
 
     RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("natural_captions", "taggy_captions", "final_jsonl_records", "output_paths_json", "status")
+    RETURN_NAMES = ("long_captions", "short_captions", "taggy_captions", "final_records", "status")
     FUNCTION = "forge"
     CATEGORY = "Caption/CaptionForge"
 
@@ -1705,7 +1734,7 @@ class JLC_CaptionForge:
                 7200,
             )
         )
-        # Standalone mode keeps the capstone's global audit widgets. In planned
+        # Standalone mode keeps the Orchestrator's global audit widgets. In planned
         # mode, Pass B/C/D resolve audit settings independently from their
         # Planner namespaces.
         audit = _resolve_stage_audit_settings(
@@ -1874,12 +1903,10 @@ class JLC_CaptionForge:
         max_total = _coerce_int(kwargs.get("Input - max total captions", 20), 20, 0, 100)
 
         final_records: list[dict[str, Any]] = []
-        natural_blocks: list[str] = []
-        taggy_blocks: list[str] = []
         ok = 0
         failed = 0
 
-        _evict_python_models_before_ollama_if_needed("JLC CaptionForge Node")
+        _evict_python_models_before_ollama_if_needed("JLC CaptionForge Orchestrator")
 
         if write_jsonl:
             Path(paths["final_jsonl"]).parent.mkdir(parents=True, exist_ok=True)
@@ -1911,7 +1938,7 @@ class JLC_CaptionForge:
                 final_records.append(final_record)
                 if write_jsonl:
                     _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
-                print(f"[JLC CaptionForge Node] No usable captions selected for image_key={image_key}", flush=True)
+                print(f"[JLC CaptionForge Orchestrator] No usable captions selected for image_key={image_key}", flush=True)
                 continue
 
             image_path = _resolve_image_path_for_group(
@@ -1935,7 +1962,7 @@ class JLC_CaptionForge:
                 if write_jsonl:
                     _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
                 print(
-                    f"[JLC CaptionForge Node] Could not resolve image path for image_key={image_key}; "
+                    f"[JLC CaptionForge Orchestrator] Could not resolve image path for image_key={image_key}; "
                     f"searched roots: {', '.join(str(p) for p in image_roots)}",
                     flush=True,
                 )
@@ -2102,10 +2129,6 @@ class JLC_CaptionForge:
             is_ok = bool(natural and taggy)
             ok += int(is_ok)
             failed += int(not is_ok)
-            if natural:
-                natural_blocks.append(natural)
-            if taggy:
-                taggy_blocks.append(taggy)
 
             final_record = {
                 "captionforge_pass": "D_FINAL_EXPORT",
@@ -2116,6 +2139,9 @@ class JLC_CaptionForge:
                 "status": "ok" if is_ok else "error",
                 "export_format": txt_export_format,
                 "final_caption": export_caption,
+                "long": natural,
+                "short": short,
+                "taggy": taggy,
                 "final_caption_long": natural,
                 "final_caption_short": short,
                 "final_caption_natural": natural,
@@ -2126,6 +2152,13 @@ class JLC_CaptionForge:
                 "models": models_for_record,
                 "selected_caption_count": len(selected),
                 "source_caption_families": source_families,
+                "outputs": _final_sidecar_output_paths(
+                    Path(image_path),
+                    natural,
+                    short,
+                    taggy,
+                    enabled=write_txt,
+                ),
                 "sidecar_paths": [],
                 "timestamp": datetime.now().isoformat(timespec="seconds"),
             }
@@ -2146,7 +2179,7 @@ class JLC_CaptionForge:
                 _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
 
             print(
-                f"[JLC CaptionForge Node] processed {image_index}/{len(grouped)} image_key={image_key} "
+                f"[JLC CaptionForge Orchestrator] processed {image_index}/{len(grouped)} image_key={image_key} "
                 f"captions={len(selected)} natural_len={len(natural)} taggy_len={len(taggy)}",
                 flush=True,
             )
@@ -2176,16 +2209,23 @@ class JLC_CaptionForge:
         except Exception:
             pass
 
-        final_jsonl_records = "\n".join(json.dumps(_json_safe(r), ensure_ascii=False) for r in final_records)
+        long_captions = "\n\n".join(str(record.get("long") or "") for record in final_records)
+        short_captions = "\n\n".join(str(record.get("short") or "") for record in final_records)
+        taggy_captions = "\n\n".join(str(record.get("taggy") or "") for record in final_records)
+        final_records_json = json.dumps(
+            _json_safe({"records": final_records, "run_outputs": output_paths}),
+            ensure_ascii=False,
+            indent=2,
+        )
         status = (
-            f"[JLC CaptionForge Node v{CAPTIONFORGE_NODE_VERSION}] complete | "
+            f"[JLC CaptionForge Orchestrator v{CAPTIONFORGE_NODE_VERSION}] complete | "
             f"planner_connected={_planner_overrides(plan)} | images={len(grouped)} | "
             f"final_ok={ok} final_failed={failed} | "
             f"models fat={fat_model} validator={val_model} formatter={fmt_model} | "
             f"run={run_name} output={output_dir}"
         )
         print(status, flush=True)
-        return ("\n\n".join(natural_blocks), "\n\n".join(taggy_blocks), final_jsonl_records, output_paths_json, status)
+        return (long_captions, short_captions, taggy_captions, final_records_json, status)
 
 
 NODE_CLASS_MAPPINGS = {
@@ -2193,5 +2233,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "JLC_CaptionForge": "\u2003JLC CaptionForge Node",
+    "JLC_CaptionForge": "\u2003JLC CaptionForge Orchestrator",
 }
