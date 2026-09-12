@@ -26,7 +26,7 @@ CaptionForge — ComfyUI Package Entry Point
             • register the package as a unified CaptionForge node collection
 
     - The package registers the Pipeline Planner, Template Options helper,
-      Joy/Qwen/Ollama Pass-A caption nodes, and the JLC CaptionForge capstone.
+      Joy/Qwen/Ollama Pass-A caption nodes, and the CaptionForge Orchestrator.
 
 - Package Structure
     - CaptionForge keeps ComfyUI-facing node wrappers separate from reusable

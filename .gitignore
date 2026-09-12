@@ -70,3 +70,7 @@ config/.bak/
 /nodes/experimental/
 /engines/experimental/
 node.zip
+# CaptionForge local/private model configuration references
+config/captionforge_ollama_models_new.json
+config/captionforge_ollama_models_unrestricted.json
+config/Ollama_Models_Catalog.md

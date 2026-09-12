@@ -6,7 +6,7 @@
     "consumed_by": [
       "nodes/captionforge_ollama_model_dropdowns.py",
       "CaptionForge Pipeline Planner",
-      "JLC CaptionForge capstone",
+      "JLC CaptionForge Orchestrator",
       "JLC CaptionForge Ollama Caption"
     ],
     "notes": [

@@ -12,7 +12,7 @@ CaptionForge can collect several independent **Pass A witness captions**, synthe
 
 CaptionForge also writes JSONL audit records so intermediate evidence, prompts, model settings, and final outputs can be inspected rather than treated as a black box.
 
-> **Current release:** **CaptionForge 1.0.0.** The A/B/C/D semantic pipeline, Planner/Capstone authority model, seed contract, and production defaults are frozen for this release.
+> **Current release:** **CaptionForge 1.0.0.** The A/B/C/D semantic pipeline, Planner/Orchestrator authority model, seed contract, and production defaults are frozen for this release.
 
 ---
 
@@ -183,7 +183,7 @@ Fixed-corpus testing found the current taggy path compact and semantically faith
 
 ---
 
-# Planner and Capstone ownership
+# Planner and Orchestrator ownership
 
 CaptionForge has two complementary control surfaces.
 
@@ -204,26 +204,26 @@ It owns:
 - audit/preservation policy
 - final output policy
 
-## CaptionForge / Capstone
+## CaptionForge / Orchestrator
 
-The **CaptionForge** node is fully capable of standalone B/C/D operation.
+The **CaptionForge Orchestrator** is fully capable of standalone B/C/D operation.
 
 A useful mental model is:
 
 ```text
-Capstone = principal engineer
+Orchestrator = principal engineer
 Planner  = project leader
 ```
 
-The Capstone keeps complete local controls so it can be used independently.
+The Orchestrator keeps complete local controls so it can be used independently.
 
 When a Planner is connected:
 
 ```text
-Planner values override corresponding Capstone values.
+Planner values override corresponding Orchestrator values.
 ```
 
-For every shared Pass B/C/D semantic control, current production defaults are aligned between Planner and Capstone.
+For every shared Pass B/C/D semantic control, current production defaults are aligned between Planner and Orchestrator.
 
 ---
 
@@ -343,15 +343,15 @@ The JSON, API JSON, and embedded PNG workflow are maintained as synchronized art
 
 # Main node families
 
-In ComfyUI, Planner/Capstone/support nodes appear under `Caption/CaptionForge`; witness nodes appear under `Caption/CaptionForge/Caption Nodes`.
+In ComfyUI, Planner/Orchestrator/support nodes appear under `Caption/CaptionForge`; witness nodes appear under `Caption/CaptionForge/Caption Nodes`.
 
 ### `JLC CaptionForge Pipeline Planner`
 
 Central control surface for a planned CaptionForge run.
 
-### `JLC CaptionForge Node`
+### `JLC CaptionForge Orchestrator`
 
-Capstone/orchestration node implementing production Pass B, C, and D behavior.
+Orchestrator/coordination node implementing production Pass B, C, and D behavior.
 
 ### `JLC CaptionForge Template Options`
 
@@ -528,7 +528,7 @@ CaptionForge 1.0 is guided by a few practical principles:
 - **multiple witnesses are evidence, not authority**
 - **the image-aware Validator is the final semantic authority**
 - **SHORT and TAGGY derive only from validated content**
-- **Planner controls the full workflow; Capstone remains fully capable standalone**
+- **Planner controls the full workflow; Orchestrator remains fully capable standalone**
 - **seed behavior should be explicit and reproducible**
 - **auditability matters**
 - **local execution matters**
@@ -548,7 +548,7 @@ CaptionForge 1.0.0 release validation included:
 - replacement of deterministic SHORT truncation with AI semantic compression
 - witness-diversity testing on a fixed 19-image corpus
 - production Pass-A defaults selected as `2 Joy / 1 Qwen / 1 Ollama`
-- downstream Planner ↔ Capstone ownership reconciliation
+- downstream Planner ↔ Orchestrator ownership reconciliation
 - B/C/D production-default parity
 - seed-contract hardening
 - canonical JSON / API JSON / PNG synchronization

@@ -51,12 +51,12 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
 
 - CaptionForge Pipeline Role
     - The planner emits the CAPTIONFORGE_PIPELINE_PLAN consumed by caption
-      nodes and the JLC CaptionForge capstone node.
+      nodes and the JLC CaptionForge Orchestrator.
 
     - The canonical graph flow is:
             Pipeline Planner
               -> Joy/Qwen/Ollama Pass A caption witness nodes
-              -> JLC CaptionForge capstone node
+              -> JLC CaptionForge Orchestrator
                    -> Pass B fat draft (text Ollama call)
                    -> Pass C image-aware validator (Ollama VLM call)
                    -> Pass D SHORT + TAGGY formatter (text Ollama call)
@@ -82,7 +82,7 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
 
 - Production Status
     - This is the active CaptionForge 1.0 project-level control surface. When
-      connected, Planner values override corresponding Capstone controls; the
+      connected, Planner values override corresponding Orchestrator controls; the
       frozen production defaults are aligned between both nodes.
 
 - Attribution & License
@@ -104,7 +104,7 @@ MANIFEST = {
     "description": (
         "ComfyUI-facing Pipeline Planner node for CaptionForge. Builds the "
         "CAPTIONFORGE_PIPELINE_PLAN consumed through the pipeline_plan pin by "
-        "caption nodes and the JLC CaptionForge capstone node. Exposes Joy, Qwen, "
+        "caption nodes and the JLC CaptionForge Orchestrator. Exposes Joy, Qwen, "
         "and generic Ollama Caption run counts for the current supported Pass A set. "
         "Caption-stage Ollama model tags are selected directly on each Ollama Caption "
         "node. Loads explicit Ollama Distiller/Validator/Formatter dropdown tags from "

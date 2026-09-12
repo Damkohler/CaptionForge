@@ -72,7 +72,7 @@ CaptionForge Pipeline Planner Engine
 - Production Status
     - Active CaptionForge 1.0 planning support. The Planner is authoritative in
       connected workflows, and its shared B/C/D defaults are kept in parity with
-      the standalone Capstone controls.
+      the standalone Orchestrator controls.
 
 - Attribution & License
   - Concept and implementation by **J. L. Córdova**
