@@ -28,7 +28,6 @@ JLC CaptionForge Qwen Caption — ComfyUI Node Wrapper
             • clear template-vs-custom prompt controls
             • CaptionForge Pipeline Planner consumption through `pipeline_plan`
             • CaptionForge Template Options consumption through `template_options`
-            • TXT audit sidecar writing in planned runs
             • shared JSONL audit output in planned runs
             • direct ComfyUI caption and resolved-prompt string outputs
             • IMAGE and pipeline-plan passthrough for clean graph chaining
@@ -87,7 +86,6 @@ JLC CaptionForge Qwen Caption — ComfyUI Node Wrapper
             • shared LoRA trigger word
 
     - In planned mode, the node can write:
-            • TXT audit sidecar captions
             • JSONL audit records
             • run-configuration JSON files
 
@@ -163,7 +161,7 @@ MANIFEST = {
         "the template_options input from the CaptionForge Template Options sidecar. "
         "The UI separates caption_template_mode and custom_prompt_mode for clearer "
         "prompt routing while delegating model loading, quantization, generation, "
-        "cleanup, TXT sidecars, and JSONL audit records to the Qwen caption engine."
+        "cleanup and JSONL audit records to the Qwen caption engine."
     ),
 }
 
@@ -190,9 +188,9 @@ from ...engines.jlc_qwen_caption_engine import (
     probe_registry_model_download,
     timestamp,
     write_run_config_json,
-    write_text_sidecar,
 )
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
+from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
 from ...engines.captionforge_caption_prompt_kit import (
     CAPTION_LENGTH_CHOICES,
     CAPTION_TYPE_CHOICES,
@@ -287,20 +285,7 @@ def _tensor_to_pil(image_tensor) -> list[Image.Image]:
     return images
 
 
-def _safe_source_name(value: str) -> str:
-    cleaned = []
-    for ch in value.replace("\\", "/"):
-        if ch.isalnum() or ch in {"-", "_", "."}:
-            cleaned.append(ch)
-        elif ch == "/":
-            cleaned.append("__")
-        else:
-            cleaned.append("_")
-    out = "".join(cleaned).strip("._")
-    return out or "image"
-
-
-def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str) -> list[tuple[str, Path]]:
+def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str) -> list[tuple[str, str, Path]]:
     root = Path(str(input_path or "").strip())
     if not root:
         return []
@@ -312,7 +297,8 @@ def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str
     if root.is_file():
         if root.suffix.lower() not in _SUPPORTED_IMAGE_SUFFIXES:
             raise RuntimeError(f"CaptionForge input_path is not a supported image file: {root}")
-        return [(_safe_source_name(root.stem), root)]
+        image_name, image_key = file_source_identity(root, root)
+        return [(image_name, image_key, root)]
 
     pattern_iter = root.rglob(glob_text) if recursive else root.glob(glob_text)
     paths = sorted(
@@ -320,10 +306,10 @@ def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str
         if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES
     )
 
-    items: list[tuple[str, Path]] = []
+    items: list[tuple[str, str, Path]] = []
     for path in paths:
-        rel = path.relative_to(root).with_suffix("")
-        items.append((_safe_source_name(str(rel)), path))
+        image_name, image_key = file_source_identity(path, root)
+        items.append((image_name, image_key, path))
     return items
 
 
@@ -358,12 +344,6 @@ def _planned_caption_jsonl_path(pipeline_plan) -> Path | None:
         if value:
             return Path(value)
     return None
-
-
-def _run_txt_path(output_dir: Path, source_name: str, run_count: int, run_index: int) -> Path:
-    if run_count <= 1:
-        return output_dir / f"{source_name}.txt"
-    return output_dir / f"{source_name}__cf_run_{run_index:02d}.txt"
 
 
 def _use_template_mode(caption_template_mode: bool, custom_prompt_mode: bool) -> bool:
@@ -803,8 +783,8 @@ class JLC_CaptionForgeQwen:
 
         engine = QwenCaptionEngine(config=qwen_config, generation=generation, cleanup=cleanup)
 
-        direct_images = [(f"comfy_image_{i:04d}", pil) for i, pil in enumerate(_tensor_to_pil(image))]
-        file_images: list[tuple[str, Path]] = []
+        direct_images = [(*optional_image_identity(i), pil) for i, pil in enumerate(_tensor_to_pil(image))]
+        file_images: list[tuple[str, str, Path]] = []
         if first_run.input_path:
             file_images = _iter_input_path_images(first_run.input_path, first_run.recursive, first_run.filename_glob)
 
@@ -842,7 +822,7 @@ class JLC_CaptionForgeQwen:
                 dry_run=False,
             )
 
-        def process_one(source_name: str, pil: Image.Image):
+        def process_one(source_name: str, image_key: str, pil: Image.Image):
             for run in run_plan:
                 engine.generation = GenerationConfig(
                     max_new_tokens=int(run.max_new_tokens),
@@ -883,29 +863,22 @@ class JLC_CaptionForgeQwen:
                     captionforge_pass="A",
                     model_family="qwen",
                     ensemble_run_index=run.ensemble_run_index,
-                    image_key=source_name,
+                    image_key=image_key,
                 )
                 all_records.append(record)
 
                 if run_plan_connected and jsonl_path is not None and output_dir is not None:
                     append_jsonl_records(jsonl_path, [record], dry_run=False)
-                    write_text_sidecar(
-                        _run_txt_path(output_dir, source_name, len(run_plan), run.ensemble_run_index),
-                        record.caption,
-                        overwrite=True,
-                        backup_existing=False,
-                        dry_run=False,
-                    )
                 print(
                     f"[JLC CaptionForge Qwen] Captioned {source_name} "
                     f"run {run.ensemble_run_index + 1}/{len(run_plan)}"
                 )
 
-        for source_name, pil in direct_images:
-            process_one(source_name, pil)
+        for source_name, image_key, pil in direct_images:
+            process_one(source_name, image_key, pil)
 
-        for source_name, path in file_images:
-            process_one(source_name, _open_image(path))
+        for source_name, image_key, path in file_images:
+            process_one(source_name, image_key, _open_image(path))
 
         if not keep_loaded:
             engine.unload()

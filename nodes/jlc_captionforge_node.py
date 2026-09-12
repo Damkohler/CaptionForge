@@ -133,6 +133,7 @@ MANIFEST = {
 }
 
 import base64
+import hashlib
 import io
 import json
 import re
@@ -140,7 +141,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 import numpy as np
@@ -153,6 +154,7 @@ from ..engines.captionforge_prompt_defaults import (
     DEFAULT_VALIDATOR_INSTRUCTIONS,
     DEFAULT_VALIDATOR_SYSTEM_PROMPT,
 )
+from ..engines.captionforge_source_identity import optional_image_filename
 
 try:
     import folder_paths
@@ -737,7 +739,11 @@ def _safe_txt_stem(value: Any) -> str:
     base = _basename_cross_platform(text)
     stem = Path(base).stem or base
     stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", stem).rstrip(" .")
-    return stem or "image"
+    stem = stem or "image"
+    if "/" in text or "\\" in text:
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:10]
+        return f"{stem}__{digest}"
+    return stem
 
 
 def _safe_source_name(value: str) -> str:
@@ -772,14 +778,13 @@ def _dedupe_paths(values: list[Any]) -> list[Path]:
 def _record_image_key(record: dict[str, Any], fallback_index: int = 0) -> str:
     """Return the stable grouping key for a Pass A image record.
 
-    ``image_key`` is already the canonical sanitized key emitted by caption
-    witnesses. Do not pass it through Path(...).stem: dotted extensionless keys
-    such as ``Flux.2__00635`` would collapse to ``Flux`` and merge unrelated
-    images into one downstream group.
+    ``image_key`` is the canonical relative-path or optional-image identity emitted
+    by caption witnesses. It must remain opaque here so distinct directories and
+    extensions cannot be merged into one downstream group.
     """
-    explicit_key = str(record.get("image_key") or "").strip()
-    if explicit_key:
-        return explicit_key
+    explicit_key = record.get("image_key")
+    if explicit_key is not None and str(explicit_key) != "":
+        return str(explicit_key)
 
     for key in ("image", "source_image", "filename"):
         value = str(record.get(key) or "").strip()
@@ -857,18 +862,62 @@ def _values_for_group_resolution(records: list[dict[str, Any]]) -> set[str]:
     return {v for v in values if v}
 
 
-def _resolve_image_path_for_group(records: list[dict[str, Any]], image_roots: str | Path | list[str | Path]) -> Path | None:
+def _resolve_image_path_for_group(
+    records: list[dict[str, Any]],
+    image_roots: str | Path | list[str | Path],
+    *,
+    optional_image_root: str | Path | None = None,
+) -> Path | None:
     if isinstance(image_roots, (str, Path)):
         roots = _dedupe_paths([image_roots])
     else:
         roots = _dedupe_paths(list(image_roots or []))
 
+    optional_root = Path(optional_image_root) if optional_image_root else None
+    explicit_keys = [str(record.get("image_key")) for record in records if record.get("image_key")]
+    optional_filenames = {optional_image_filename(key) for key in explicit_keys}
+    optional_filenames.discard("")
+
+    # Optional IMAGE tensors live in a reserved key namespace. Resolve them only
+    # against their saved opt_images directory so an ordinary dataset file with
+    # the same synthetic basename cannot be selected accidentally.
+    if optional_filenames:
+        if optional_root is None or len(optional_filenames) != 1:
+            return None
+        candidate = optional_root / next(iter(optional_filenames))
+        return candidate if candidate.exists() and candidate.is_file() else None
+
+    # New Pass-A keys are relative POSIX-style paths with their extension intact.
+    # Prefer an exact root/key match before any historical loose-name fallback.
+    for key in explicit_keys:
+        key_path = PurePosixPath(key)
+        if key_path.is_absolute() or ".." in key_path.parts:
+            continue
+        relative_key = Path(*key_path.parts)
+        for root in roots:
+            if root.is_file():
+                if len(key_path.parts) == 1 and root.name == key:
+                    return root
+                continue
+            candidate = root / relative_key
+            if candidate.exists() and candidate.is_file():
+                return candidate
+
     values = _values_for_group_resolution(records)
 
     # First try explicit/direct candidate paths from the raw record fields.
     existing: list[Path] = []
+    has_new_relative_key = any(
+        PurePosixPath(key).suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES
+        for key in explicit_keys
+    )
+    compatibility_roots = [
+        root
+        for root in roots
+        if not (has_new_relative_key and optional_root is not None and root == optional_root)
+    ]
     for value in values:
-        for root in roots:
+        for root in compatibility_roots:
             for candidate in _candidate_image_paths(str(root), value):
                 if candidate.exists() and candidate.is_file():
                     existing.append(candidate)
@@ -879,10 +928,10 @@ def _resolve_image_path_for_group(records: list[dict[str, Any]], image_roots: st
         existing.sort(key=lambda p: 0 if p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES else 1)
         return existing[0]
 
-    # Then index actual image files by the same sanitized key scheme used by the
-    # caption witness nodes for folder traversal. This resolves original files
-    # whose names contained spaces/parentheses but whose image_key was sanitized.
-    for root in roots:
+    # Then index actual image files by exact names/stems and legacy sanitized keys.
+    # The latter keeps older RAW JSONL artifacts resolvable after canonical witness
+    # keys switched to verbatim source-filename stems.
+    for root in compatibility_roots:
         try:
             if root.is_file() and root.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES:
                 if values.intersection(_candidate_keys_for_image_file(root, None)):
@@ -1620,6 +1669,7 @@ class JLC_CaptionForge:
             image_root,
             _plan_get(plan, "paths.image_root", "shared.image_root", "shared.input_path", "input_path", default=""),
             single_image_root,
+            opt_images_dir,
             Path(caption_jsonl).resolve().parent,
         ])
 
@@ -1864,7 +1914,11 @@ class JLC_CaptionForge:
                 print(f"[JLC CaptionForge Node] No usable captions selected for image_key={image_key}", flush=True)
                 continue
 
-            image_path = _resolve_image_path_for_group(selected, image_roots)
+            image_path = _resolve_image_path_for_group(
+                selected,
+                image_roots,
+                optional_image_root=opt_images_dir,
+            )
             if image_path is None:
                 failed += 1
                 final_record = _make_final_failure_record(
