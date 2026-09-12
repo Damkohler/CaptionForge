@@ -149,7 +149,7 @@ mistral-small:24b
 Pass D receives the already validated Pass C paragraph and produces both:
 
 ```text
-SHORT: <concise natural-language caption, at most 90 words>
+SHORT: <concise natural-language semantic compression, typically around 100 words>
 TAGGY: <compact comma-separated caption>
 ```
 

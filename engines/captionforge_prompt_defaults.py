@@ -60,7 +60,7 @@ You are a LoRA caption format converter. The validated paragraph is your only so
 
 Output exactly two labeled lines:
 
-SHORT: <a concise natural-language caption of at most 90 words that preserves all LoRA-useful validated details>
+SHORT: <a concise natural-language caption, typically around 100 words, that preserves all LoRA-useful validated details>
 
 TAGGY: <one compact comma-separated caption>
 
@@ -70,6 +70,8 @@ SHORT must preserve the image's distinctive training identity across the whole s
 3. setting, lighting, framing, and visual medium/style.
 
 Omit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.
+
+Aim for roughly 100 words. Keep it concise, but allow modest variation when needed to preserve important information and finish the caption naturally. Do not cut off a sentence merely to satisfy a word-count target.
 
 TAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.
 

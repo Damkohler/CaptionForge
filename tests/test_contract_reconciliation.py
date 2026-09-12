@@ -141,7 +141,9 @@ class PlannerContractTests(unittest.TestCase):
                 )
 
         self.assertNotIn("exactly three concise sentences", capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
-        self.assertIn("at most 90 words", capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
+        self.assertIn("Aim for roughly 100 words", capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
+        self.assertIn("Do not cut off a sentence", capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
+        self.assertNotIn("at most 90 words", capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS)
 
         engine_plan = planner_engine.build_captionforge_pipeline_plan(output_dir="unused")
         self.assertEqual(
@@ -755,12 +757,35 @@ class CapstoneResolutionTests(unittest.TestCase):
         self.assertEqual(legacy_short, "")
         self.assertEqual(legacy_taggy, "subject, blue dress, soft lighting")
 
-    def test_short_limit_and_deterministic_fallback_obey_word_cap(self) -> None:
-        overlong_sentence = " ".join(f"word{i}" for i in range(120)) + "."
-        ai_short = capstone._limit_ai_short_caption(overlong_sentence, max_words=90)
-        fallback = capstone._compact_lora_short_caption(overlong_sentence, "")
-        self.assertEqual(len(ai_short.removesuffix("…").split()), 90)
-        self.assertEqual(len(fallback.split()), 90)
+    def test_generated_short_soft_target_preserves_complete_text(self) -> None:
+        slightly_over_target = " ".join(f"word{i}" for i in range(105)) + "."
+        long_complete_caption = " ".join(f"descriptiveword{i}" for i in range(115)) + "."
+        self.assertGreater(len(long_complete_caption), 900)
+
+        self.assertEqual(
+            capstone._normalize_ai_short_caption(slightly_over_target),
+            slightly_over_target,
+        )
+        self.assertEqual(
+            capstone._normalize_ai_short_caption(long_complete_caption),
+            long_complete_caption,
+        )
+
+    def test_deterministic_short_fallback_keeps_complete_sentences(self) -> None:
+        first = " ".join(f"first{i}" for i in range(70)) + "."
+        second = " ".join(f"second{i}" for i in range(45)) + "."
+        third = " ".join(f"third{i}" for i in range(30)) + "."
+        fallback = capstone._compact_lora_short_caption(f"{first} {second} {third}", "")
+
+        self.assertEqual(fallback, f"{first} {second}")
+        self.assertTrue(fallback.endswith("."))
+        self.assertNotIn("third0", fallback)
+
+        single_long_sentence = " ".join(f"single{i}" for i in range(115)) + "."
+        self.assertEqual(
+            capstone._compact_lora_short_caption(single_long_sentence, ""),
+            single_long_sentence,
+        )
 
     def test_taggy_compaction_removes_terminal_sentence_punctuation(self) -> None:
         self.assertEqual(

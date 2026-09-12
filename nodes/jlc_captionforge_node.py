@@ -1359,15 +1359,16 @@ def _compact_taggy_caption(taggy: str, *, max_items: int = 64, max_chars: int = 
     return out
 
 
-def _compact_lora_short_caption(long_caption: str, taggy_caption: str, *, max_words: int = 90, max_chars: int = 900) -> str:
+def _compact_lora_short_caption(long_caption: str, taggy_caption: str, *, target_words: int = 100) -> str:
     """Create a shorter LoRA-length caption from the validated long caption.
 
     This is deterministic and conservative: it compresses existing validated text
-    instead of asking another model to invent or rewrite details.
+    instead of asking another model to invent or rewrite details. The word target
+    is soft so fallback output always ends at a natural sentence boundary.
     """
     text = _cleanup_single_paragraph(long_caption or "")
     if not text:
-        return _compact_taggy_caption(taggy_caption, max_items=42, max_chars=max_chars)
+        return _compact_taggy_caption(taggy_caption, max_items=42, max_chars=0)
 
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
     kept: list[str] = []
@@ -1376,33 +1377,17 @@ def _compact_lora_short_caption(long_caption: str, taggy_caption: str, *, max_wo
         sentence_words = sentence.split()
         if not sentence_words:
             continue
-        if words + len(sentence_words) > max_words:
-            if not kept:
-                kept.append(" ".join(sentence_words[:max_words]))
-                words = min(len(sentence_words), max_words)
+        if kept and words >= target_words:
             break
         kept.append(sentence)
         words += len(sentence_words)
 
-    if kept:
-        short = " ".join(kept)
-    else:
-        short = " ".join(text.split()[:max_words])
-
-    if len(short) > max_chars:
-        short = short[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
-    return short.strip()
+    return (" ".join(kept) or text).strip()
 
 
-def _limit_ai_short_caption(short_caption: str, *, max_words: int = 90, max_chars: int = 900) -> str:
-    """Enforce the advertised Pass-D short limits without adding content."""
-    text = _cleanup_single_paragraph(short_caption)
-    words = text.split()
-    if max_words > 0 and len(words) > max_words:
-        text = " ".join(words[:max_words]).rstrip(" ,;:-") + "…"
-    if max_chars > 0 and len(text) > max_chars:
-        text = text[:max_chars].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
-    return text.strip()
+def _normalize_ai_short_caption(short_caption: str) -> str:
+    """Normalize generated SHORT text without imposing a hard length boundary."""
+    return _cleanup_single_paragraph(short_caption)
 
 
 def _write_final_txt_sidecars(
@@ -2086,7 +2071,7 @@ class JLC_CaptionForge:
             taggy = _compact_taggy_caption(
                 _prepend_metadata(taggy_candidate, trigger_word, user_caption_anchor)
             )
-            short = _limit_ai_short_caption(
+            short = _normalize_ai_short_caption(
                 _prepend_metadata(short_candidate, trigger_word, user_caption_anchor)
             )
             if not short:
