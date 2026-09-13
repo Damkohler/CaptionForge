@@ -946,12 +946,33 @@ def _resolve_image_path_for_group(
 
     return None
 
-def _pil_to_base64_png(path: Path) -> str:
+def _pil_to_base64_png(path: Path, max_size: int = 0) -> str:
     with Image.open(path) as img:
+        source_size = img.size
         rgb = img.convert("RGB")
+        max_size = int(max_size or 0)
+        if max_size > 0:
+            width, height = rgb.size
+            longest = max(width, height)
+            if longest > max_size:
+                scale = max_size / float(longest)
+                new_size = (
+                    max(1, int(round(width * scale))),
+                    max(1, int(round(height * scale))),
+                )
+                rgb = rgb.resize(new_size, Image.Resampling.LANCZOS)
+        validator_size = rgb.size
         buf = io.BytesIO()
         rgb.save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode("ascii")
+    encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+    print(
+        "[JLC CaptionForge Orchestrator] Validator image preparation: "
+        f"source={source_size[0]}x{source_size[1]} "
+        f"validator={validator_size[0]}x{validator_size[1]} "
+        f"encoded_payload={len(encoded) / (1024 * 1024):.2f} MiB",
+        flush=True,
+    )
+    return encoded
 
 
 # -----------------------------------------------------------------------------
@@ -1737,6 +1758,18 @@ class JLC_CaptionForge:
 
         trigger_word = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - trigger word"), "shared.trigger_word", "lora.trigger_word", "trigger_word", default=""))
         user_caption_anchor = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - user caption anchor"), "shared.user_caption_anchor", "lora.user_caption_anchor", "user_caption_anchor", default=""))
+        validator_max_size = _coerce_int(
+            _plan_get(
+                plan,
+                "caption_settings.max_size",
+                "caption_generation.max_size",
+                "pass_a_settings.max_size",
+                "shared.max_size",
+                default=0,
+            ),
+            0,
+            0,
+        )
 
         fat_model_choice = _resolve_setting(
             plan,
@@ -2001,7 +2034,7 @@ class JLC_CaptionForge:
                 append=True,
             )
 
-            image_b64 = _pil_to_base64_png(image_path)
+            image_b64 = _pil_to_base64_png(image_path, max_size=validator_max_size)
             val_prompt = _build_validator_prompt(val_prompt_instructions, fat_text, trigger_word, user_caption_anchor)
             if val_write_prompts:
                 _write_jsonl(Path(paths["validator_prompt_jsonl"]), [{"image_key": image_key, "prompt": val_prompt, "system_prompt": val_system, "model": val_model, "stage": "C_VLM_VALIDATED_FINAL"}], append=True)

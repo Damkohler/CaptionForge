@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import base64
 import importlib
+import io
 import json
 import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -36,6 +39,51 @@ if "folder_paths" not in sys.modules:
 
 planner_engine = importlib.import_module("CaptionForge.engines.captionforge_pipeline_planner_engine")
 orchestrator = importlib.import_module("CaptionForge.nodes.jlc_captionforge_node")
+
+
+class ValidatorImagePreparationTests(unittest.TestCase):
+    def _prepare(self, size: tuple[int, int], max_size: int) -> tuple[tuple[int, int], str, Path]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        image_path = Path(temp_dir.name) / "source.jpg"
+        Image.new("RGB", size, "white").save(image_path, format="JPEG", quality=95)
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            encoded = orchestrator._pil_to_base64_png(image_path, max_size=max_size)
+        with Image.open(io.BytesIO(base64.b64decode(encoded))) as transmitted:
+            transmitted_size = transmitted.size
+            transmitted_format = transmitted.format
+
+        self.assertEqual(transmitted_format, "PNG")
+        return transmitted_size, output.getvalue(), image_path
+
+    def test_large_image_is_reduced_to_longest_side_maximum(self) -> None:
+        transmitted_size, log, image_path = self._prepare((400, 200), max_size=100)
+
+        self.assertEqual(transmitted_size, (100, 50))
+        with Image.open(image_path) as source:
+            self.assertEqual(source.size, (400, 200))
+        self.assertIn("source=400x200", log)
+        self.assertIn("validator=100x50", log)
+        self.assertIn("encoded_payload=", log)
+        self.assertIn("MiB", log)
+
+    def test_resize_preserves_aspect_ratio(self) -> None:
+        transmitted_size, _, _ = self._prepare((300, 500), max_size=100)
+
+        self.assertEqual(transmitted_size, (60, 100))
+        self.assertEqual(transmitted_size[0] / transmitted_size[1], 300 / 500)
+
+    def test_image_below_maximum_is_not_enlarged(self) -> None:
+        transmitted_size, _, _ = self._prepare((80, 40), max_size=100)
+
+        self.assertEqual(transmitted_size, (80, 40))
+
+    def test_zero_maximum_disables_resizing(self) -> None:
+        transmitted_size, _, _ = self._prepare((400, 200), max_size=0)
+
+        self.assertEqual(transmitted_size, (400, 200))
 
 
 class OrchestratorOutputContractTests(unittest.TestCase):

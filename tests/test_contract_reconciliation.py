@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import importlib
+import io
 import json
 import struct
 import sys
@@ -559,7 +561,12 @@ class WorkflowAssetContractTests(unittest.TestCase):
 
 
 class CapstoneResolutionTests(unittest.TestCase):
-    def _capture_downstream_calls(self, *, plan: dict | None = None) -> tuple[list[dict], dict]:
+    def _capture_downstream_calls(
+        self,
+        *,
+        plan: dict | None = None,
+        planner_max_size: int | None = None,
+    ) -> tuple[list[dict], dict]:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             Image.new("RGB", (2, 2), "white").save(root / "image.png")
@@ -577,6 +584,15 @@ class CapstoneResolutionTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            if planner_max_size is not None:
+                plan = planner_node._call_build_captionforge_pipeline_plan_compat(
+                    output_dir=str(root / "output"),
+                    input_path=temp_dir,
+                    run_name="validator-contract",
+                    max_size=planner_max_size,
+                )
+                plan["paths"]["caption_jsonl"] = str(caption_path)
+                plan["paths"]["pass_a_jsonl"] = str(caption_path)
             kwargs = {
                 "Input - captions JSONL": str(caption_path),
                 "Input - image path": temp_dir,
@@ -742,6 +758,13 @@ class CapstoneResolutionTests(unittest.TestCase):
             self.assertEqual(downstream_call["ollama_url"], "http://127.0.0.1:11432")
             self.assertFalse(downstream_call["keep_loaded"])
             self.assertEqual(downstream_call["timeout"], 222.0)
+
+    def test_real_planner_max_size_reaches_validator_image_preparation(self) -> None:
+        _, call = self._capture_downstream_calls(planner_max_size=1)
+
+        image_bytes = base64.b64decode(call["image_b64"])
+        with Image.open(io.BytesIO(image_bytes)) as transmitted:
+            self.assertEqual(transmitted.size, (1, 1))
 
     def test_formatter_derivatives_parse_dual_and_legacy_responses(self) -> None:
         short, taggy = capstone._parse_formatter_derivatives(
