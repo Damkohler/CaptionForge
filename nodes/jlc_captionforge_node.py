@@ -1159,6 +1159,40 @@ def _http_json(method: str, url: str, payload: dict[str, Any] | None = None, tim
         raise RuntimeError(f"Could not reach Ollama at {url}: {reason}") from exc
 
 
+def _http_error_status(exc: BaseException) -> int | None:
+    """Return an HTTP status carried by an exception or its causal chain."""
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        for attribute in ("code", "status", "status_code"):
+            value = getattr(current, attribute, None)
+            try:
+                if value is not None:
+                    return int(value)
+            except (TypeError, ValueError):
+                pass
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _validator_image_retry_caps(configured_max_size: int) -> tuple[int, ...]:
+    configured = max(0, int(configured_max_size or 0))
+    caps = [configured]
+    if configured == 0:
+        caps.extend((1024, 768, 512))
+    else:
+        caps.extend(cap for cap in (1024, 768, 512) if cap < configured)
+    return tuple(caps)
+
+
+def _is_explicit_abort(exc: BaseException) -> bool:
+    return isinstance(exc, (KeyboardInterrupt, SystemExit, GeneratorExit)) or exc.__class__.__name__ in {
+        "CancelledError",
+        "InterruptProcessingException",
+    }
+
+
 def _ollama_options(num_predict: int, temperature: float, top_p: float, top_k: int, seed: int | None) -> dict[str, Any]:
     options: dict[str, Any] = {
         "num_predict": int(num_predict),
@@ -1480,15 +1514,22 @@ def _make_final_failure_record(
     trigger_word: str,
     user_caption_anchor: str,
     models: dict[str, str],
+    image: str = "",
+    error_stage: str = "",
+    error_type: str = "",
+    error_message: str = "",
 ) -> dict[str, Any]:
     return {
         "captionforge_pass": "D_FINAL_EXPORT",
         "engine": "jlc_captionforge_node",
         "engine_version": CAPTIONFORGE_NODE_VERSION,
         "image_key": image_key,
-        "image": "",
+        "image": image,
         "status": status,
         "error": error,
+        "error_stage": error_stage,
+        "error_type": error_type,
+        "error_message": error_message,
         "export_format": "",
         "final_caption": "",
         "long": "",
@@ -1508,6 +1549,55 @@ def _make_final_failure_record(
         "sidecar_paths": [],
         "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
+
+
+def _concise_error_message(exc: BaseException, max_chars: int = 500) -> str:
+    message = _normalize_text(str(exc)) or exc.__class__.__name__
+    if len(message) > max_chars:
+        return message[: max(1, max_chars - 1)].rstrip() + "…"
+    return message
+
+
+def _completed_final_records(path: Path) -> dict[str, dict[str, Any]]:
+    """Return latest completed D_FINAL_EXPORT records keyed by image_key."""
+    if not path.exists() or not path.is_file():
+        return {}
+
+    latest: dict[str, dict[str, Any]] = {}
+    with path.open("r", encoding="utf-8") as ledger:
+        for line_number, line in enumerate(ledger, start=1):
+            text = line.strip()
+            if not text:
+                continue
+            try:
+                record = json.loads(text)
+            except Exception as exc:
+                print(
+                    f"[JLC CaptionForge Orchestrator] WARNING: Ignoring unusable resume ledger line "
+                    f"{path}:{line_number}: {_concise_error_message(exc)}",
+                    flush=True,
+                )
+                continue
+            if not isinstance(record, dict):
+                continue
+            if str(record.get("captionforge_pass") or "").strip() != "D_FINAL_EXPORT":
+                continue
+            image_key = str(record.get("image_key") or "").strip()
+            if image_key:
+                latest[image_key] = record
+
+    completed: dict[str, dict[str, Any]] = {}
+    for image_key, record in latest.items():
+        if str(record.get("status") or "").strip().lower() != "ok":
+            continue
+        long_caption = _normalize_text(
+            record.get("long") or record.get("final_caption_long") or record.get("final_caption_natural")
+        )
+        short_caption = _normalize_text(record.get("short") or record.get("final_caption_short"))
+        taggy_caption = _normalize_text(record.get("taggy") or record.get("final_caption_taggy"))
+        if long_caption and short_caption and taggy_caption:
+            completed[image_key] = record
+    return completed
 
 
 def _selected_export_caption(natural: str, taggy: str, export_format: str) -> str:
@@ -1617,6 +1707,19 @@ class JLC_CaptionForge:
                 "Validator - max new tokens": (
                     "INT",
                     {"default": 2112, "min": 64, "max": 12000, "step": 64, "tooltip": "Maximum Pass-C output-token budget sent to Ollama (num_predict)."},
+                ),
+                "Validator - max image size": (
+                    "INT",
+                    {
+                        "default": 1024,
+                        "min": 0,
+                        "max": 8192,
+                        "step": 64,
+                        "tooltip": (
+                            "Longest image edge sent to the Validator VLM; aspect ratio is preserved. "
+                            "0 disables resizing. The Pipeline Planner overrides this value when connected."
+                        ),
+                    },
                 ),
                 "Validator - temperature": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 2.0, "step": 0.01, "tooltip": "Pass-C variation level. Zero requests the most deterministic image-validation result."}),
                 "Validator - top p": ("FLOAT", {"default": 0.92, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Pass-C nucleus-sampling limit. Lower values restrict the validator to more likely tokens."}),
@@ -1759,16 +1862,18 @@ class JLC_CaptionForge:
         trigger_word = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - trigger word"), "shared.trigger_word", "lora.trigger_word", "trigger_word", default=""))
         user_caption_anchor = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - user caption anchor"), "shared.user_caption_anchor", "lora.user_caption_anchor", "user_caption_anchor", default=""))
         validator_max_size = _coerce_int(
-            _plan_get(
+            _resolve_setting(
                 plan,
+                kwargs.get("Validator - max image size"),
                 "caption_settings.max_size",
                 "caption_generation.max_size",
                 "pass_a_settings.max_size",
                 "shared.max_size",
-                default=0,
+                default=1024,
             ),
+            1024,
             0,
-            0,
+            8192,
         )
 
         fat_model_choice = _resolve_setting(
@@ -1923,284 +2028,409 @@ class JLC_CaptionForge:
         final_records: list[dict[str, Any]] = []
         ok = 0
         failed = 0
+        resume_skipped = 0
 
         _evict_python_models_before_ollama_if_needed("JLC CaptionForge Orchestrator")
 
+        final_jsonl_path = Path(paths["final_jsonl"])
         if write_jsonl:
-            Path(paths["final_jsonl"]).parent.mkdir(parents=True, exist_ok=True)
+            final_jsonl_path.parent.mkdir(parents=True, exist_ok=True)
             if overwrite:
-                Path(paths["final_jsonl"]).write_text("", encoding="utf-8")
+                final_jsonl_path.write_text("", encoding="utf-8")
 
-        for image_index, (image_key, image_records) in enumerate(grouped.items(), start=1):
-            selected = _select_caption_records(
-                image_records,
-                include_families=include_families,
-                max_per_family=max_per_family,
-                max_total=max_total,
+        completed_records = _completed_final_records(final_jsonl_path) if not overwrite else {}
+        if not overwrite:
+            print(
+                f"[JLC CaptionForge Orchestrator] Resume mode: completed={len(completed_records)} "
+                f"ledger={final_jsonl_path}",
+                flush=True,
             )
-            source_families = sorted({(_family_of(r) or "unknown") for r in selected})
-            models_for_record = {"fat_draft": fat_model, "validator": val_model, "formatter": fmt_model}
 
-            if not selected:
-                failed += 1
-                final_record = _make_final_failure_record(
-                    image_key=image_key,
-                    status="error",
-                    error="no_usable_captions_selected",
-                    selected_caption_count=0,
-                    source_caption_families=[],
-                    trigger_word=trigger_word,
-                    user_caption_anchor=user_caption_anchor,
-                    models=models_for_record,
+        models_for_record = {"fat_draft": fat_model, "validator": val_model, "formatter": fmt_model}
+
+        def process_image_group(image_key: str, image_records: list[dict[str, Any]]) -> dict[str, Any]:
+            selected: list[dict[str, Any]] = []
+            source_families: list[str] = []
+            image_path: Path | None = None
+            error_stage = "caption_selection"
+            try:
+                selected = _select_caption_records(
+                    image_records,
+                    include_families=include_families,
+                    max_per_family=max_per_family,
+                    max_total=max_total,
                 )
-                final_records.append(final_record)
-                if write_jsonl:
-                    _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
-                print(f"[JLC CaptionForge Orchestrator] No usable captions selected for image_key={image_key}", flush=True)
-                continue
+                source_families = sorted({(_family_of(r) or "unknown") for r in selected})
 
-            image_path = _resolve_image_path_for_group(
-                selected,
-                image_roots,
-                optional_image_root=opt_images_dir,
-            )
-            if image_path is None:
-                failed += 1
-                final_record = _make_final_failure_record(
+                if not selected:
+                    return _make_final_failure_record(
+                        image_key=image_key,
+                        status="error",
+                        error="no_usable_captions_selected",
+                        error_stage="caption_selection",
+                        error_type="NoUsableCaptions",
+                        error_message="No usable captions were selected for this image.",
+                        selected_caption_count=0,
+                        source_caption_families=[],
+                        trigger_word=trigger_word,
+                        user_caption_anchor=user_caption_anchor,
+                        models=models_for_record,
+                    )
+
+                error_stage = "image_path_resolution"
+                image_path = _resolve_image_path_for_group(
+                    selected,
+                    image_roots,
+                    optional_image_root=opt_images_dir,
+                )
+                if image_path is None:
+                    searched = "; ".join(str(p) for p in image_roots)
+                    return _make_final_failure_record(
+                        image_key=image_key,
+                        status="error",
+                        error=f"could_not_resolve_image_path; searched={searched}",
+                        error_stage="image_path_resolution",
+                        error_type="ImageResolutionError",
+                        error_message="Could not resolve the source image path.",
+                        selected_caption_count=len(selected),
+                        source_caption_families=source_families,
+                        trigger_word=trigger_word,
+                        user_caption_anchor=user_caption_anchor,
+                        models=models_for_record,
+                    )
+
+                error_stage = "distiller"
+                caption_blocks = _build_caption_blocks(selected, max_caption_chars)
+                fat_prompt = _build_fat_draft_prompt(
+                    fat_prompt_instructions,
+                    caption_blocks,
+                    trigger_word,
+                    user_caption_anchor,
+                )
+                if fat_write_prompts:
+                    _write_jsonl(
+                        Path(paths["fat_draft_prompt_jsonl"]),
+                        [{"image_key": image_key, "prompt": fat_prompt, "model": fat_model, "stage": "B_FAT_DRAFT"}],
+                        append=True,
+                    )
+
+                fat_text, fat_raw = _ollama_generate_text(
+                    ollama_url=ollama_url,
+                    model=fat_model,
+                    prompt=fat_prompt,
+                    num_predict=fat_num,
+                    temperature=fat_temp,
+                    top_p=fat_top_p,
+                    top_k=fat_top_k,
+                    seed=fat_seed,
+                    keep_loaded=keep_loaded,
+                    timeout=timeout,
+                )
+                fat_text = _cleanup_single_paragraph(fat_text)
+                fat_raw_path = _save_raw_response(
+                    raw_dir if fat_preserve_raw else None,
+                    image_key,
+                    "01_fat_draft_raw",
+                    fat_raw,
+                    overwrite=overwrite,
+                )
+                _write_jsonl(
+                    Path(paths["fat_draft_jsonl"]),
+                    [
+                        asdict(
+                            StageRecord(
+                                captionforge_pass="B_FAT_DRAFT",
+                                engine="jlc_captionforge_node",
+                                engine_version=CAPTIONFORGE_NODE_VERSION,
+                                image_key=image_key,
+                                image=str(image_path),
+                                status="ok" if fat_text else "empty",
+                                text=fat_text,
+                                model=fat_model,
+                                prompt=fat_prompt if fat_write_prompts else "",
+                                params={"max_new_tokens": fat_num, "temperature": fat_temp, "top_p": fat_top_p, "top_k": fat_top_k, "seed": fat_seed},
+                                source={"selected_caption_count": len(selected), "raw_response_path": fat_raw_path},
+                                timestamp=datetime.now().isoformat(timespec="seconds"),
+                            )
+                        )
+                    ],
+                    append=True,
+                )
+
+                error_stage = "validator"
+                val_prompt = _build_validator_prompt(
+                    val_prompt_instructions,
+                    fat_text,
+                    trigger_word,
+                    user_caption_anchor,
+                )
+                if val_write_prompts:
+                    _write_jsonl(
+                        Path(paths["validator_prompt_jsonl"]),
+                        [{"image_key": image_key, "prompt": val_prompt, "system_prompt": val_system, "model": val_model, "stage": "C_VLM_VALIDATED_FINAL"}],
+                        append=True,
+                    )
+
+                retry_caps = _validator_image_retry_caps(validator_max_size)
+                natural = ""
+                val_raw: dict[str, Any] = {}
+                for attempt_index, attempt_cap in enumerate(retry_caps):
+                    error_stage = "validator_image_preparation"
+                    image_b64 = _pil_to_base64_png(image_path, max_size=attempt_cap)
+                    error_stage = "validator"
+                    try:
+                        natural, val_raw = _ollama_chat_image(
+                            ollama_url=ollama_url,
+                            model=val_model,
+                            system_prompt=val_system,
+                            user_prompt=val_prompt,
+                            image_b64=image_b64,
+                            num_predict=val_num,
+                            temperature=val_temp,
+                            top_p=val_top_p,
+                            top_k=val_top_k,
+                            seed=val_seed,
+                            keep_loaded=keep_loaded,
+                            timeout=timeout,
+                        )
+                        break
+                    except Exception as exc:
+                        if _is_explicit_abort(exc):
+                            raise
+                        next_index = attempt_index + 1
+                        if _http_error_status(exc) != 413 or next_index >= len(retry_caps):
+                            raise
+                        retry_cap = retry_caps[next_index]
+                        print(
+                            f"[JLC CaptionForge Orchestrator] Validator HTTP 413 for image_key={image_key}; "
+                            f"retrying with max_size={retry_cap}",
+                            flush=True,
+                        )
+
+                natural = _prepend_metadata(_cleanup_single_paragraph(natural), trigger_word, user_caption_anchor)
+                val_raw_path = _save_raw_response(
+                    raw_dir if val_preserve_raw else None,
+                    image_key,
+                    "02_validator_raw",
+                    val_raw,
+                    overwrite=overwrite,
+                )
+                _write_jsonl(
+                    Path(paths["validator_jsonl"]),
+                    [
+                        asdict(
+                            StageRecord(
+                                captionforge_pass="C_VLM_VALIDATED_FINAL",
+                                engine="jlc_captionforge_node",
+                                engine_version=CAPTIONFORGE_NODE_VERSION,
+                                image_key=image_key,
+                                image=str(image_path),
+                                status="ok" if natural else "empty",
+                                text=natural,
+                                model=val_model,
+                                prompt=val_prompt if val_write_prompts else "",
+                                params={"max_new_tokens": val_num, "temperature": val_temp, "top_p": val_top_p, "top_k": val_top_k, "seed": val_seed},
+                                source={"fat_draft": fat_text, "raw_response_path": val_raw_path},
+                                timestamp=datetime.now().isoformat(timespec="seconds"),
+                            )
+                        )
+                    ],
+                    append=True,
+                )
+
+                error_stage = "formatter"
+                fmt_prompt = _build_taggy_prompt(fmt_prompt_instructions, natural, trigger_word, user_caption_anchor)
+                if fmt_write_prompts:
+                    _write_jsonl(
+                        Path(paths["taggy_prompt_jsonl"]),
+                        [{"image_key": image_key, "prompt": fmt_prompt, "model": fmt_model, "stage": "D_FORMAT_TAGGY"}],
+                        append=True,
+                    )
+
+                formatter_text, fmt_raw = _ollama_generate_text(
+                    ollama_url=ollama_url,
+                    model=fmt_model,
+                    prompt=fmt_prompt,
+                    num_predict=fmt_num,
+                    temperature=fmt_temp,
+                    top_p=fmt_top_p,
+                    top_k=fmt_top_k,
+                    seed=fmt_seed,
+                    keep_loaded=keep_loaded,
+                    timeout=timeout,
+                )
+                short_candidate, taggy_candidate = _parse_formatter_derivatives(formatter_text)
+                taggy = _compact_taggy_caption(
+                    _prepend_metadata(taggy_candidate, trigger_word, user_caption_anchor)
+                )
+                short = _normalize_ai_short_caption(
+                    _prepend_metadata(short_candidate, trigger_word, user_caption_anchor)
+                )
+                if not short:
+                    short = _compact_lora_short_caption(natural, taggy)
+                fmt_raw_path = _save_raw_response(
+                    raw_dir if fmt_preserve_raw else None,
+                    image_key,
+                    "03_taggy_raw",
+                    fmt_raw,
+                    overwrite=overwrite,
+                )
+                _write_jsonl(
+                    Path(paths["taggy_jsonl"]),
+                    [
+                        asdict(
+                            StageRecord(
+                                captionforge_pass="D_FORMAT_TAGGY",
+                                engine="jlc_captionforge_node",
+                                engine_version=CAPTIONFORGE_NODE_VERSION,
+                                image_key=image_key,
+                                image=str(image_path),
+                                status="ok" if taggy else "empty",
+                                text=taggy,
+                                model=fmt_model,
+                                prompt=fmt_prompt if fmt_write_prompts else "",
+                                params={"max_new_tokens": fmt_num, "temperature": fmt_temp, "top_p": fmt_top_p, "top_k": fmt_top_k, "seed": fmt_seed},
+                                source={
+                                    "validated_natural": natural,
+                                    "short_caption": short,
+                                    "raw_response_path": fmt_raw_path,
+                                },
+                                timestamp=datetime.now().isoformat(timespec="seconds"),
+                            )
+                        )
+                    ],
+                    append=True,
+                )
+
+                error_stage = "final_export"
+                export_caption = _selected_export_caption(natural, taggy, txt_export_format)
+                is_ok = bool(natural and taggy)
+                final_record = {
+                    "captionforge_pass": "D_FINAL_EXPORT",
+                    "engine": "jlc_captionforge_node",
+                    "engine_version": CAPTIONFORGE_NODE_VERSION,
+                    "image_key": image_key,
+                    "image": str(image_path),
+                    "status": "ok" if is_ok else "error",
+                    "export_format": txt_export_format,
+                    "final_caption": export_caption,
+                    "long": natural,
+                    "short": short,
+                    "taggy": taggy,
+                    "final_caption_long": natural,
+                    "final_caption_short": short,
+                    "final_caption_natural": natural,
+                    "final_caption_taggy": taggy,
+                    "fat_draft": fat_text,
+                    "trigger_word": trigger_word,
+                    "user_caption_anchor": user_caption_anchor,
+                    "models": models_for_record,
+                    "selected_caption_count": len(selected),
+                    "source_caption_families": source_families,
+                    "outputs": _final_sidecar_output_paths(
+                        image_path,
+                        natural,
+                        short,
+                        taggy,
+                        enabled=write_txt,
+                    ),
+                    "sidecar_paths": [],
+                    "timestamp": datetime.now().isoformat(timespec="seconds"),
+                }
+
+                if write_txt and (natural or short or taggy):
+                    final_record["sidecar_paths"] = _write_final_txt_sidecars(
+                        image_path,
+                        natural,
+                        short,
+                        taggy,
+                        txt_export_format,
+                        overwrite=overwrite,
+                    )
+                return final_record
+            except Exception as exc:
+                if _is_explicit_abort(exc):
+                    raise
+                return _make_final_failure_record(
                     image_key=image_key,
+                    image=str(image_path or ""),
                     status="error",
-                    error=f"could_not_resolve_image_path; searched={'; '.join(str(p) for p in image_roots)}",
+                    error="processing_exception",
+                    error_stage=error_stage,
+                    error_type=exc.__class__.__name__,
+                    error_message=_concise_error_message(exc),
                     selected_caption_count=len(selected),
                     source_caption_families=source_families,
                     trigger_word=trigger_word,
                     user_caption_anchor=user_caption_anchor,
                     models=models_for_record,
                 )
-                final_records.append(final_record)
-                if write_jsonl:
-                    _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
+
+        for image_index, (image_key, image_records) in enumerate(grouped.items(), start=1):
+            if image_key in completed_records:
+                resume_skipped += 1
+                ok += 1
+                final_records.append(completed_records[image_key])
                 print(
-                    f"[JLC CaptionForge Orchestrator] Could not resolve image path for image_key={image_key}; "
-                    f"searched roots: {', '.join(str(p) for p in image_roots)}",
+                    f"[JLC CaptionForge Orchestrator] Resume skip {image_index}/{len(grouped)} image_key={image_key}",
                     flush=True,
                 )
                 continue
 
-            caption_blocks = _build_caption_blocks(selected, max_caption_chars)
-            fat_prompt = _build_fat_draft_prompt(fat_prompt_instructions, caption_blocks, trigger_word, user_caption_anchor)
-            if fat_write_prompts:
-                _write_jsonl(Path(paths["fat_draft_prompt_jsonl"]), [{"image_key": image_key, "prompt": fat_prompt, "model": fat_model, "stage": "B_FAT_DRAFT"}], append=True)
-
-            fat_text, fat_raw = _ollama_generate_text(
-                ollama_url=ollama_url,
-                model=fat_model,
-                prompt=fat_prompt,
-                num_predict=fat_num,
-                temperature=fat_temp,
-                top_p=fat_top_p,
-                top_k=fat_top_k,
-                seed=fat_seed,
-                keep_loaded=keep_loaded,
-                timeout=timeout,
-            )
-            fat_text = _cleanup_single_paragraph(fat_text)
-            fat_raw_path = _save_raw_response(
-                raw_dir if fat_preserve_raw else None,
-                image_key,
-                "01_fat_draft_raw",
-                fat_raw,
-                overwrite=overwrite,
-            )
-            _write_jsonl(
-                Path(paths["fat_draft_jsonl"]),
-                [
-                    asdict(
-                        StageRecord(
-                            captionforge_pass="B_FAT_DRAFT",
-                            engine="jlc_captionforge_node",
-                            engine_version=CAPTIONFORGE_NODE_VERSION,
-                            image_key=image_key,
-                            image=str(image_path),
-                            status="ok" if fat_text else "empty",
-                            text=fat_text,
-                            model=fat_model,
-                            prompt=fat_prompt if fat_write_prompts else "",
-                            params={"max_new_tokens": fat_num, "temperature": fat_temp, "top_p": fat_top_p, "top_k": fat_top_k, "seed": fat_seed},
-                            source={"selected_caption_count": len(selected), "raw_response_path": fat_raw_path},
-                            timestamp=datetime.now().isoformat(timespec="seconds"),
-                        )
-                    )
-                ],
-                append=True,
-            )
-
-            image_b64 = _pil_to_base64_png(image_path, max_size=validator_max_size)
-            val_prompt = _build_validator_prompt(val_prompt_instructions, fat_text, trigger_word, user_caption_anchor)
-            if val_write_prompts:
-                _write_jsonl(Path(paths["validator_prompt_jsonl"]), [{"image_key": image_key, "prompt": val_prompt, "system_prompt": val_system, "model": val_model, "stage": "C_VLM_VALIDATED_FINAL"}], append=True)
-
-            natural, val_raw = _ollama_chat_image(
-                ollama_url=ollama_url,
-                model=val_model,
-                system_prompt=val_system,
-                user_prompt=val_prompt,
-                image_b64=image_b64,
-                num_predict=val_num,
-                temperature=val_temp,
-                top_p=val_top_p,
-                top_k=val_top_k,
-                seed=val_seed,
-                keep_loaded=keep_loaded,
-                timeout=timeout,
-            )
-            natural = _prepend_metadata(_cleanup_single_paragraph(natural), trigger_word, user_caption_anchor)
-            val_raw_path = _save_raw_response(
-                raw_dir if val_preserve_raw else None,
-                image_key,
-                "02_validator_raw",
-                val_raw,
-                overwrite=overwrite,
-            )
-            _write_jsonl(
-                Path(paths["validator_jsonl"]),
-                [
-                    asdict(
-                        StageRecord(
-                            captionforge_pass="C_VLM_VALIDATED_FINAL",
-                            engine="jlc_captionforge_node",
-                            engine_version=CAPTIONFORGE_NODE_VERSION,
-                            image_key=image_key,
-                            image=str(image_path),
-                            status="ok" if natural else "empty",
-                            text=natural,
-                            model=val_model,
-                            prompt=val_prompt if val_write_prompts else "",
-                            params={"max_new_tokens": val_num, "temperature": val_temp, "top_p": val_top_p, "top_k": val_top_k, "seed": val_seed},
-                            source={"fat_draft": fat_text, "raw_response_path": val_raw_path},
-                            timestamp=datetime.now().isoformat(timespec="seconds"),
-                        )
-                    )
-                ],
-                append=True,
-            )
-
-            fmt_prompt = _build_taggy_prompt(fmt_prompt_instructions, natural, trigger_word, user_caption_anchor)
-            if fmt_write_prompts:
-                _write_jsonl(Path(paths["taggy_prompt_jsonl"]), [{"image_key": image_key, "prompt": fmt_prompt, "model": fmt_model, "stage": "D_FORMAT_TAGGY"}], append=True)
-
-            formatter_text, fmt_raw = _ollama_generate_text(
-                ollama_url=ollama_url,
-                model=fmt_model,
-                prompt=fmt_prompt,
-                num_predict=fmt_num,
-                temperature=fmt_temp,
-                top_p=fmt_top_p,
-                top_k=fmt_top_k,
-                seed=fmt_seed,
-                keep_loaded=keep_loaded,
-                timeout=timeout,
-            )
-            short_candidate, taggy_candidate = _parse_formatter_derivatives(formatter_text)
-            taggy = _compact_taggy_caption(
-                _prepend_metadata(taggy_candidate, trigger_word, user_caption_anchor)
-            )
-            short = _normalize_ai_short_caption(
-                _prepend_metadata(short_candidate, trigger_word, user_caption_anchor)
-            )
-            if not short:
-                short = _compact_lora_short_caption(natural, taggy)
-            fmt_raw_path = _save_raw_response(
-                raw_dir if fmt_preserve_raw else None,
-                image_key,
-                "03_taggy_raw",
-                fmt_raw,
-                overwrite=overwrite,
-            )
-            _write_jsonl(
-                Path(paths["taggy_jsonl"]),
-                [
-                    asdict(
-                        StageRecord(
-                            captionforge_pass="D_FORMAT_TAGGY",
-                            engine="jlc_captionforge_node",
-                            engine_version=CAPTIONFORGE_NODE_VERSION,
-                            image_key=image_key,
-                            image=str(image_path),
-                            status="ok" if taggy else "empty",
-                            text=taggy,
-                            model=fmt_model,
-                            prompt=fmt_prompt if fmt_write_prompts else "",
-                            params={"max_new_tokens": fmt_num, "temperature": fmt_temp, "top_p": fmt_top_p, "top_k": fmt_top_k, "seed": fmt_seed},
-                            source={
-                                "validated_natural": natural,
-                                "short_caption": short,
-                                "raw_response_path": fmt_raw_path,
-                            },
-                            timestamp=datetime.now().isoformat(timespec="seconds"),
-                        )
-                    )
-                ],
-                append=True,
-            )
-
-            export_caption = _selected_export_caption(natural, taggy, txt_export_format)
-            is_ok = bool(natural and taggy)
+            final_record = process_image_group(image_key, image_records)
+            final_records.append(final_record)
+            is_ok = str(final_record.get("status") or "").strip().lower() == "ok"
             ok += int(is_ok)
             failed += int(not is_ok)
 
-            final_record = {
-                "captionforge_pass": "D_FINAL_EXPORT",
-                "engine": "jlc_captionforge_node",
-                "engine_version": CAPTIONFORGE_NODE_VERSION,
-                "image_key": image_key,
-                "image": str(image_path),
-                "status": "ok" if is_ok else "error",
-                "export_format": txt_export_format,
-                "final_caption": export_caption,
-                "long": natural,
-                "short": short,
-                "taggy": taggy,
-                "final_caption_long": natural,
-                "final_caption_short": short,
-                "final_caption_natural": natural,
-                "final_caption_taggy": taggy,
-                "fat_draft": fat_text,
-                "trigger_word": trigger_word,
-                "user_caption_anchor": user_caption_anchor,
-                "models": models_for_record,
-                "selected_caption_count": len(selected),
-                "source_caption_families": source_families,
-                "outputs": _final_sidecar_output_paths(
-                    Path(image_path),
-                    natural,
-                    short,
-                    taggy,
-                    enabled=write_txt,
-                ),
-                "sidecar_paths": [],
-                "timestamp": datetime.now().isoformat(timespec="seconds"),
-            }
-
-            if write_txt and (natural or short or taggy):
-                final_record["sidecar_paths"] = _write_final_txt_sidecars(
-                    Path(image_path),
-                    natural,
-                    short,
-                    taggy,
-                    txt_export_format,
-                    overwrite=overwrite,
-                )
-
-            final_records.append(final_record)
-
             if write_jsonl:
-                _write_jsonl(Path(paths["final_jsonl"]), [final_record], append=True)
+                try:
+                    _write_jsonl(final_jsonl_path, [final_record], append=True)
+                except Exception as exc:
+                    if _is_explicit_abort(exc):
+                        raise
+                    if is_ok:
+                        ok -= 1
+                        failed += 1
+                        final_record = _make_final_failure_record(
+                            image_key=image_key,
+                            image=str(final_record.get("image") or ""),
+                            status="error",
+                            error="processing_exception",
+                            error_stage="final_ledger_write",
+                            error_type=exc.__class__.__name__,
+                            error_message=_concise_error_message(exc),
+                            selected_caption_count=int(final_record.get("selected_caption_count") or 0),
+                            source_caption_families=list(final_record.get("source_caption_families") or []),
+                            trigger_word=trigger_word,
+                            user_caption_anchor=user_caption_anchor,
+                            models=models_for_record,
+                        )
+                        final_records[-1] = final_record
+                        is_ok = False
+                    else:
+                        print(
+                            f"[JLC CaptionForge Orchestrator] WARNING: Could not append failure record "
+                            f"for image_key={image_key}: {_concise_error_message(exc)}",
+                            flush=True,
+                        )
 
-            print(
-                f"[JLC CaptionForge Orchestrator] processed {image_index}/{len(grouped)} image_key={image_key} "
-                f"captions={len(selected)} natural_len={len(natural)} taggy_len={len(taggy)}",
-                flush=True,
-            )
+            if is_ok:
+                print(
+                    f"[JLC CaptionForge Orchestrator] processed {image_index}/{len(grouped)} image_key={image_key} "
+                    f"captions={final_record.get('selected_caption_count', 0)} "
+                    f"natural_len={len(str(final_record.get('long') or ''))} "
+                    f"taggy_len={len(str(final_record.get('taggy') or ''))}",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"[JLC CaptionForge Orchestrator] failed {image_index}/{len(grouped)} image_key={image_key} "
+                    f"stage={final_record.get('error_stage') or 'final_output'} "
+                    f"error_type={final_record.get('error_type') or final_record.get('error') or 'Error'} "
+                    f"message={final_record.get('error_message') or final_record.get('error') or ''}",
+                    flush=True,
+                )
 
         output_paths = dict(paths)
         output_paths.update(
@@ -2218,6 +2448,7 @@ class JLC_CaptionForge:
                 "txt_export_format": txt_export_format,
                 "final_ok": ok,
                 "final_failed": failed,
+                "resume_skipped": resume_skipped,
             }
         )
         output_paths_json = json.dumps(_json_safe(output_paths), ensure_ascii=False, indent=2)
@@ -2238,7 +2469,7 @@ class JLC_CaptionForge:
         status = (
             f"[JLC CaptionForge Orchestrator v{CAPTIONFORGE_NODE_VERSION}] complete | "
             f"planner_connected={_planner_overrides(plan)} | images={len(grouped)} | "
-            f"final_ok={ok} final_failed={failed} | "
+            f"final_ok={ok} final_failed={failed} resume_skipped={resume_skipped} | "
             f"models fat={fat_model} validator={val_model} formatter={fmt_model} | "
             f"run={run_name} output={output_dir}"
         )

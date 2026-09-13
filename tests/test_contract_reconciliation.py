@@ -503,6 +503,7 @@ class WorkflowAssetContractTests(unittest.TestCase):
                     "Validator - system prompt",
                     "Validator - prompt",
                     "Validator - max new tokens",
+                    "Validator - max image size",
                     "Validator - temperature",
                     "Validator - top p",
                     "Validator - top k",
@@ -566,10 +567,12 @@ class CapstoneResolutionTests(unittest.TestCase):
         *,
         plan: dict | None = None,
         planner_max_size: int | None = None,
+        validator_widget_max_size: int | None = None,
+        image_size: tuple[int, int] = (2, 2),
     ) -> tuple[list[dict], dict]:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            Image.new("RGB", (2, 2), "white").save(root / "image.png")
+            Image.new("RGB", image_size, "white").save(root / "image.png")
             caption_path = root / "captions.jsonl"
             caption_path.write_text(
                 json.dumps(
@@ -628,6 +631,8 @@ class CapstoneResolutionTests(unittest.TestCase):
                 "Formatter - top k": 19,
                 "Formatter seed": 20,
             }
+            if validator_widget_max_size is not None:
+                kwargs["Validator - max image size"] = validator_widget_max_size
             if plan is not None:
                 kwargs["pipeline_plan"] = plan
 
@@ -759,8 +764,37 @@ class CapstoneResolutionTests(unittest.TestCase):
             self.assertFalse(downstream_call["keep_loaded"])
             self.assertEqual(downstream_call["timeout"], 222.0)
 
-    def test_real_planner_max_size_reaches_validator_image_preparation(self) -> None:
-        _, call = self._capture_downstream_calls(planner_max_size=1)
+    def test_standalone_validator_max_image_size_widget_contract(self) -> None:
+        widget = capstone.JLC_CaptionForge.INPUT_TYPES()["required"]["Validator - max image size"]
+
+        self.assertEqual(widget[0], "INT")
+        self.assertEqual(widget[1]["default"], 1024)
+        self.assertEqual(widget[1]["min"], 0)
+        self.assertEqual(widget[1]["max"], 8192)
+        self.assertEqual(widget[1]["step"], 64)
+
+    def test_standalone_default_max_size_reaches_validator_image_preparation(self) -> None:
+        _, call = self._capture_downstream_calls(image_size=(1200, 600))
+
+        image_bytes = base64.b64decode(call["image_b64"])
+        with Image.open(io.BytesIO(image_bytes)) as transmitted:
+            self.assertEqual(transmitted.size, (1024, 512))
+
+    def test_standalone_custom_max_size_reaches_validator_image_preparation(self) -> None:
+        _, call = self._capture_downstream_calls(
+            validator_widget_max_size=768,
+            image_size=(1200, 600),
+        )
+
+        image_bytes = base64.b64decode(call["image_b64"])
+        with Image.open(io.BytesIO(image_bytes)) as transmitted:
+            self.assertEqual(transmitted.size, (768, 384))
+
+    def test_real_planner_max_size_overrides_standalone_widget(self) -> None:
+        _, call = self._capture_downstream_calls(
+            planner_max_size=1,
+            validator_widget_max_size=768,
+        )
 
         image_bytes = base64.b64decode(call["image_b64"])
         with Image.open(io.BytesIO(image_bytes)) as transmitted:
