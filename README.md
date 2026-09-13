@@ -11,7 +11,7 @@
 <p align="center">
   <img alt="ComfyUI" src="https://img.shields.io/badge/ComfyUI-Custom%20Nodes-blue">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-blue">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-blue">
 </p>
 
 ---
@@ -28,7 +28,7 @@ The core idea is simple: a single image captioner can be useful, but it should n
 
 CaptionForge also writes structured JSONL audit records so intermediate evidence, prompts, model settings, and final outputs can be inspected instead of treated as a black box.
 
-> **Current release: CaptionForge 1.0.0.**
+> **Current release: CaptionForge 1.0.1.**
 > The A/B/C/D semantic pipeline, Planner/Orchestrator authority model, seed contract, and production defaults are frozen for this release.
 
 ---
@@ -444,9 +444,9 @@ CaptionForge will produce the final caption sidecars and preserve the run's stru
 
 ---
 
-## Validation for 1.0.0
+## Validation for 1.0.1
 
-The final 1.0.0 release-preparation pass included:
+The final 1.0.1 release-preparation pass included:
 
 - Planner ownership/default tests
 - Pass A artifact and source-identity tests
