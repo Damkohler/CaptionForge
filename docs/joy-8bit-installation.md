@@ -24,17 +24,26 @@ References:
 - [Upstream JoyCaption ComfyUI implementation](https://github.com/fpgaminer/joycaption_comfyui/blob/main/nodes.py)
 - [bitsandbytes 0.46.1 implementation](https://github.com/bitsandbytes-foundation/bitsandbytes/blob/0.46.1/bitsandbytes/autograd/_functions.py)
 
+The desktop reproduction also showed FP32 input activations. The BF16 cache key
+is not a promise that every intermediate tensor is BF16: autocast applies per
+operation, and normalization or type promotion can produce FP32 intermediates.
+The exact producing layer cannot be identified from the supplied log.
+Bitsandbytes accepts these through the same explicit FP16 quantization conversion,
+so both observed messages are handled without changing numerical behavior.
+See the [current bitsandbytes implementation](https://github.com/bitsandbytes-foundation/bitsandbytes/blob/main/bitsandbytes/autograd/_functions.py).
+
 ## Warning scope
 
 The old import-time filters were removed. During Balanced (8-bit) generation
-only, CaptionForge ignores this exact `UserWarning` or WARNING log record from
+only, CaptionForge ignores these exact `UserWarning` messages or WARNING log records from
 `bitsandbytes.autograd._functions`:
 
 ```text
 MatMul8bitLt: inputs will be cast from torch.bfloat16 to float16 during quantization
+MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization
 ```
 
-FP32 cast warnings, different messages, other modules, other warning categories,
+Other cast dtypes, different messages, other modules, other warning categories,
 processor/loading/cleanup diagnostics and Default-mode warnings remain visible.
 The caller's filters are restored even if generation fails. Recent bitsandbytes versions emit this through `logger.warning` instead of
 `warnings.warn`; both routes are covered. The logging filter matches the fully

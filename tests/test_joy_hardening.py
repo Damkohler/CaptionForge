@@ -23,6 +23,7 @@ joy_warnings = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(joy_warnings)
 scope = joy_warnings.joy_8bit_inference_warnings
 MESSAGE = 'MatMul8bitLt: inputs will be cast from torch.bfloat16 to float16 during quantization'
+FP32_MESSAGE = MESSAGE.replace('bfloat16', 'float32')
 MODULE = 'bitsandbytes.autograd._functions'
 
 
@@ -44,6 +45,7 @@ class WarningScopeTests(unittest.TestCase):
                 with scope(True):
                     for _ in range(100):
                         emit()
+                        emit(FP32_MESSAGE)
                     emit('Unrelated bitsandbytes warning')
                 self.assertEqual(warnings.filters, before)
             self.assertEqual(len(caught), 6)
@@ -53,13 +55,14 @@ class WarningScopeTests(unittest.TestCase):
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter('always')
             with scope(True):
-                emit(MESSAGE.replace('bfloat16', 'float32'))
+                emit(MESSAGE.replace('bfloat16', 'float64'))
                 emit(MESSAGE + ' extra context')
                 emit('prefix ' + MESSAGE)
                 emit(module='another_engine')
+                emit(FP32_MESSAGE, module='another_engine')
                 emit(category=RuntimeWarning)
                 emit(module=MODULE + '.other')
-            self.assertEqual(len(caught), 6)
+            self.assertEqual(len(caught), 7)
 
     def test_default_mode_and_after_scope_remain_visible(self):
         with warnings.catch_warnings(record=True) as caught:
@@ -101,13 +104,14 @@ class LoggingScopeTests(unittest.TestCase):
                 with scope(True):
                     for _ in range(100):
                         self.logger.warning('MatMul8bitLt: inputs will be cast from %s to float16 during quantization', 'torch.bfloat16')
+                        self.logger.warning('MatMul8bitLt: inputs will be cast from %s to float16 during quantization', 'torch.float32')
                     self.logger.warning('Useful diagnostic')
         self.assertEqual([r.getMessage() for r in caught.records], ['Useful diagnostic'] * 6)
 
     def test_near_matches_levels_child_logger_and_other_thread(self):
         with self.assertLogs(MODULE, level='INFO') as caught:
             with scope(True):
-                self.logger.warning(MESSAGE.replace('bfloat16', 'float32'))
+                self.logger.warning(MESSAGE.replace('bfloat16', 'float64'))
                 self.logger.warning(MESSAGE + ' extra')
                 self.logger.error(MESSAGE)
                 self.logger.info(MESSAGE)
@@ -175,10 +179,12 @@ class GenerationScopeTests(unittest.TestCase):
 
         def generate(**kwargs):
             emit()
+            emit(FP32_MESSAGE)
             logging.getLogger(MODULE).warning(
                 'MatMul8bitLt: inputs will be cast from %s to float16 during quantization',
                 'torch.bfloat16',
             )
+            logging.getLogger(MODULE).warning(FP32_MESSAGE)
             emit('Useful generation diagnostic')
             if fail:
                 raise ValueError('generation failed')
@@ -209,7 +215,7 @@ class GenerationScopeTests(unittest.TestCase):
         self.assertEqual(self.run_generation('Balanced (8-bit)'), ['Useful generation diagnostic', 'Cleanup diagnostic'])
 
     def test_default_generation(self):
-        self.assertEqual(self.run_generation('Default'), [MESSAGE, 'Useful generation diagnostic', 'Cleanup diagnostic'])
+        self.assertEqual(self.run_generation('Default'), [MESSAGE, FP32_MESSAGE, 'Useful generation diagnostic', 'Cleanup diagnostic'])
 
     def test_failed_generation(self):
         self.assertEqual(self.run_generation('Balanced (8-bit)', fail=True), ['Useful generation diagnostic', 'Cleanup diagnostic'])

@@ -6,9 +6,10 @@ import threading
 import warnings
 
 
-_CAST_MESSAGE = (
-    "MatMul8bitLt: inputs will be cast from torch.bfloat16 "
+_CAST_MESSAGES = frozenset(
+    f"MatMul8bitLt: inputs will be cast from torch.{dtype} "
     "to float16 during quantization"
+    for dtype in ("bfloat16", "float32")
 )
 _BNB_LOGGER = "bitsandbytes.autograd._functions"
 
@@ -23,13 +24,13 @@ class _JoyCastLogFilter(logging.Filter):
             record.name == _BNB_LOGGER
             and record.levelno == logging.WARNING
             and record.thread == self.thread_id
-            and record.getMessage() == _CAST_MESSAGE
+            and record.getMessage() in _CAST_MESSAGES
         )
 
 
 @contextmanager
 def joy_8bit_inference_warnings(enabled: bool):
-    """Preserve all diagnostics except the known BF16 cast during Joy 8-bit inference.
+    """Preserve all diagnostics except the known BF16/FP32 casts during Joy 8-bit inference.
 
     No filter is installed at import time or for Default mode. catch_warnings
     restores the caller's filters even when generation raises an exception.
@@ -44,7 +45,7 @@ def joy_8bit_inference_warnings(enabled: bool):
         warnings.filterwarnings(
             "ignore",
             message=(
-                r"\AMatMul8bitLt: inputs will be cast from torch\.bfloat16 "
+                r"\AMatMul8bitLt: inputs will be cast from torch\.(?:bfloat16|float32) "
                 r"to float16 during quantization\Z"
             ),
             category=UserWarning,
