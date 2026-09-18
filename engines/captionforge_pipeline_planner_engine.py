@@ -434,6 +434,7 @@ def build_captionforge_pipeline_plan(
     final_caption_style: str = "narrative",
     final_write_txt_sidecars: bool = True,
     final_write_jsonl: bool = True,
+    dataset_export: dict[str, Any] | None = None,
     # Legacy compatibility aliases retained for older callers.
     distiller_seed: int | None = None,
     validator_seed: int | None = None,
@@ -573,7 +574,10 @@ def build_captionforge_pipeline_plan(
         "large_model_passes_after_validator": False,
     }
 
+    from .captionforge_dataset_export import normalize_export_settings
+
     return {
+        "dataset_export": normalize_export_settings(dataset_export),
         "captionforge_config_type": PIPELINE_PLAN_TYPE,
         "captionforge_config_version": PIPELINE_PLAN_VERSION,
         "shared": shared,

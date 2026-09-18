@@ -122,6 +122,14 @@ import re
 from pathlib import Path
 from typing import Any
 
+from ..engines.captionforge_dataset_export import (
+    dataset_export_inputs,
+    dataset_root,
+    export_settings_from_widgets,
+    normalize_export_settings,
+    prepare_dataset_root,
+)
+
 try:
     from .captionforge_ollama_model_dropdowns import load_ollama_model_dropdowns
 except Exception:  # pragma: no cover - useful for direct local smoke tests
@@ -355,6 +363,7 @@ def _call_build_captionforge_pipeline_plan_compat(**kwargs) -> dict[str, Any]:
         "overwrite_outputs": kwargs.get("overwrite_outputs", True),
     }
     plan["output"] = {"overwrite_outputs": kwargs.get("overwrite_outputs", True)}
+    plan["dataset_export"] = normalize_export_settings(kwargs.get("dataset_export"))
     return plan
 
 
@@ -1075,6 +1084,7 @@ class JLC_CaptionForge_Pipeline_Planner:
                 ),
             },
             "optional": {
+                **dataset_export_inputs(),
                 "Input - single image": (
                     "IMAGE",
                     {
@@ -1205,6 +1215,7 @@ class JLC_CaptionForge_Pipeline_Planner:
             formatter_preserve_raw_response=_as_bool(kwargs.get("Formatter - preserve raw response", False)),
             final_write_txt_sidecars=_as_bool(kwargs.get("Final - write TXT sidecars", True)),
             final_write_jsonl=_as_bool(kwargs.get("Final - write JSONL", True)),
+            dataset_export=export_settings_from_widgets(kwargs),
             overwrite_outputs=_as_bool(kwargs.get("Output - overwrite outputs", True)),
         )
         plan = _patch_supported_caption_witnesses(
@@ -1214,6 +1225,12 @@ class JLC_CaptionForge_Pipeline_Planner:
             ollama_runs=ollama_runs,
         )
         plan = _patch_v010_working_image_paths(plan)
+
+        export = plan["dataset_export"]
+        if export["enabled"]:
+            root = dataset_root(export, output_dir)
+            prepare_dataset_root(root, str(kwargs.get("Input - image path", "") or ""))
+            plan["paths"]["training_dataset_dir"] = str(root)
 
         overwrite_outputs = _as_bool(kwargs.get("Output - overwrite outputs", True))
         _reset_pass_a_jsonl_for_overwrite(plan, overwrite_outputs=overwrite_outputs)

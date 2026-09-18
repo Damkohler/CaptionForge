@@ -155,6 +155,16 @@ from ..engines.captionforge_prompt_defaults import (
     DEFAULT_VALIDATOR_SYSTEM_PROMPT,
 )
 from ..engines.captionforge_source_identity import optional_image_filename
+from ..engines.captionforge_dataset_export import (
+    dataset_export_inputs,
+    dataset_root,
+    export_dimensions,
+    export_pair,
+    export_settings_from_widgets,
+    is_dataset_export,
+    normalize_export_settings,
+    prepare_dataset_root,
+)
 
 try:
     import folder_paths
@@ -938,7 +948,7 @@ def _resolve_image_path_for_group(
                     return root
             if not root.exists() or not root.is_dir():
                 continue
-            for path in sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES):
+            for path in sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES and not is_dataset_export(p)):
                 if values.intersection(_candidate_keys_for_image_file(path, root)):
                     return path
         except Exception:
@@ -946,7 +956,7 @@ def _resolve_image_path_for_group(
 
     return None
 
-def _pil_to_base64_png(path: Path, max_size: int = 0) -> str:
+def _pil_to_base64_png(path: Path, max_size: int = 0, *, prepared_images: list | None = None) -> str:
     with Image.open(path) as img:
         source_size = img.size
         rgb = img.convert("RGB")
@@ -962,6 +972,8 @@ def _pil_to_base64_png(path: Path, max_size: int = 0) -> str:
                 )
                 rgb = rgb.resize(new_size, Image.Resampling.LANCZOS)
         validator_size = rgb.size
+        if prepared_images is not None:
+            prepared_images.append((rgb, source_size))
         buf = io.BytesIO()
         rgb.save(buf, format="PNG")
     encoded = base64.b64encode(buf.getvalue()).decode("ascii")
@@ -1558,7 +1570,7 @@ def _concise_error_message(exc: BaseException, max_chars: int = 500) -> str:
     return message
 
 
-def _completed_final_records(path: Path) -> dict[str, dict[str, Any]]:
+def _completed_final_records(path: Path, *, include_export_failures: bool = False) -> dict[str, dict[str, Any]]:
     """Return latest completed D_FINAL_EXPORT records keyed by image_key."""
     if not path.exists() or not path.is_file():
         return {}
@@ -1588,7 +1600,8 @@ def _completed_final_records(path: Path) -> dict[str, dict[str, Any]]:
 
     completed: dict[str, dict[str, Any]] = {}
     for image_key, record in latest.items():
-        if str(record.get("status") or "").strip().lower() != "ok":
+        if (str(record.get("status") or "").strip().lower() != "ok"
+                and not (include_export_failures and record.get("error_stage") == "dataset_export")):
             continue
         long_caption = _normalize_text(
             record.get("long") or record.get("final_caption_long") or record.get("final_caption_natural")
@@ -1747,6 +1760,7 @@ class JLC_CaptionForge:
                 "Final - write JSONL": ("BOOLEAN", {"default": True, "tooltip": "Write the final run-level JSONL containing LONG, SHORT, and TAGGY captions for every processed image."}),
             },
             "optional": {
+                **dataset_export_inputs(),
                 "Input - single image": (
                     "IMAGE",
                     {"tooltip": "Optional IMAGE passthrough/reference for planned single-image workflows."},
@@ -2019,6 +2033,16 @@ class JLC_CaptionForge:
         write_txt = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write TXT sidecars"), "final.write_txt_sidecars", default=True), True)
         write_jsonl = _safe_bool(_resolve_setting(plan, kwargs.get("Final - write JSONL"), "final.write_jsonl", default=True), True)
 
+        # Even blank/disabled Planner values own the decision; older plans default
+        # to disabled instead of falling through to Orchestrator-local widgets.
+        export = normalize_export_settings(
+            plan.get("dataset_export") if _planner_overrides(plan)
+            else export_settings_from_widgets(kwargs)
+        )
+        training_root = dataset_root(export, paths["output_root"])
+        if export["enabled"]:
+            prepare_dataset_root(training_root, image_root)
+
         records = _read_jsonl(caption_path)
         grouped = _group_records_by_image(records)
         include_families = str(kwargs.get("Input - include caption families", "joy,qwen,ollama") or "joy,qwen,ollama")
@@ -2038,7 +2062,7 @@ class JLC_CaptionForge:
             if overwrite:
                 final_jsonl_path.write_text("", encoding="utf-8")
 
-        completed_records = _completed_final_records(final_jsonl_path) if not overwrite else {}
+        completed_records = _completed_final_records(final_jsonl_path, include_export_failures=export["enabled"]) if not overwrite else {}
         if not overwrite:
             print(
                 f"[JLC CaptionForge Orchestrator] Resume mode: completed={len(completed_records)} "
@@ -2047,6 +2071,33 @@ class JLC_CaptionForge:
             )
 
         models_for_record = {"fat_draft": fat_model, "validator": val_model, "formatter": fmt_model}
+
+        def finish_dataset_export(record: dict, image_path: Path, prepared_image=None) -> dict:
+            try:
+                record["long"] = record.get("long") or record.get("final_caption_long") or record.get("final_caption_natural") or ""
+                record["short"] = record.get("short") or record.get("final_caption_short") or ""
+                record["taggy"] = record.get("taggy") or record.get("final_caption_taggy") or ""
+                record["dataset_export"] = export_pair(
+                    source=image_path, image_key=record["image_key"], input_root=image_root,
+                    root=training_root, settings=export, validator_max_size=validator_max_size,
+                    captions=record, overwrite=overwrite, prepared_image=prepared_image,
+                    write_variants=write_txt,
+                )
+                exported_image = Path(record["dataset_export"]["image"])
+                record["outputs"] = _final_sidecar_output_paths(
+                    exported_image, record["long"], record["short"], record["taggy"], enabled=write_txt,
+                )
+                record["sidecar_paths"] = list(record["dataset_export"]["variants"].values())
+                record["status"] = "ok"
+                for key in ("error", "error_stage", "error_type", "error_message"):
+                    record.pop(key, None)
+            except Exception as exc:
+                if _is_explicit_abort(exc):
+                    raise
+                record.update(status="error", error_stage="dataset_export", error_type=type(exc).__name__,
+                              error_message=_concise_error_message(exc))
+                record["dataset_export"] = {"status": "error", "message": _concise_error_message(exc)}
+            return record
 
         def process_image_group(image_key: str, image_records: list[dict[str, Any]]) -> dict[str, Any]:
             selected: list[dict[str, Any]] = []
@@ -2172,11 +2223,15 @@ class JLC_CaptionForge:
                     )
 
                 retry_caps = _validator_image_retry_caps(validator_max_size)
+                prepared_images: list[tuple[Image.Image, tuple[int, int]]] = []
                 natural = ""
                 val_raw: dict[str, Any] = {}
                 for attempt_index, attempt_cap in enumerate(retry_caps):
                     error_stage = "validator_image_preparation"
-                    image_b64 = _pil_to_base64_png(image_path, max_size=attempt_cap)
+                    if export["enabled"] and attempt_index == 0:
+                        image_b64 = _pil_to_base64_png(image_path, max_size=attempt_cap, prepared_images=prepared_images)
+                    else:
+                        image_b64 = _pil_to_base64_png(image_path, max_size=attempt_cap)
                     error_stage = "validator"
                     try:
                         natural, val_raw = _ollama_chat_image(
@@ -2332,12 +2387,28 @@ class JLC_CaptionForge:
                         natural,
                         short,
                         taggy,
-                        enabled=write_txt,
+                        enabled=write_txt and not export["enabled"],
                     ),
                     "sidecar_paths": [],
                     "timestamp": datetime.now().isoformat(timespec="seconds"),
                 }
 
+                if export["enabled"]:
+                    if not is_ok:
+                        return final_record
+                    # Reuse the validator pixels only when no further resampling
+                    # is needed; otherwise resize directly from the source.
+                    prepared = None
+                    if prepared_images:
+                        candidate, source_size = prepared_images[0]
+                        # A too-small image must be reported as an export failure,
+                        # after preserving the already computed captions.
+                        try:
+                            if candidate.size == export_dimensions(source_size, export["max_size"] or validator_max_size, export["divisor"]):
+                                prepared = candidate
+                        except ValueError:
+                            pass
+                    return finish_dataset_export(final_record, image_path, prepared)
                 if write_txt and (natural or short or taggy):
                     final_record["sidecar_paths"] = _write_final_txt_sidecars(
                         image_path,
@@ -2367,7 +2438,7 @@ class JLC_CaptionForge:
                 )
 
         for image_index, (image_key, image_records) in enumerate(grouped.items(), start=1):
-            if image_key in completed_records:
+            if image_key in completed_records and not export["enabled"]:
                 resume_skipped += 1
                 ok += 1
                 final_records.append(completed_records[image_key])
@@ -2377,7 +2448,17 @@ class JLC_CaptionForge:
                 )
                 continue
 
-            final_record = process_image_group(image_key, image_records)
+            if image_key in completed_records and export["enabled"]:
+                # Enabling export on an already captioned run needs no model calls.
+                final_record = dict(completed_records[image_key])
+                resolved = _resolve_image_path_for_group(image_records, image_roots, optional_image_root=opt_images_dir)
+                if resolved is None:
+                    final_record.update(status="error", error_stage="dataset_export", error_message="Source image is missing.")
+                else:
+                    final_record = finish_dataset_export(final_record, resolved)
+                resume_skipped += 1
+            else:
+                final_record = process_image_group(image_key, image_records)
             final_records.append(final_record)
             is_ok = str(final_record.get("status") or "").strip().lower() == "ok"
             ok += int(is_ok)

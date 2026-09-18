@@ -203,6 +203,7 @@ from ...engines.jlc_joy_caption_engine import (
 )
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
 from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
+from ...engines.captionforge_dataset_export import is_dataset_export
 from ..jlc_captionforge_template_options import resolve_effective_extra_options
 
 
@@ -253,6 +254,9 @@ def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str
 
     glob_text = (filename_glob or "*").strip() or "*"
 
+    if is_dataset_export(root):
+        return []
+
     if root.is_file():
         if root.suffix.lower() not in _SUPPORTED_IMAGE_SUFFIXES:
             raise RuntimeError(f"CaptionForge input_path is not a supported image file: {root}")
@@ -262,7 +266,7 @@ def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str
     pattern_iter = root.rglob(glob_text) if recursive else root.glob(glob_text)
     paths = sorted(
         p for p in pattern_iter
-        if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES
+        if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES and not is_dataset_export(p)
     )
 
     items: list[tuple[str, str, Path]] = []
