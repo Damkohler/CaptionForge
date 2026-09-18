@@ -146,9 +146,11 @@ MANIFEST = {
     ),
 }
 
+import ctypes
 import fnmatch
 import json
 import logging
+import os
 import random
 import re
 import shutil
@@ -1074,6 +1076,175 @@ def _cuda_diagnostic_line() -> str:
     except Exception as exc:
         return f"CUDA diagnostics unavailable: {exc}"
 
+
+
+def _available_system_memory_bytes() -> int | None:
+    """Best-effort available physical RAM without adding a new dependency."""
+    try:
+        if os.name == "nt":
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            status = MEMORYSTATUSEX()
+            status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+                return int(status.ullAvailPhys)
+
+        page_size = os.sysconf("SC_PAGE_SIZE")
+        avail_pages = os.sysconf("SC_AVPHYS_PAGES")
+        return int(page_size * avail_pages)
+    except Exception:
+        return None
+
+
+def _qwen_memory_budget(headroom: float = 0.20) -> dict[Any, int]:
+    """Return conservative Accelerate max_memory budgets from currently free memory."""
+    usable_fraction = max(0.10, min(1.0, 1.0 - float(headroom)))
+    budgets: dict[Any, int] = {}
+
+    if torch.cuda.is_available():
+        try:
+            index = torch.cuda.current_device()
+            free_bytes, _total_bytes = torch.cuda.mem_get_info(index)
+            budgets[index] = max(1, int(free_bytes * usable_fraction))
+        except Exception:
+            pass
+
+    available_ram = _available_system_memory_bytes()
+    if available_ram:
+        # infer_auto_device_map below estimates the skeleton with dtype=int8.
+        # bitsandbytes CPU-offloaded modules, however, remain FP32. Reduce the
+        # CPU capacity by 4x so an int8-sized placement estimate corresponds to
+        # the actual four-byte-per-parameter CPU residency requirement.
+        budgets["cpu"] = max(
+            1,
+            int((available_ram * usable_fraction) / 4.0),
+        )
+
+    return budgets
+
+
+def _format_memory_budget(max_memory: dict[Any, int] | None) -> str:
+    if not max_memory:
+        return "automatic"
+    return ", ".join(
+        f"{device}={_format_bytes(value)}"
+        for device, value in max_memory.items()
+    )
+
+
+def _summarize_device_map(device_map: dict[str, Any] | None) -> str:
+    if not isinstance(device_map, dict) or not device_map:
+        return "none"
+
+    counts: dict[str, int] = {}
+    for mapped_device in device_map.values():
+        if isinstance(mapped_device, int):
+            label = f"cuda:{mapped_device}"
+        else:
+            label = str(mapped_device)
+        counts[label] = counts.get(label, 0) + 1
+
+    return ", ".join(
+        f"{device}: {count} module(s)"
+        for device, count in sorted(counts.items())
+    )
+
+
+def _resolve_model_execution_device(model: Any) -> torch.device:
+    """Choose the device that should receive inference inputs for dispatched models."""
+    hook = getattr(model, "_hf_hook", None)
+    hook_device = getattr(hook, "execution_device", None)
+    if hook_device is not None:
+        return torch.device(hook_device)
+
+    device_map = getattr(model, "hf_device_map", None)
+    if isinstance(device_map, dict):
+        for mapped_device in device_map.values():
+            if mapped_device in {"cpu", "disk", "meta"}:
+                continue
+            if isinstance(mapped_device, int):
+                return torch.device(f"cuda:{mapped_device}")
+            try:
+                candidate = torch.device(mapped_device)
+            except Exception:
+                continue
+            if candidate.type not in {"cpu", "meta"}:
+                return candidate
+
+    return next(model.parameters()).device
+
+
+def _build_qwen_8bit_device_map(
+    model_cls: Any,
+    local_path: Path,
+    trust_remote_code: bool,
+) -> tuple[dict[str, Any] | str, dict[Any, int]]:
+    """
+    Build a conservative Accelerate placement map without materializing weights.
+
+    GPU placement is estimated as int8. CPU overflow remains FP32 at real load
+    time through bitsandbytes CPU offload. Twenty percent of currently available
+    GPU/RAM is intentionally left outside the placement budget.
+    """
+    if not torch.cuda.is_available():
+        return "auto", {}
+
+    max_memory = _qwen_memory_budget(headroom=0.20)
+    if not max_memory:
+        return "auto", {}
+
+    try:
+        from accelerate import infer_auto_device_map, init_empty_weights
+        from transformers import AutoConfig
+
+        model_config = AutoConfig.from_pretrained(
+            str(local_path),
+            trust_remote_code=trust_remote_code,
+        )
+
+        with init_empty_weights():
+            empty_model = model_cls(model_config)
+
+        no_split_modules = getattr(empty_model, "_no_split_modules", None)
+
+        device_map = infer_auto_device_map(
+            empty_model,
+            max_memory=max_memory,
+            no_split_module_classes=no_split_modules,
+            dtype=torch.int8,
+        )
+
+        if any(str(device).lower() == "disk" for device in device_map.values()):
+            raise RuntimeError(
+                "CaptionForge Qwen 8-bit placement would require disk offload. "
+                "Disk spill is intentionally not enabled because it is extremely slow "
+                "and can make ComfyUI inference impractical. More GPU VRAM or available "
+                "system RAM is required for this model."
+            )
+
+        return device_map, max_memory
+
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        print(
+            "[JLC Qwen Engine] Adaptive placement probe was unavailable; "
+            f"falling back to Accelerate device_map='auto': {exc}"
+        )
+        return "auto", max_memory
+
+
 def json_safe(value):
         if isinstance(value, set):
             return sorted(value)
@@ -1321,12 +1492,26 @@ class QwenCaptionEngine:
                     module=r"bitsandbytes\.autograd\._functions",
                 )
 
-                model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
+                model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                    load_in_8bit=True,
+                    llm_int8_enable_fp32_cpu_offload=True,
+                )
 
-                # bitsandbytes quantized models should be loaded through Accelerate dispatch.
-                # Keep this explicit so users do not accidentally request a later .to(device).
-                if not effective_device_map:
-                    effective_device_map = "auto"
+                # Balanced 8-bit is intended to remain usable when the complete
+                # quantized model does not fit in VRAM. Build an adaptive placement
+                # map with headroom and permit supported FP32 CPU overflow.
+                if not effective_device_map or effective_device_map == "auto":
+                    effective_device_map, max_memory = _build_qwen_8bit_device_map(
+                        model_cls,
+                        local_path,
+                        self.config.trust_remote_code,
+                    )
+                    if max_memory:
+                        model_kwargs["max_memory"] = max_memory
+                        print(
+                            "[JLC Qwen Engine] Adaptive memory budget: "
+                            f"{_format_memory_budget(max_memory)}"
+                        )
 
             if effective_device_map:
                 model_kwargs["device_map"] = effective_device_map
@@ -1337,14 +1522,40 @@ class QwenCaptionEngine:
                 f"device_map={effective_device_map!r}, quantization={quantization}"
             )
 
-            self.model = model_cls.from_pretrained(
-                str(local_path),
-                **model_kwargs,
-            )
+            try:
+                self.model = model_cls.from_pretrained(
+                    str(local_path),
+                    **model_kwargs,
+                )
+            except Exception as exc:
+                message = str(exc)
+                if quantization == "bnb_8bit" and (
+                    "Some modules are dispatched on the CPU or the disk" in message
+                    or "llm_int8_enable_fp32_cpu_offload" in message
+                    or "device_map" in message and "CPU" in message
+                ):
+                    raise RuntimeError(
+                        "CaptionForge could not place this Qwen model within the "
+                        "available GPU/CPU memory budget using Balanced (8-bit). "
+                        f"{_cuda_diagnostic_line()}. "
+                        f"Memory budget: {_format_memory_budget(model_kwargs.get('max_memory'))}. "
+                        "The 8-bit path supports FP32 CPU offload, but this configuration "
+                        "still could not be loaded. Close other GPU/RAM-heavy applications, "
+                        "use a smaller Qwen model, or free additional system memory."
+                    ) from exc
+                raise
 
             device_map = getattr(self.model, "hf_device_map", None)
             if device_map:
-                print(f"[JLC Qwen Engine] hf_device_map: {device_map}")
+                if any(str(mapped).lower() == "disk" for mapped in device_map.values()):
+                    raise RuntimeError(
+                        "CaptionForge Qwen loaded with disk-offloaded modules. "
+                        "This configuration is not supported for interactive captioning."
+                    )
+                print(
+                    "[JLC Qwen Engine] Placement: "
+                    f"{_summarize_device_map(device_map)}"
+                )
             else:
                 try:
                     print(f"[JLC Qwen Engine] first parameter device: {next(self.model.parameters()).device}")
@@ -1480,8 +1691,7 @@ class QwenCaptionEngine:
             )
 
         try:
-            device = next(self.model.parameters()).device
-            inputs = inputs.to(device)
+            inputs = inputs.to(_resolve_model_execution_device(self.model))
         except Exception:
             pass
 
