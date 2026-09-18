@@ -52,6 +52,7 @@ dependencies = [
     "torch",
     "transformers",
     "accelerate",
+    "bitsandbytes>=0.46.1",
     "huggingface-hub",
     "pillow",
     "numpy",
@@ -61,7 +62,7 @@ dependencies = [
 
 [project.optional-dependencies]
 quantization = [
-    "bitsandbytes",
+    "bitsandbytes>=0.46.1",
 ]
 
 dev = [

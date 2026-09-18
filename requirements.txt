@@ -1,0 +1,11 @@
+# ComfyUI Manager installs this file. Keep aligned with project.dependencies
+# in pyproject.toml; tests/test_joy_hardening.py checks both install paths.
+torch
+transformers
+accelerate
+bitsandbytes>=0.46.1
+huggingface-hub
+pillow
+numpy
+safetensors
+qwen-vl-utils
