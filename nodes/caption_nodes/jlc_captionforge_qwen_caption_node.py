@@ -294,9 +294,7 @@ def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str
         raise RuntimeError(f"CaptionForge input_path does not exist: {root}")
 
     glob_text = (filename_glob or "*").strip() or "*"
-
-    if is_dataset_export(root):
-        return []
+    explicit_dataset_source = is_dataset_export(root)
 
     if root.is_file():
         if root.suffix.lower() not in _SUPPORTED_IMAGE_SUFFIXES:
@@ -307,7 +305,9 @@ def _iter_input_path_images(input_path: str, recursive: bool, filename_glob: str
     pattern_iter = root.rglob(glob_text) if recursive else root.glob(glob_text)
     paths = sorted(
         p for p in pattern_iter
-        if p.is_file() and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES and not is_dataset_export(p)
+        if p.is_file()
+        and p.suffix.lower() in _SUPPORTED_IMAGE_SUFFIXES
+        and (explicit_dataset_source or not is_dataset_export(p))
     )
 
     items: list[tuple[str, str, Path]] = []
