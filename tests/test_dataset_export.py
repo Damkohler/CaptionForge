@@ -118,6 +118,23 @@ class DatasetExportTests(unittest.TestCase):
             paths = module._iter_input_path_images(str(self.root), True, "*")
             self.assertEqual([entry[2] for entry in paths], [self.source])
 
+    def test_explicit_generated_dataset_root_is_valid_witness_input(self):
+        exported = self.pair()
+        dataset_root = self.root / "training_dataset"
+        exported_image = Path(exported["image"])
+
+        for family in ("joy", "qwen", "ollama"):
+            module = importlib.import_module(f"CaptionForge.nodes.caption_nodes.jlc_captionforge_{family}_caption_node")
+
+            # A generated dataset discovered under a broader source root remains excluded.
+            parent_scan = module._iter_input_path_images(str(self.root), True, "*")
+            self.assertEqual([entry[2] for entry in parent_scan], [self.source])
+
+            # But explicitly selecting that generated dataset is an intentional user action
+            # and must make its images available for recaptioning/reprocessing.
+            explicit_scan = module._iter_input_path_images(str(dataset_root), True, "*")
+            self.assertEqual([entry[2] for entry in explicit_scan], [exported_image])
+
     def test_jpeg_and_optional_image_namespace(self):
         result = self.pair(image_key="captionforge-optional-image://comfy_image_0000.png",
                            settings={**self.settings, "image_format": "JPEG", "caption": "taggy"})
