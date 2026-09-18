@@ -2,6 +2,8 @@
 import ast
 from contextlib import nullcontext
 import importlib.util
+import logging
+import threading
 from pathlib import Path
 import types
 import unittest
@@ -85,6 +87,64 @@ class WarningScopeTests(unittest.TestCase):
                     emit('unrelated')
 
 
+class LoggingScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.logger = logging.getLogger(MODULE)
+        self.before = (list(self.logger.filters), self.logger.level, list(self.logger.handlers), self.logger.propagate)
+
+    def tearDown(self):
+        self.assertEqual((list(self.logger.filters), self.logger.level, list(self.logger.handlers), self.logger.propagate), self.before)
+
+    def test_six_logging_bursts_keep_other_diagnostics(self):
+        with self.assertLogs(MODULE, level='WARNING') as caught:
+            for _ in range(6):
+                with scope(True):
+                    for _ in range(100):
+                        self.logger.warning('MatMul8bitLt: inputs will be cast from %s to float16 during quantization', 'torch.bfloat16')
+                    self.logger.warning('Useful diagnostic')
+        self.assertEqual([r.getMessage() for r in caught.records], ['Useful diagnostic'] * 6)
+
+    def test_near_matches_levels_child_logger_and_other_thread(self):
+        with self.assertLogs(MODULE, level='INFO') as caught:
+            with scope(True):
+                self.logger.warning(MESSAGE.replace('bfloat16', 'float32'))
+                self.logger.warning(MESSAGE + ' extra')
+                self.logger.error(MESSAGE)
+                self.logger.info(MESSAGE)
+                logging.getLogger(MODULE + '.other').warning(MESSAGE)
+                thread = threading.Thread(target=lambda: self.logger.warning(MESSAGE))
+                thread.start()
+                thread.join()
+        self.assertEqual(len(caught.records), 6)
+
+    def test_default_after_scope_and_failure(self):
+        with self.assertLogs(MODULE, level='WARNING') as caught:
+            with scope(False):
+                self.logger.warning(MESSAGE)
+            with self.assertRaises(ValueError):
+                with scope(True):
+                    self.logger.warning(MESSAGE)
+                    raise ValueError('generation failed')
+            self.logger.warning(MESSAGE)
+        self.assertEqual(len(caught.records), 2)
+
+    def test_existing_filters_preserved_in_nested_scope(self):
+        existing = logging.Filter()
+        self.logger.addFilter(existing)
+        try:
+            with self.assertLogs(MODULE, level='WARNING') as caught:
+                with scope(True):
+                    with scope(True):
+                        self.logger.warning(MESSAGE)
+                    self.logger.warning(MESSAGE)
+                    self.assertIn(existing, self.logger.filters)
+                self.logger.warning(MESSAGE)
+            self.assertEqual(len(caught.records), 1)
+            self.assertEqual(self.logger.filters, self.before[0] + [existing])
+        finally:
+            self.logger.removeFilter(existing)
+
+
 class GenerationScopeTests(unittest.TestCase):
     """Execute the real caption_pil method with processor/torch/model test doubles."""
     def run_generation(self, mode, fail=False):
@@ -115,6 +175,10 @@ class GenerationScopeTests(unittest.TestCase):
 
         def generate(**kwargs):
             emit()
+            logging.getLogger(MODULE).warning(
+                'MatMul8bitLt: inputs will be cast from %s to float16 during quantization',
+                'torch.bfloat16',
+            )
             emit('Useful generation diagnostic')
             if fail:
                 raise ValueError('generation failed')

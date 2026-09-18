@@ -27,7 +27,7 @@ References:
 ## Warning scope
 
 The old import-time filters were removed. During Balanced (8-bit) generation
-only, CaptionForge ignores this exact `UserWarning` from
+only, CaptionForge ignores this exact `UserWarning` or WARNING log record from
 `bitsandbytes.autograd._functions`:
 
 ```text
@@ -36,8 +36,12 @@ MatMul8bitLt: inputs will be cast from torch.bfloat16 to float16 during quantiza
 
 FP32 cast warnings, different messages, other modules, other warning categories,
 processor/loading/cleanup diagnostics and Default-mode warnings remain visible.
-The caller's filters are restored even if generation fails. This does not alter
-tensors, quantization parameters, model outputs or logging handlers.
+The caller's filters are restored even if generation fails. Recent bitsandbytes versions emit this through `logger.warning` instead of
+`warnings.warn`; both routes are covered. The logging filter matches the fully
+formatted message and originating logger, and applies only to the inference
+thread. It is removed on normal exit or failure, without changing logger levels,
+handlers, propagation, or pre-existing filters. This does not alter tensors,
+quantization parameters or model outputs.
 
 Python 3.10-3.12 warning filters are process-wide while a `catch_warnings` scope
 is active. An identical warning from concurrent bitsandbytes work could therefore
@@ -79,7 +83,7 @@ CPU-only focused checks (Python 3.11/3.12; Python 3.10 also needs `tomli`):
 python -m unittest discover -s tests -p test_joy_hardening.py -v
 ```
 
-They cover six repeated caption warning bursts, near-match diagnostics,
+They cover six repeated caption bursts through both warnings and logging, near-match diagnostics,
 Default mode, filter restoration, exceptions, and matching dependency lists.
 Generation tests execute the real `caption_pil` method with test doubles for
 processor, model and torch; they do not test numerical inference.
