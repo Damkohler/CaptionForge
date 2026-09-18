@@ -35,6 +35,9 @@ CaptionForge also writes structured JSONL audit records so intermediate evidence
 
 ## Sample Workflow
 
+For installation dependencies and Joy Balanced (8-bit) warning handling, see
+[Joy 8-bit and clean installation](docs/joy-8bit-installation.md).
+
 <p align="center">
   <a href="assets/workflows/CaptionForge_FullWorkflow.png">
     <img src="assets/workflows/CaptionForge_FullWorkflow.png"
