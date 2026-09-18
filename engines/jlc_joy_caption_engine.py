@@ -145,7 +145,6 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Optional
-import warnings
 
 from PIL import Image
 import torch
@@ -157,23 +156,7 @@ from .captionforge_model_cache import (
     prepare_for_model_load,
     unload_after_run,
 )
-
-
-# -------------------------------------------------------------------------
-# Eliminate noise from transformers: UserWarning:
-# MatMul8bitLt: inputs will be cast from torch.float32 to float16 during quantization
-# -------------------------------------------------------------------------
-
-warnings.filterwarnings(
-    "ignore",
-    message=r".*MatMul8bitLt: inputs will be cast.*",
-    category=UserWarning,
-)
-
-warnings.filterwarnings(
-    "ignore",
-    message=r".*torchvision backend image processor with LANCZOS resample.*",
-)
+from .captionforge_joy_warnings import joy_8bit_inference_warnings
 
 
 # -------------------------------------------------------------------------
@@ -1577,7 +1560,11 @@ class JoyCaptionEngine:
                 generation_kwargs["eos_token_id"] = eos_token_id
 
         try:
-            with torch.autocast(
+            # Keep Joy's native BF16 path. LLM.int8 casts activations to FP16
+            # internally; silence only that exact diagnostic during 8-bit generation.
+            with joy_8bit_inference_warnings(
+                self.config.memory_mode == "Balanced (8-bit)"
+            ), torch.autocast(
                 device_type=device_type,
                 dtype=torch.bfloat16,
                 enabled=autocast_enabled and bf16_supported,
