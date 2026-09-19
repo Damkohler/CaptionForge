@@ -202,7 +202,7 @@ import folder_paths
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
 from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
 from ...engines.captionforge_dataset_export import is_dataset_export
-from ...engines.captionforge_cleanup import contains_forbidden_phrase
+from ...engines.captionforge_cleanup import contains_forbidden_phrase, replace_phrases
 from ...engines.captionforge_caption_prompt_kit import (
     CAPTION_LENGTH_CHOICES,
     CAPTION_TYPE_CHOICES,
@@ -1030,8 +1030,11 @@ def _clean_caption(
     replacement_rules: list[tuple[str, str]],
 ) -> tuple[str, str]:
     text = str(raw or "").strip().strip('"').strip()
-    for old, new in replacement_rules:
-        text = text.replace(old, new)
+    text = replace_phrases(
+        text,
+        replacement_rules,
+        case_insensitive=False,
+    )
 
     if forbidden_phrases:
         kept: list[str] = []
@@ -1092,6 +1095,8 @@ def _build_run_config(
         "cleanup": {
             "forbidden_phrases": list(forbidden_phrases),
             "replacement_rules": [list(rule) for rule in replacement_rules],
+            "replacement_match_mode": "whole_word_or_phrase_boundary",
+            "replacement_case_insensitive": False,
             "forbidden_match_mode": "whole_word_or_phrase_boundary",
             "forbidden_action": "drop_matching_line",
         },
