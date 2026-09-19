@@ -117,6 +117,7 @@ from .captionforge_prompt_defaults import (
     DEFAULT_VALIDATOR_INSTRUCTIONS,
     DEFAULT_VALIDATOR_SYSTEM_PROMPT,
 )
+from .captionforge_cleanup import normalize_forbidden_phrases, normalize_replace_pairs
 
 MAX_SEED_32 = 0xFFFFFFFF
 PIPELINE_PLAN_TYPE = "captionforge_pipeline_plan"
@@ -391,6 +392,8 @@ def build_captionforge_pipeline_plan(
     max_new_tokens: int = 4096,
     trigger_word: str = "",
     user_caption_anchor: str = "",
+    forbidden_phrases: Any = "",
+    replace_pairs: Any = "",
     ollama_url: str = DEFAULT_OLLAMA_URL,
     ollama_keep_loaded: bool = True,
     ollama_request_timeout_seconds: int = 1800,
@@ -503,6 +506,14 @@ def build_captionforge_pipeline_plan(
         "run_name": run_name_n,
         "overwrite_outputs": _coerce_bool(overwrite_outputs, True),
     }
+    forbidden = normalize_forbidden_phrases(forbidden_phrases)
+    replacements = normalize_replace_pairs(replace_pairs)
+    cleanup = {
+        "forbidden_phrases": forbidden,
+        "replace_pairs": [{"old": old, "new": new} for old, new in replacements],
+        "matching": "boundary_safe_case_insensitive",
+        "order": ["replace_pairs", "forbidden_phrases", "normalize_whitespace_punctuation"],
+    }
     shared["captions_per_image"] = (
         _coerce_int(captions_per_image, max(joy_runs, qwen_runs, ollama_runs, florence_runs, llama_runs, 1), 1, 100)
         if captions_per_image is not None
@@ -581,6 +592,7 @@ def build_captionforge_pipeline_plan(
         "captionforge_config_type": PIPELINE_PLAN_TYPE,
         "captionforge_config_version": PIPELINE_PLAN_VERSION,
         "shared": shared,
+        "cleanup": cleanup,
         "ollama": ollama,
         "paths": paths,
         "pass_a": {

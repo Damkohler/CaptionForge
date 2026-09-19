@@ -322,6 +322,85 @@ class OrchestratorOutputContractTests(unittest.TestCase):
         )
         self.assertIn("final_ok=2 final_failed=1", status)
 
+    def test_downstream_reintroduction_is_cleaned_with_planner_precedence_and_audited(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        Image.new("RGB", (2, 2), "white").save(root / "one.png")
+        captions = root / "captions.jsonl"
+        captions.write_text(json.dumps({
+            "image": "one.png", "image_key": "one.png", "caption": "clean witness",
+            "model_family": "joy", "status": "ok",
+        }) + "\n", encoding="utf-8")
+        plan = planner_engine.build_captionforge_pipeline_plan(
+            output_dir=str(root / "out"), input_path=str(root), run_name="cleanup",
+            forbidden_phrases="old", replace_pairs="former=>current",
+        )
+        plan["paths"]["caption_jsonl"] = str(captions)
+        plan["paths"]["pass_a_jsonl"] = str(captions)
+        generated = iter((
+            "former draft with old but bold holding gold",
+            "SHORT: former short old bold.\nTAGGY: former, old, gold",
+        ))
+        with mock.patch.object(orchestrator, "_evict_python_models_before_ollama_if_needed"), \
+             mock.patch.object(orchestrator, "_ollama_generate_text", side_effect=lambda **_: (next(generated), {})), \
+             mock.patch.object(orchestrator, "_ollama_chat_image", return_value=("former long old bold holding gold.", {})):
+            result = orchestrator.JLC_CaptionForge().forge(**{
+                "Input - captions JSONL": str(captions), "Input - image path": str(root),
+                "Output - folder": str(root / "standalone"), "Output - run name": "ignored",
+                "Output - overwrite outputs": True, "Cleanup - forbidden phrases": "gold",
+                "Cleanup - replace pairs": "former=>wrong", "Final - write TXT sidecars": False,
+                "Final - write JSONL": True, "pipeline_plan": plan,
+            })
+        long_text, short_text, taggy_text, payload_text, _ = result
+        for text_value in (long_text, short_text, taggy_text):
+            self.assertNotIn(" old", f" {text_value.lower()}")
+            self.assertNotIn("former", text_value.lower())
+            self.assertIn("current", text_value.lower())
+        self.assertIn("bold", long_text)
+        self.assertIn("holding", long_text)
+        self.assertIn("gold", long_text)
+        payload = json.loads(payload_text)
+        self.assertEqual(payload["run_outputs"]["cleanup"], plan["cleanup"])
+        self.assertEqual(payload["records"][0]["cleanup"], plan["cleanup"])
+        run_config = json.loads(Path(plan["paths"]["run_config_json"]).read_text(encoding="utf-8"))
+        self.assertEqual(run_config["cleanup"], plan["cleanup"])
+
+    def test_standalone_orchestrator_cleanup_values_are_effective_and_audited(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        Image.new("RGB", (2, 2), "white").save(root / "one.png")
+        captions = root / "captions.jsonl"
+        captions.write_text(json.dumps({
+            "image": "one.png", "image_key": "one.png", "caption": "clean witness",
+            "model_family": "joy", "status": "ok",
+        }) + "\n", encoding="utf-8")
+        generated = iter(("former draft old", "SHORT: former short old.\nTAGGY: former, old"))
+        with mock.patch.object(orchestrator, "_evict_python_models_before_ollama_if_needed"), \
+             mock.patch.object(orchestrator, "_ollama_generate_text", side_effect=lambda **_: (next(generated), {})), \
+             mock.patch.object(orchestrator, "_ollama_chat_image", return_value=("former long old.", {})):
+            result = orchestrator.JLC_CaptionForge().forge(**{
+                "Input - captions JSONL": str(captions), "Input - image path": str(root),
+                "Output - folder": str(root / "out"), "Output - run name": "standalone-cleanup",
+                "Output - overwrite outputs": True, "Cleanup - forbidden phrases": "old",
+                "Cleanup - replace pairs": "former=>current", "Final - write TXT sidecars": False,
+                "Final - write JSONL": True,
+            })
+        for text_value in result[:3]:
+            self.assertNotIn("old", text_value.lower())
+            self.assertIn("current", text_value.lower())
+        payload = json.loads(result[3])
+        expected = {
+            "forbidden_phrases": ["old"],
+            "replace_pairs": [{"old": "former", "new": "current"}],
+            "matching": "boundary_safe_case_insensitive",
+            "order": ["replace_pairs", "forbidden_phrases", "normalize_whitespace_punctuation"],
+        }
+        self.assertEqual(payload["records"][0]["cleanup"], expected)
+        run_config_path = Path(payload["run_outputs"]["run_config_json"])
+        self.assertEqual(json.loads(run_config_path.read_text(encoding="utf-8"))["cleanup"], expected)
+
 
 if __name__ == "__main__":
     unittest.main()

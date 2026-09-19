@@ -200,6 +200,7 @@ from PIL import Image
 import folder_paths
 
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
+from ...engines.captionforge_cleanup import resolve_cleanup_settings
 from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
 from ...engines.captionforge_dataset_export import is_dataset_export
 from ...engines.captionforge_cleanup import contains_forbidden_phrase, replace_phrases
@@ -1546,6 +1547,9 @@ class JLC_CaptionForgeOllamaCaption:
             run_plan = [standalone_run]
 
         first_run = run_plan[0]
+        forbidden, replacements = resolve_cleanup_settings(
+            _normalize_pipeline_plan(pipeline_plan), forbidden_phrases, replace_pairs
+        )
 
         direct_images = [(*optional_image_identity(i), pil) for i, pil in enumerate(_tensor_to_pil(image))]
         file_images: list[tuple[str, str, Path]] = []
@@ -1588,15 +1592,12 @@ class JLC_CaptionForgeOllamaCaption:
                     top_k=int(first_run.top_k),
                     repetition_penalty=float(repetition_penalty),
                     max_size=int(first_run.max_size),
-                    forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
-                    replacement_rules=_parse_replace_pairs(replace_pairs),
+                    forbidden_phrases=forbidden,
+                    replacement_rules=replacements,
                 ),
             )
 
         all_records: list[OllamaCaptionRecord] = []
-        forbidden = _parse_forbidden_lines(forbidden_phrases)
-        replacements = _parse_replace_pairs(replace_pairs)
-
         def process_one(source_name: str, image_key: str, pil: Image.Image):
             for run in run_plan:
                 t0 = time.perf_counter()

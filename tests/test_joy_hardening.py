@@ -7,6 +7,7 @@ import threading
 from pathlib import Path
 import types
 import unittest
+from unittest import mock
 from unittest.mock import Mock
 import warnings
 
@@ -32,6 +33,25 @@ def emit(message=MESSAGE, category=UserWarning, module=MODULE):
 
 
 class WarningScopeTests(unittest.TestCase):
+    def test_old_8bit_stack_warns_for_joy_and_qwen_without_blocking(self):
+        with mock.patch.object(joy_warnings.metadata, "version", return_value="0.45.5"):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                joy_warnings.warn_if_suspicious_8bit_stack("Joy Caption")
+                joy_warnings.warn_if_suspicious_8bit_stack("Qwen Caption")
+        messages = [str(item.message) for item in caught]
+        self.assertTrue(any("CaptionForge's Joy Caption node detected" in item for item in messages))
+        self.assertTrue(any("CaptionForge's Qwen Caption node detected" in item for item in messages))
+        self.assertTrue(all("continue without modifying packages" in item for item in messages))
+
+    def test_current_8bit_stack_does_not_warn(self):
+        with mock.patch.object(joy_warnings.metadata, "version", return_value="0.46.1"):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                joy_warnings.warn_if_suspicious_8bit_stack("Joy Caption")
+                joy_warnings.warn_if_suspicious_8bit_stack("Qwen Caption")
+        self.assertEqual(caught, [])
+
     def test_import_does_not_change_filters(self):
         before = list(warnings.filters)
         SPEC.loader.exec_module(joy_warnings)

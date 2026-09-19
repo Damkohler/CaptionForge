@@ -156,7 +156,7 @@ from .captionforge_model_cache import (
     prepare_for_model_load,
     unload_after_run,
 )
-from .captionforge_joy_warnings import quantized_inference_warnings
+from .captionforge_joy_warnings import quantized_inference_warnings, warn_if_suspicious_8bit_stack
 from .captionforge_cleanup import (
     remove_forbidden_phrases as _remove_forbidden_phrases_boundary_safe,
     replace_phrases as _replace_phrases_boundary_safe,
@@ -1325,6 +1325,7 @@ class JoyCaptionEngine:
             self._free_memory(self.model_size_bytes, self.offload_device)
             self.model.to(self.offload_device)
         else:
+            warn_if_suspicious_8bit_stack("Joy Caption")
             print(f"[JLC Joy Engine] Loading model in {self.config.memory_mode}: {local_path}")
             try:
                 from transformers import BitsAndBytesConfig

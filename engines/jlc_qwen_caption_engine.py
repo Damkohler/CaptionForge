@@ -169,7 +169,7 @@ from .captionforge_model_cache import (
     prepare_for_model_load,
     unload_after_run,
 )
-from .captionforge_joy_warnings import quantized_inference_warnings
+from .captionforge_joy_warnings import quantized_inference_warnings, warn_if_suspicious_8bit_stack
 from .captionforge_cleanup import (
     remove_forbidden_phrases as _remove_forbidden_phrases_boundary_safe,
     replace_phrases as _replace_phrases_boundary_safe,
@@ -1412,6 +1412,9 @@ class QwenCaptionEngine:
             self.model = cached["model"]
             print(f"[JLC Qwen Engine] Reusing cached model: {local_path}")
             return
+
+        if quantization == "bnb_8bit":
+            warn_if_suspicious_8bit_stack("Qwen Caption")
         
         cache_policy = getattr(
             self.config,

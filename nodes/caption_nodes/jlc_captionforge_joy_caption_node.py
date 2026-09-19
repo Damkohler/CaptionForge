@@ -202,6 +202,7 @@ from ...engines.jlc_joy_caption_engine import (
     write_run_config_json,
 )
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
+from ...engines.captionforge_cleanup import resolve_cleanup_settings
 from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
 from ...engines.captionforge_dataset_export import is_dataset_export
 from ..jlc_captionforge_template_options import resolve_effective_extra_options
@@ -722,6 +723,9 @@ class JLC_CaptionForgeJoy:
             return (image, pipeline_plan, template_options, status, resolved_prompt)
 
         first_run = run_plan[0]
+        effective_forbidden, effective_replacements = resolve_cleanup_settings(
+            _normalize_pipeline_plan(pipeline_plan), forbidden_phrases, replace_pairs
+        )
 
         generation = GenerationConfig(
             max_new_tokens=int(first_run.max_new_tokens),
@@ -736,8 +740,8 @@ class JLC_CaptionForgeJoy:
             trigger="",
             prefix=(f"{first_run.trigger_word}," if first_run.trigger_word else ""),
             suffix="",
-            forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
-            replacement_rules=_parse_replace_pairs(replace_pairs),
+            forbidden_phrases=effective_forbidden,
+            replacement_rules=effective_replacements,
         )
 
         joy_config = JoyCaptionConfig(
@@ -813,8 +817,8 @@ class JLC_CaptionForgeJoy:
                     trigger="",
                     prefix=(f"{run.trigger_word}," if run.trigger_word else ""),
                     suffix="",
-                    forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
-                    replacement_rules=_parse_replace_pairs(replace_pairs),
+                    forbidden_phrases=effective_forbidden,
+                    replacement_rules=effective_replacements,
                 )
                 engine.config.max_size = int(run.max_size)
 

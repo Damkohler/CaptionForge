@@ -1,7 +1,7 @@
 {
   "_meta": {
     "name": "CaptionForge Ollama Model Dropdowns",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "User-editable Ollama model dropdown configuration for CaptionForge nodes and engines.",
     "consumed_by": [
       "nodes/captionforge_ollama_model_dropdowns.py",

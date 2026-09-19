@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from typing import Any
 
 
 def phrase_boundary_pattern(
@@ -65,3 +66,76 @@ def replace_phrases(
         if pattern is not None:
             result = pattern.sub(str(new or ""), result)
     return result
+
+
+def normalize_forbidden_phrases(value: Any) -> list[str]:
+    """Normalize UI or plan values into an ordered forbidden-phrase list."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        items = value.splitlines()
+    elif isinstance(value, (list, tuple)):
+        items = value
+    else:
+        items = [value]
+    return [text for item in items if (text := str(item or "").strip())]
+
+
+def normalize_replace_pairs(value: Any) -> list[tuple[str, str]]:
+    """Normalize ``old=>new`` UI text or serialized plan replacement pairs."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        items: Iterable[Any] = value.splitlines()
+    elif isinstance(value, (list, tuple)):
+        items = value
+    else:
+        items = [value]
+
+    pairs: list[tuple[str, str]] = []
+    for item in items:
+        if isinstance(item, dict):
+            old, new = item.get("old", ""), item.get("new", "")
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            old, new = item[0], item[1]
+        else:
+            line = str(item or "").strip()
+            if not line or line.startswith("#") or "=>" not in line:
+                continue
+            old, new = line.split("=>", 1)
+        old_text = str(old or "").strip()
+        if old_text:
+            pairs.append((old_text, str(new or "").strip()))
+    return pairs
+
+
+def resolve_cleanup_settings(
+    pipeline_plan: Any,
+    standalone_forbidden_phrases: Any,
+    standalone_replace_pairs: Any,
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Resolve Planner-owned cleanup values, preserving standalone node use."""
+    plan = pipeline_plan if isinstance(pipeline_plan, dict) else {}
+    cleanup = plan.get("cleanup") if isinstance(plan.get("cleanup"), dict) else None
+    if cleanup is not None:
+        forbidden_value = cleanup.get("forbidden_phrases", [])
+        replace_value = cleanup.get("replace_pairs", [])
+    else:
+        forbidden_value = standalone_forbidden_phrases
+        replace_value = standalone_replace_pairs
+    return normalize_forbidden_phrases(forbidden_value), normalize_replace_pairs(replace_value)
+
+
+def apply_cleanup_contract(
+    text: str,
+    forbidden_phrases: Iterable[str],
+    replace_pairs: Iterable[tuple[str, str]],
+) -> str:
+    """Apply the shared boundary-safe cleanup contract and repair separators."""
+    result = replace_phrases(text, replace_pairs)
+    result = remove_forbidden_phrases(result, forbidden_phrases)
+    result = re.sub(r"\s+([,.;:!?])", r"\1", result)
+    result = re.sub(r",\s*,+", ",", result)
+    result = re.sub(r"([.;:!?])(?:\s*[,.;:!?])+", r"\1", result)
+    result = re.sub(r"\s+", " ", result)
+    return result.strip(" ,")

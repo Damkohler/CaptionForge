@@ -190,6 +190,7 @@ from ...engines.jlc_qwen_caption_engine import (
     write_run_config_json,
 )
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
+from ...engines.captionforge_cleanup import resolve_cleanup_settings
 from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
 from ...engines.captionforge_dataset_export import is_dataset_export
 from ...engines.captionforge_caption_prompt_kit import (
@@ -748,6 +749,9 @@ class JLC_CaptionForgeQwen:
             return (image, pipeline_plan, template_options, status, resolved_prompt)
 
         first_run = run_plan[0]
+        effective_forbidden, effective_replacements = resolve_cleanup_settings(
+            _normalize_pipeline_plan(pipeline_plan), forbidden_phrases, replace_pairs
+        )
         qwen_quantization_value = "bnb_8bit" if qwen_quantization == "Balanced (8-bit)" else "none"
 
         generation = GenerationConfig(
@@ -763,8 +767,8 @@ class JLC_CaptionForgeQwen:
             trigger="",
             prefix=(f"{first_run.trigger_word}," if first_run.trigger_word else ""),
             suffix="",
-            forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
-            replacement_rules=_parse_replace_pairs(replace_pairs),
+            forbidden_phrases=effective_forbidden,
+            replacement_rules=effective_replacements,
         )
 
         qwen_config = QwenCaptionConfig(
@@ -840,8 +844,8 @@ class JLC_CaptionForgeQwen:
                     trigger="",
                     prefix=(f"{run.trigger_word}," if run.trigger_word else ""),
                     suffix="",
-                    forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
-                    replacement_rules=_parse_replace_pairs(replace_pairs),
+                    forbidden_phrases=effective_forbidden,
+                    replacement_rules=effective_replacements,
                 )
                 engine.config.max_size = int(run.max_size)
 

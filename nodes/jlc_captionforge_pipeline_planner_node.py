@@ -722,6 +722,22 @@ class JLC_CaptionForge_Pipeline_Planner:
                         ),
                     },
                 ),
+                "Cleanup - forbidden phrases": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "tooltip": "One forbidden word or phrase per line. Planner values override caption-node and Orchestrator cleanup controls.",
+                    },
+                ),
+                "Cleanup - replace pairs": (
+                    "STRING",
+                    {
+                        "default": "",
+                        "multiline": True,
+                        "tooltip": "One boundary-safe old=>new replacement per line. Planner values override standalone cleanup controls.",
+                    },
+                ),
 
                 # -----------------------------------------------------------------
                 # Caption-node controls. User-facing label avoids Pass A.
@@ -1165,6 +1181,8 @@ class JLC_CaptionForge_Pipeline_Planner:
             max_new_tokens=int(_value_or_default(kwargs.get("Caption - max new tokens", DEFAULT_CAPTION_MAX_NEW_TOKENS), DEFAULT_CAPTION_MAX_NEW_TOKENS)),
             trigger_word=str(kwargs.get("LoRA - trigger word", "") or "").strip(),
             user_caption_anchor=str(kwargs.get("LoRA - user caption anchor", "") or "").strip(),
+            forbidden_phrases=str(kwargs.get("Cleanup - forbidden phrases", "") or ""),
+            replace_pairs=str(kwargs.get("Cleanup - replace pairs", "") or ""),
             ollama_url=str(kwargs.get("Ollama - URL", DEFAULT_OLLAMA_URL) or DEFAULT_OLLAMA_URL),
             ollama_keep_loaded=_as_bool(kwargs.get("Ollama - keep loaded", True)),
             ollama_request_timeout_seconds=int(

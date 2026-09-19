@@ -32,6 +32,7 @@ if "folder_paths" not in sys.modules:
     sys.modules["folder_paths"] = folder_paths
 
 cleanup = importlib.import_module("CaptionForge.engines.captionforge_cleanup")
+planner_engine = importlib.import_module("CaptionForge.engines.captionforge_pipeline_planner_engine")
 joy = importlib.import_module("CaptionForge.engines.jlc_joy_caption_engine")
 qwen = importlib.import_module("CaptionForge.engines.jlc_qwen_caption_engine")
 ollama = importlib.import_module(
@@ -40,6 +41,33 @@ ollama = importlib.import_module(
 
 
 class SharedForbiddenPhraseContractTests(unittest.TestCase):
+    def test_pipeline_cleanup_settings_propagate_and_override_standalone_values(self) -> None:
+        plan = planner_engine.build_captionforge_pipeline_plan(
+            forbidden_phrases="old\nsafety disclaimer",
+            replace_pairs="former=>current\nred car=>blue car",
+        )
+        self.assertEqual(plan["cleanup"]["forbidden_phrases"], ["old", "safety disclaimer"])
+        self.assertEqual(
+            plan["cleanup"]["replace_pairs"],
+            [{"old": "former", "new": "current"}, {"old": "red car", "new": "blue car"}],
+        )
+        forbidden, pairs = cleanup.resolve_cleanup_settings(
+            plan, "standalone forbidden", "standalone old=>standalone new"
+        )
+        self.assertEqual(forbidden, ["old", "safety disclaimer"])
+        self.assertEqual(pairs, [("former", "current"), ("red car", "blue car")])
+
+    def test_standalone_cleanup_settings_survive_without_planner(self) -> None:
+        forbidden, pairs = cleanup.resolve_cleanup_settings({}, "old", "former=>current")
+        self.assertEqual(forbidden, ["old"])
+        self.assertEqual(pairs, [("former", "current")])
+
+    def test_end_to_end_cleanup_keeps_boundaries_and_normalizes_spacing(self) -> None:
+        value = cleanup.apply_cleanup_contract(
+            "bold holding gold, old, former wording.", ["old"], [("former", "current")]
+        )
+        self.assertEqual(value, "bold holding gold, current wording.")
+
     def test_substrings_inside_legitimate_words_do_not_match(self) -> None:
         text = "A bold subject is holding a gold accessory."
         self.assertFalse(cleanup.contains_forbidden_phrase(text, ["old"]))

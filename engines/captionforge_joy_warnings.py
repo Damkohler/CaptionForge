@@ -1,7 +1,9 @@
 """Scoped handling of expected bitsandbytes activation-cast diagnostics."""
 
 from contextlib import contextmanager
+from importlib import metadata
 import logging
+import re
 import threading
 import warnings
 
@@ -12,6 +14,25 @@ _CAST_MESSAGES = frozenset(
     for dtype in ("bfloat16", "float32")
 )
 _BNB_LOGGER = "bitsandbytes.autograd._functions"
+_MINIMUM_BNB_VERSION = (0, 46, 1)
+
+
+def warn_if_suspicious_8bit_stack(node_name: str) -> None:
+    """Warn, without blocking inference, when bnb predates the project floor."""
+    try:
+        version = metadata.version("bitsandbytes")
+    except Exception:
+        return
+    parts = tuple(int(piece) for piece in re.findall(r"\d+", version)[:3])
+    normalized = parts + (0,) * (3 - len(parts))
+    if normalized < _MINIMUM_BNB_VERSION:
+        warnings.warn(
+            f"CaptionForge's {node_name} node detected bitsandbytes {version}; "
+            "this older 8-bit inference stack may cause severe slowdowns or compatibility issues. "
+            "CaptionForge will continue without modifying packages.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
 
 class _QuantizedCastLogFilter(logging.Filter):

@@ -148,6 +148,12 @@ import numpy as np
 import torch
 from PIL import Image
 
+from ..engines.captionforge_cleanup import (
+    apply_cleanup_contract,
+    normalize_forbidden_phrases,
+    normalize_replace_pairs,
+)
+
 from ..engines.captionforge_prompt_defaults import (
     DEFAULT_FAT_DRAFT_INSTRUCTIONS,
     DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
@@ -423,6 +429,11 @@ def _write_text(path: Path, text: str) -> None:
     path.write_text(str(text or "").rstrip() + "\n", encoding="utf-8")
 
 
+def _write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_json_safe(data), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def _truncate_for_prompt(text: str, max_chars: int) -> str:
     text = str(text or "").strip()
     if max_chars <= 0 or len(text) <= max_chars:
@@ -661,6 +672,7 @@ def _derive_paths(output_dir: Path, run_name: str, plan: dict[str, Any]) -> dict
         "working_images_dir": pick(("working_images_dir",), working_dir / "images"),
         "opt_images_dir": pick(("opt_images_dir",), working_dir / "images" / "opt_images"),
         "output_paths_json": pick(("output_paths_json",), working_dir / f"{run_name}__output_paths.json"),
+        "run_config_json": pick(("run_config_json",), working_dir / f"{run_name}__run_config.json"),
         "raw_response_dir": pick(("raw_response_dir",), working_dir / f"{run_name}__raw_responses"),
     }
 
@@ -1687,6 +1699,8 @@ class JLC_CaptionForge:
                 ),
                 "LoRA - trigger word": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional LoRA trigger token or phrase preserved in final captions as training metadata."}),
                 "LoRA - user caption anchor": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional phrase you want preserved when it remains compatible with the image, such as a character or rendering-style anchor."}),
+                "Cleanup - forbidden phrases": ("STRING", {"default": "", "multiline": True, "tooltip": "Standalone forbidden words/phrases, one per line. Planner values override this when connected."}),
+                "Cleanup - replace pairs": ("STRING", {"default": "", "multiline": True, "tooltip": "Standalone boundary-safe old=>new replacements, one per line. Planner values override this when connected."}),
                 "Fat Draft - model": (DISTILLER_MODEL_CHOICES, {"default": DEFAULT_DISTILLER_MODEL, "tooltip": "Concrete Ollama text-model tag for Pass B. Choose custom to enter another installed tag below."}),
                 "Fat Draft - custom Ollama model": (
                     "STRING",
@@ -1875,6 +1889,28 @@ class JLC_CaptionForge:
 
         trigger_word = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - trigger word"), "shared.trigger_word", "lora.trigger_word", "trigger_word", default=""))
         user_caption_anchor = _normalize_text(_resolve_setting(plan, kwargs.get("LoRA - user caption anchor"), "shared.user_caption_anchor", "lora.user_caption_anchor", "user_caption_anchor", default=""))
+        forbidden_phrases = normalize_forbidden_phrases(
+            _resolve_setting(
+                plan,
+                kwargs.get("Cleanup - forbidden phrases", ""),
+                "cleanup.forbidden_phrases",
+                default=[],
+            )
+        )
+        replace_pairs = normalize_replace_pairs(
+            _resolve_setting(
+                plan,
+                kwargs.get("Cleanup - replace pairs", ""),
+                "cleanup.replace_pairs",
+                default=[],
+            )
+        )
+        cleanup_contract = {
+            "forbidden_phrases": list(forbidden_phrases),
+            "replace_pairs": [{"old": old, "new": new} for old, new in replace_pairs],
+            "matching": "boundary_safe_case_insensitive",
+            "order": ["replace_pairs", "forbidden_phrases", "normalize_whitespace_punctuation"],
+        }
         validator_max_size = _coerce_int(
             _resolve_setting(
                 plan,
@@ -2072,6 +2108,16 @@ class JLC_CaptionForge:
 
         models_for_record = {"fat_draft": fat_model, "validator": val_model, "formatter": fmt_model}
 
+        run_config = {
+            "planner_connected": _planner_overrides(plan),
+            "cleanup": cleanup_contract,
+            "models": models_for_record,
+        }
+        try:
+            _write_json(Path(paths["run_config_json"]), run_config)
+        except Exception:
+            pass
+
         def finish_dataset_export(record: dict, image_path: Path, prepared_image=None) -> dict:
             try:
                 record["long"] = record.get("long") or record.get("final_caption_long") or record.get("final_caption_natural") or ""
@@ -2177,7 +2223,9 @@ class JLC_CaptionForge:
                     keep_loaded=keep_loaded,
                     timeout=timeout,
                 )
-                fat_text = _cleanup_single_paragraph(fat_text)
+                fat_text = apply_cleanup_contract(
+                    _cleanup_single_paragraph(fat_text), forbidden_phrases, replace_pairs
+                )
                 fat_raw_path = _save_raw_response(
                     raw_dir if fat_preserve_raw else None,
                     image_key,
@@ -2262,7 +2310,11 @@ class JLC_CaptionForge:
                             flush=True,
                         )
 
-                natural = _prepend_metadata(_cleanup_single_paragraph(natural), trigger_word, user_caption_anchor)
+                natural = apply_cleanup_contract(
+                    _prepend_metadata(_cleanup_single_paragraph(natural), trigger_word, user_caption_anchor),
+                    forbidden_phrases,
+                    replace_pairs,
+                )
                 val_raw_path = _save_raw_response(
                     raw_dir if val_preserve_raw else None,
                     image_key,
@@ -2323,6 +2375,9 @@ class JLC_CaptionForge:
                 )
                 if not short:
                     short = _compact_lora_short_caption(natural, taggy)
+                natural = apply_cleanup_contract(natural, forbidden_phrases, replace_pairs)
+                short = apply_cleanup_contract(short, forbidden_phrases, replace_pairs)
+                taggy = apply_cleanup_contract(taggy, forbidden_phrases, replace_pairs)
                 fmt_raw_path = _save_raw_response(
                     raw_dir if fmt_preserve_raw else None,
                     image_key,
@@ -2379,6 +2434,7 @@ class JLC_CaptionForge:
                     "fat_draft": fat_text,
                     "trigger_word": trigger_word,
                     "user_caption_anchor": user_caption_anchor,
+                    "cleanup": cleanup_contract,
                     "models": models_for_record,
                     "selected_caption_count": len(selected),
                     "source_caption_families": source_families,
@@ -2530,6 +2586,7 @@ class JLC_CaptionForge:
                 "final_ok": ok,
                 "final_failed": failed,
                 "resume_skipped": resume_skipped,
+                "cleanup": cleanup_contract,
             }
         )
         output_paths_json = json.dumps(_json_safe(output_paths), ensure_ascii=False, indent=2)
