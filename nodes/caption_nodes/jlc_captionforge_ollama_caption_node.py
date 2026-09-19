@@ -202,6 +202,7 @@ import folder_paths
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
 from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
 from ...engines.captionforge_dataset_export import is_dataset_export
+from ...engines.captionforge_cleanup import contains_forbidden_phrase
 from ...engines.captionforge_caption_prompt_kit import (
     CAPTION_LENGTH_CHOICES,
     CAPTION_TYPE_CHOICES,
@@ -1035,8 +1036,7 @@ def _clean_caption(
     if forbidden_phrases:
         kept: list[str] = []
         for line in text.splitlines() or [text]:
-            lowered = line.lower()
-            if any(phrase.lower() in lowered for phrase in forbidden_phrases if phrase):
+            if contains_forbidden_phrase(line, forbidden_phrases):
                 continue
             kept.append(line)
         text = "\n".join(line.strip() for line in kept if line.strip()).strip()
@@ -1072,6 +1072,8 @@ def _build_run_config(
     top_k: int,
     repetition_penalty: float,
     max_size: int,
+    forbidden_phrases: list[str],
+    replacement_rules: list[tuple[str, str]],
 ) -> dict[str, Any]:
     return {
         "backend": "ollama",
@@ -1086,6 +1088,12 @@ def _build_run_config(
             "top_k": int(top_k),
             "repetition_penalty": float(repetition_penalty),
             "max_size": int(max_size),
+        },
+        "cleanup": {
+            "forbidden_phrases": list(forbidden_phrases),
+            "replacement_rules": [list(rule) for rule in replacement_rules],
+            "forbidden_match_mode": "whole_word_or_phrase_boundary",
+            "forbidden_action": "drop_matching_line",
         },
         "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
@@ -1575,6 +1583,8 @@ class JLC_CaptionForgeOllamaCaption:
                     top_k=int(first_run.top_k),
                     repetition_penalty=float(repetition_penalty),
                     max_size=int(first_run.max_size),
+                    forbidden_phrases=_parse_forbidden_lines(forbidden_phrases),
+                    replacement_rules=_parse_replace_pairs(replace_pairs),
                 ),
             )
 
