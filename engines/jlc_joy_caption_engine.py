@@ -783,7 +783,7 @@ def apply_replacements(
     caption: str,
     rules: list[tuple[str, str]],
     case_insensitive: bool = True,
-    whole_words_only: bool = False,
+    whole_words_only: bool = True,
 ) -> str:
     if not rules:
         return caption
