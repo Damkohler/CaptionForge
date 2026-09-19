@@ -45,6 +45,14 @@ class SharedForbiddenPhraseContractTests(unittest.TestCase):
         self.assertFalse(cleanup.contains_forbidden_phrase(text, ["old"]))
         self.assertEqual(cleanup.remove_forbidden_phrases(text, ["old"]), text)
 
+    def test_boundary_safe_replacements_preserve_containing_words(self) -> None:
+        source = "bold pose, holding a gold prop, old stone wall"
+        expected = "bold pose, holding a gold prop, young stone wall"
+        self.assertEqual(
+            cleanup.replace_phrases(source, [("old", "young")]),
+            expected,
+        )
+
     def test_true_word_and_phrase_matches_are_boundary_aware(self) -> None:
         self.assertTrue(cleanup.contains_forbidden_phrase("an old stone wall", ["old"]))
         self.assertTrue(
@@ -58,6 +66,20 @@ class SharedForbiddenPhraseContractTests(unittest.TestCase):
                 "caption includes safety disclaimers",
                 ["safety disclaimer"],
             )
+        )
+
+    def test_joy_and_qwen_replace_pairs_are_boundary_safe_by_default(self) -> None:
+        source = "bold pose, holding a gold prop, old stone wall"
+        expected = "bold pose, holding a gold prop, young stone wall"
+        self.assertTrue(joy.CleanupConfig().replace_whole_words_only)
+        self.assertTrue(qwen.CleanupConfig().replace_whole_words_only)
+        self.assertEqual(
+            joy.apply_replacements(source, [("old", "young")]),
+            expected,
+        )
+        self.assertEqual(
+            qwen.apply_replacements(source, [("old", "young")]),
+            expected,
         )
 
     def test_joy_and_qwen_preserve_containing_words_but_remove_true_match(self) -> None:
@@ -76,6 +98,31 @@ class SharedForbiddenPhraseContractTests(unittest.TestCase):
         )
         self.assertEqual(status, "ok")
         self.assertEqual(cleaned, raw)
+
+    def test_ollama_replace_pairs_are_boundary_safe(self) -> None:
+        raw = "A bold figure is holding a gold prop near an old wall."
+        cleaned, status = ollama._clean_caption(
+            raw,
+            trigger_word="",
+            forbidden_phrases=[],
+            replacement_rules=[("old", "young")],
+        )
+        self.assertEqual(status, "ok")
+        self.assertEqual(
+            cleaned,
+            "A bold figure is holding a gold prop near an young wall.",
+        )
+
+    def test_ollama_replacement_case_sensitivity_is_preserved(self) -> None:
+        raw = "Old wall beside an old wall."
+        cleaned, status = ollama._clean_caption(
+            raw,
+            trigger_word="",
+            forbidden_phrases=[],
+            replacement_rules=[("old", "young")],
+        )
+        self.assertEqual(status, "ok")
+        self.assertEqual(cleaned, "Old wall beside an young wall.")
 
     def test_ollama_still_drops_line_for_true_forbidden_match(self) -> None:
         raw = "First safe line.\nAn old line.\nFinal safe line."
@@ -108,6 +155,11 @@ class SharedForbiddenPhraseContractTests(unittest.TestCase):
             ["old", "safety disclaimer"],
         )
         self.assertEqual(config["cleanup"]["replacement_rules"], [["foo", "bar"]])
+        self.assertEqual(
+            config["cleanup"]["replacement_match_mode"],
+            "whole_word_or_phrase_boundary",
+        )
+        self.assertFalse(config["cleanup"]["replacement_case_insensitive"])
         self.assertEqual(
             config["cleanup"]["forbidden_match_mode"],
             "whole_word_or_phrase_boundary",
