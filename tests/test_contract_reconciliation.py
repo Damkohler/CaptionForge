@@ -378,7 +378,7 @@ class PlannerContractTests(unittest.TestCase):
 
 class WorkflowAssetContractTests(unittest.TestCase):
     UI_WORKFLOW = ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_Rel_v1.0.2.json"
-    API_WORKFLOW = ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_Rel_API_v1.0.2.json"
+    API_WORKFLOW = ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_API_Rel_v1.0.2.json"
     PNG_WORKFLOW = ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_Rel_v1.0.2.png"
 
     def test_canonical_workflow_uses_one_optional_image_source_without_batcher(self) -> None:
@@ -1044,3 +1044,4 @@ class OverwriteContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

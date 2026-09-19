@@ -794,6 +794,153 @@
       }
     },
     {
+      "id": 87,
+      "type": "MarkdownNote",
+      "pos": [
+        -3012,
+        648
+      ],
+      "size": [
+        564,
+        1536
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "README First!",
+      "properties": {},
+      "widgets_values": [
+        "# CaptionForge\n\nCaptionForge helps you prepare **high-quality, accurate image captions for LoRA training** by combining several captioning models and then checking their work.\n\nInstead of asking one model to describe your image and trusting the result, CaptionForge lets several models contribute what they notice, combines those observations into a stronger draft, and then uses a vision-language model to look at the original image again and correct the caption before it is saved.\n\n## What this workflow does\n\nYour image moves through four stages:\n\n### 1. Multiple models describe the image\n\nJoy, Qwen, and Ollama can each create independent captions.\n\nThey are treated as **witnesses**, not as final answers. Different models often notice different things, and they sometimes make mistakes.\n\nThe default setup uses:\n\n- **2 Joy captions**\n- **1 Qwen caption**\n- **1 Ollama caption** per connected Ollama witness node\n\nYou can change those counts in the Pipeline Planner.\n\n### 2. The captions are combined\n\nA text LLM reads the witness captions and builds one detailed draft.\n\nIts job is to preserve useful information from all of them without assuming that any single witness is always right.\n\n### 3. The draft is checked against the actual image\n\nA vision-language model looks at the original picture and the combined draft together.\n\nIt removes unsupported details, corrects visible mistakes, and produces the final validated natural-language caption.\n\nThis becomes the **LONG** caption.\n\n### 4. Training-friendly versions are created\n\nA final text LLM takes the validated LONG caption and creates two additional versions:\n\n- **SHORT** — concise natural-language semantic compression, typically around 100 words\n- **TAGGY** — a compact comma-separated caption\n\nSHORT is not a chopped-off version of LONG. It is an AI-generated compression that tries to preserve the most useful training details from the whole validated caption.\n\n---\n\n## Which caption should I use?\n\nA good rule of thumb:\n\n- **SHORT** → good starting point for FLUX-family LoRA training\n- **TAGGY** → good starting point for SD-style tag-based training\n- **LONG** → maximum detail, review, auditing, or experimentation\n\nCaptionForge saves all three, so you can decide later without recaptioning the dataset.\n\n---\n\n## The main nodes\n\n### Pipeline Planner\n\nThis is the control center for the full workflow.\n\nUse it to choose:\n\n- image or folder input\n- output location and run name\n- witness run counts\n- seeds\n- LoRA trigger word and persistent caption anchor\n- forbidden phrases and replacement pairs\n- Distiller model, prompt, and sampling settings\n- Validator model, prompts, and sampling settings\n- Formatter model, prompt, and sampling settings\n- audit options\n- optional training-dataset export settings\n\nIn the full workflow, **the Planner is the boss**.\n\nPlanner-owned values take precedence over matching controls in downstream nodes.\n\n### Joy / Qwen / Ollama Caption\n\nThese are the Pass A witness nodes.\n\nThey each describe the image independently and feed their captions forward as evidence.\n\nThey can also be used on their own without the full CaptionForge pipeline.\n\n### Template Options\n\nThis gives the witness models shared guidance about the kind of visual information that is useful for LoRA training.\n\n### CaptionForge Orchestrator\n\nThis is the downstream orchestration node.\n\nIt:\n\n- combines the witness captions\n- validates the result against the image\n- creates LONG, SHORT, and TAGGY outputs\n- writes final caption and audit records\n- optionally exports paired training images and captions\n\nThe Orchestrator can also be used on its own. In standalone mode, it controls the Distiller, Validator, Formatter, and cleanup settings locally.\n\nWhen the Orchestrator is connected to the Pipeline Planner, the Planner settings take precedence.\n\nThe Orchestrator also exposes **LONG**, **SHORT**, and **TAGGY** as direct outputs for display, inspection, or downstream use.\n\n---\n\n## Cleanup rules\n\nCaptionForge supports:\n\n- **forbidden phrases** — words or phrases that must not remain in the final captions\n- **replacement pairs** — boundary-safe `old=>new` substitutions\n\nIn the full workflow, these are owned by the Pipeline Planner and propagated through the pipeline.\n\nThe rules are enforced on the final LONG, SHORT, and TAGGY captions so later models cannot silently reintroduce wording that was removed or replaced earlier.\n\nMatching is boundary-safe. For example, a rule for:\n\n`old`\n\ndoes not alter words such as:\n\n`bold`\n\n`holding`\n\n`gold`\n\n---\n\n## Running the full workflow\n\n1. Choose a single image or an image folder in the **Pipeline Planner**.\n2. Choose an output folder and run name.\n3. For a first run, leave the default witness counts at:\n   - Joy: 2\n   - Qwen: 1\n   - Ollama: 1 per connected Ollama witness node\n4. Leave the Distiller, Validator, and Formatter settings at their defaults unless you have a reason to experiment.\n5. Queue the workflow.\n\nCaptionForge will create the witness captions, build and validate the final caption, generate LONG/SHORT/TAGGY versions, and store the run and audit data in the configured output.\n\n### Single-image input\n\nThe optional IMAGE connection is intended for **quick single-image workflows**.\n\nFor multiple images, especially images with different dimensions or aspect ratios, use **Input - image path** and point CaptionForge to a folder.\n\nOrdinary ComfyUI IMAGE batchers may resize or crop mixed-aspect images to a common tensor size before CaptionForge receives them.\n\n---\n\n## Output files\n\nFor each successfully processed image, CaptionForge can write:\n\n`*_long.txt`\n\n`*_short.txt`\n\n`*_taggy.txt`\n\n`A_RAW_CAPTIONS.jsonl` is the authoritative Pass A witness ledger.\n\nThe run working directory also contains structured JSON/JSONL records for the Distiller, Validator, Formatter, final outputs, configuration, and enabled audit data.\n\nIf prompt or raw-response auditing is enabled, additional diagnostic files are saved for inspection.\n\n---\n\n## Optional training-dataset export\n\nCaptionForge can also create a separate paired training dataset.\n\nWhen enabled, you can choose:\n\n- maximum exported image size\n- dimension divisor\n- image format\n- JPEG quality\n- which caption style to pair with the image\n\nThe exported image is resized while preserving its aspect ratio, and the selected caption is written beside it for training use.\n\nLONG, SHORT, and TAGGY remain available in the CaptionForge records even if only one caption style is selected for the training pair.\n\n---\n\n## A note about speed\n\nThis is not a lightweight one-model captioner.\n\nCaptionForge deliberately uses several models because the goal is **better captions, not the fewest possible inference calls**.\n\nModel loading can be a significant part of runtime, especially on the first use of each model and when large models must be swapped in and out of memory.\n\nIf you only want a quick single caption, the individual Joy, Qwen, and Ollama nodes can also be used by themselves.\n\n---\n\n## If you are not sure what to change\n\nStart with the defaults.\n\nThe current settings were tested as a balanced configuration for caption quality, reliability, and runtime.\n\nMost controls have tooltips if you want to experiment later.\n\nThe safest place to begin is simply:\n\n**pick your image or folder, pick your output location, and press Queue.**"
+      ],
+      "widgets_values_named": {
+        "text": "# CaptionForge\n\nCaptionForge helps you prepare **high-quality, accurate image captions for LoRA training** by combining several captioning models and then checking their work.\n\nInstead of asking one model to describe your image and trusting the result, CaptionForge lets several models contribute what they notice, combines those observations into a stronger draft, and then uses a vision-language model to look at the original image again and correct the caption before it is saved.\n\n## What this workflow does\n\nYour image moves through four stages:\n\n### 1. Multiple models describe the image\n\nJoy, Qwen, and Ollama can each create independent captions.\n\nThey are treated as **witnesses**, not as final answers. Different models often notice different things, and they sometimes make mistakes.\n\nThe default setup uses:\n\n- **2 Joy captions**\n- **1 Qwen caption**\n- **1 Ollama caption** per connected Ollama witness node\n\nYou can change those counts in the Pipeline Planner.\n\n### 2. The captions are combined\n\nA text LLM reads the witness captions and builds one detailed draft.\n\nIts job is to preserve useful information from all of them without assuming that any single witness is always right.\n\n### 3. The draft is checked against the actual image\n\nA vision-language model looks at the original picture and the combined draft together.\n\nIt removes unsupported details, corrects visible mistakes, and produces the final validated natural-language caption.\n\nThis becomes the **LONG** caption.\n\n### 4. Training-friendly versions are created\n\nA final text LLM takes the validated LONG caption and creates two additional versions:\n\n- **SHORT** — concise natural-language semantic compression, typically around 100 words\n- **TAGGY** — a compact comma-separated caption\n\nSHORT is not a chopped-off version of LONG. It is an AI-generated compression that tries to preserve the most useful training details from the whole validated caption.\n\n---\n\n## Which caption should I use?\n\nA good rule of thumb:\n\n- **SHORT** → good starting point for FLUX-family LoRA training\n- **TAGGY** → good starting point for SD-style tag-based training\n- **LONG** → maximum detail, review, auditing, or experimentation\n\nCaptionForge saves all three, so you can decide later without recaptioning the dataset.\n\n---\n\n## The main nodes\n\n### Pipeline Planner\n\nThis is the control center for the full workflow.\n\nUse it to choose:\n\n- image or folder input\n- output location and run name\n- witness run counts\n- seeds\n- LoRA trigger word and persistent caption anchor\n- forbidden phrases and replacement pairs\n- Distiller model, prompt, and sampling settings\n- Validator model, prompts, and sampling settings\n- Formatter model, prompt, and sampling settings\n- audit options\n- optional training-dataset export settings\n\nIn the full workflow, **the Planner is the boss**.\n\nPlanner-owned values take precedence over matching controls in downstream nodes.\n\n### Joy / Qwen / Ollama Caption\n\nThese are the Pass A witness nodes.\n\nThey each describe the image independently and feed their captions forward as evidence.\n\nThey can also be used on their own without the full CaptionForge pipeline.\n\n### Template Options\n\nThis gives the witness models shared guidance about the kind of visual information that is useful for LoRA training.\n\n### CaptionForge Orchestrator\n\nThis is the downstream orchestration node.\n\nIt:\n\n- combines the witness captions\n- validates the result against the image\n- creates LONG, SHORT, and TAGGY outputs\n- writes final caption and audit records\n- optionally exports paired training images and captions\n\nThe Orchestrator can also be used on its own. In standalone mode, it controls the Distiller, Validator, Formatter, and cleanup settings locally.\n\nWhen the Orchestrator is connected to the Pipeline Planner, the Planner settings take precedence.\n\nThe Orchestrator also exposes **LONG**, **SHORT**, and **TAGGY** as direct outputs for display, inspection, or downstream use.\n\n---\n\n## Cleanup rules\n\nCaptionForge supports:\n\n- **forbidden phrases** — words or phrases that must not remain in the final captions\n- **replacement pairs** — boundary-safe `old=>new` substitutions\n\nIn the full workflow, these are owned by the Pipeline Planner and propagated through the pipeline.\n\nThe rules are enforced on the final LONG, SHORT, and TAGGY captions so later models cannot silently reintroduce wording that was removed or replaced earlier.\n\nMatching is boundary-safe. For example, a rule for:\n\n`old`\n\ndoes not alter words such as:\n\n`bold`\n\n`holding`\n\n`gold`\n\n---\n\n## Running the full workflow\n\n1. Choose a single image or an image folder in the **Pipeline Planner**.\n2. Choose an output folder and run name.\n3. For a first run, leave the default witness counts at:\n   - Joy: 2\n   - Qwen: 1\n   - Ollama: 1 per connected Ollama witness node\n4. Leave the Distiller, Validator, and Formatter settings at their defaults unless you have a reason to experiment.\n5. Queue the workflow.\n\nCaptionForge will create the witness captions, build and validate the final caption, generate LONG/SHORT/TAGGY versions, and store the run and audit data in the configured output.\n\n### Single-image input\n\nThe optional IMAGE connection is intended for **quick single-image workflows**.\n\nFor multiple images, especially images with different dimensions or aspect ratios, use **Input - image path** and point CaptionForge to a folder.\n\nOrdinary ComfyUI IMAGE batchers may resize or crop mixed-aspect images to a common tensor size before CaptionForge receives them.\n\n---\n\n## Output files\n\nFor each successfully processed image, CaptionForge can write:\n\n`*_long.txt`\n\n`*_short.txt`\n\n`*_taggy.txt`\n\n`A_RAW_CAPTIONS.jsonl` is the authoritative Pass A witness ledger.\n\nThe run working directory also contains structured JSON/JSONL records for the Distiller, Validator, Formatter, final outputs, configuration, and enabled audit data.\n\nIf prompt or raw-response auditing is enabled, additional diagnostic files are saved for inspection.\n\n---\n\n## Optional training-dataset export\n\nCaptionForge can also create a separate paired training dataset.\n\nWhen enabled, you can choose:\n\n- maximum exported image size\n- dimension divisor\n- image format\n- JPEG quality\n- which caption style to pair with the image\n\nThe exported image is resized while preserving its aspect ratio, and the selected caption is written beside it for training use.\n\nLONG, SHORT, and TAGGY remain available in the CaptionForge records even if only one caption style is selected for the training pair.\n\n---\n\n## A note about speed\n\nThis is not a lightweight one-model captioner.\n\nCaptionForge deliberately uses several models because the goal is **better captions, not the fewest possible inference calls**.\n\nModel loading can be a significant part of runtime, especially on the first use of each model and when large models must be swapped in and out of memory.\n\nIf you only want a quick single caption, the individual Joy, Qwen, and Ollama nodes can also be used by themselves.\n\n---\n\n## If you are not sure what to change\n\nStart with the defaults.\n\nThe current settings were tested as a balanced configuration for caption quality, reliability, and runtime.\n\nMost controls have tooltips if you want to experiment later.\n\nThe safest place to begin is simply:\n\n**pick your image or folder, pick your output location, and press Queue.**"
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 156,
+      "type": "DisplayAny",
+      "pos": [
+        576,
+        644
+      ],
+      "size": [
+        304,
+        388
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 353
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny"
+      },
+      "widgets_values": [
+        "raw value"
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
+    },
+    {
+      "id": 157,
+      "type": "DisplayAny",
+      "pos": [
+        576,
+        1084
+      ],
+      "size": [
+        304,
+        196
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 354
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny"
+      },
+      "widgets_values": [
+        "raw value"
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
+    },
+    {
+      "id": 158,
+      "type": "DisplayAny",
+      "pos": [
+        576,
+        1332
+      ],
+      "size": [
+        304,
+        172
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 355
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny"
+      },
+      "widgets_values": [
+        "raw value"
+      ],
+      "widgets_values_named": {
+        "mode": "raw value"
+      }
+    },
+    {
       "id": 151,
       "type": "JLC_LoadAndResizeImage",
       "pos": [
@@ -805,7 +952,7 @@
         888
       ],
       "flags": {},
-      "order": 1,
+      "order": 2,
       "mode": 0,
       "inputs": [
         {
@@ -1060,159 +1207,6 @@
         "Dataset - JPEG quality": 95,
         "Dataset - caption": "short"
       }
-    },
-    {
-      "id": 87,
-      "type": "MarkdownNote",
-      "pos": [
-        -3012,
-        648
-      ],
-      "size": [
-        564,
-        1536
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "README First!",
-      "properties": {},
-      "widgets_values": [
-        "# CaptionForge\n\nCaptionForge helps you prepare **high-quality, accurate image captions for LoRA training** by combining several captioning models and then checking their work.\n\nInstead of asking one model to describe your image and trusting the result, CaptionForge lets several models contribute what they notice, combines those observations into a stronger draft, and then uses a vision-language model to look at the original image again and correct the caption before it is saved.\n\n## What this workflow does\n\nYour image moves through four stages:\n\n### 1. Multiple models describe the image\n\nJoy, Qwen, and Ollama can each create independent captions.\n\nThey are treated as **witnesses**, not as final answers. Different models often notice different things, and they sometimes make mistakes.\n\nThe default setup uses:\n\n- **2 Joy captions**\n- **1 Qwen caption**\n- **1 Ollama caption** per connected Ollama witness node\n\nYou can change those counts in the Pipeline Planner.\n\n### 2. The captions are combined\n\nA text LLM reads the witness captions and builds one detailed draft.\n\nIts job is to preserve useful information from all of them without assuming that any single witness is always right.\n\n### 3. The draft is checked against the actual image\n\nA vision-language model looks at the original picture and the combined draft together.\n\nIt removes unsupported details, corrects visible mistakes, and produces the final validated natural-language caption.\n\nThis becomes the **LONG** caption.\n\n### 4. Training-friendly versions are created\n\nA final text LLM takes the validated LONG caption and creates two additional versions:\n\n- **SHORT** — concise natural-language semantic compression, typically around 100 words\n- **TAGGY** — a compact comma-separated caption\n\nSHORT is not a chopped-off version of LONG. It is an AI-generated compression that tries to preserve the most useful training details from the whole validated caption.\n\n---\n\n## Which caption should I use?\n\nA good rule of thumb:\n\n- **SHORT** → good starting point for FLUX-family LoRA training\n- **TAGGY** → good starting point for SD-style tag-based training\n- **LONG** → maximum detail, review, auditing, or experimentation\n\nCaptionForge saves all three, so you can decide later without recaptioning the dataset.\n\n---\n\n## The main nodes\n\n### Pipeline Planner\n\nThis is the control center for the full workflow.\n\nUse it to choose:\n\n- image or folder input\n- output location and run name\n- witness run counts\n- seeds\n- LoRA trigger word and persistent caption anchor\n- forbidden phrases and replacement pairs\n- Distiller model, prompt, and sampling settings\n- Validator model, prompts, and sampling settings\n- Formatter model, prompt, and sampling settings\n- audit options\n- optional training-dataset export settings\n\nIn the full workflow, **the Planner is the boss**.\n\nPlanner-owned values take precedence over matching controls in downstream nodes.\n\n### Joy / Qwen / Ollama Caption\n\nThese are the Pass A witness nodes.\n\nThey each describe the image independently and feed their captions forward as evidence.\n\nThey can also be used on their own without the full CaptionForge pipeline.\n\n### Template Options\n\nThis gives the witness models shared guidance about the kind of visual information that is useful for LoRA training.\n\n### CaptionForge Orchestrator\n\nThis is the downstream orchestration node.\n\nIt:\n\n- combines the witness captions\n- validates the result against the image\n- creates LONG, SHORT, and TAGGY outputs\n- writes final caption and audit records\n- optionally exports paired training images and captions\n\nThe Orchestrator can also be used on its own. In standalone mode, it controls the Distiller, Validator, Formatter, and cleanup settings locally.\n\nWhen the Orchestrator is connected to the Pipeline Planner, the Planner settings take precedence.\n\nThe Orchestrator also exposes **LONG**, **SHORT**, and **TAGGY** as direct outputs for display, inspection, or downstream use.\n\n---\n\n## Cleanup rules\n\nCaptionForge supports:\n\n- **forbidden phrases** — words or phrases that must not remain in the final captions\n- **replacement pairs** — boundary-safe `old=>new` substitutions\n\nIn the full workflow, these are owned by the Pipeline Planner and propagated through the pipeline.\n\nThe rules are enforced on the final LONG, SHORT, and TAGGY captions so later models cannot silently reintroduce wording that was removed or replaced earlier.\n\nMatching is boundary-safe. For example, a rule for:\n\n`old`\n\ndoes not alter words such as:\n\n`bold`\n\n`holding`\n\n`gold`\n\n---\n\n## Running the full workflow\n\n1. Choose a single image or an image folder in the **Pipeline Planner**.\n2. Choose an output folder and run name.\n3. For a first run, leave the default witness counts at:\n   - Joy: 2\n   - Qwen: 1\n   - Ollama: 1 per connected Ollama witness node\n4. Leave the Distiller, Validator, and Formatter settings at their defaults unless you have a reason to experiment.\n5. Queue the workflow.\n\nCaptionForge will create the witness captions, build and validate the final caption, generate LONG/SHORT/TAGGY versions, and store the run and audit data in the configured output.\n\n### Single-image input\n\nThe optional IMAGE connection is intended for **quick single-image workflows**.\n\nFor multiple images, especially images with different dimensions or aspect ratios, use **Input - image path** and point CaptionForge to a folder.\n\nOrdinary ComfyUI IMAGE batchers may resize or crop mixed-aspect images to a common tensor size before CaptionForge receives them.\n\nCaptionForge 1.0.2 does not support heterogeneous IMAGE lists; native heterogeneous image-list handling is deferred to future/v2 work.\n\n---\n\n## Output files\n\nFor each successfully processed image, CaptionForge can write:\n\n`*_long.txt`\n\n`*_short.txt`\n\n`*_taggy.txt`\n\n`A_RAW_CAPTIONS.jsonl` is the authoritative Pass A witness ledger.\n\nThe run working directory also contains structured JSON/JSONL records for the Distiller, Validator, Formatter, final outputs, configuration, and enabled audit data.\n\nIf prompt or raw-response auditing is enabled, additional diagnostic files are saved for inspection.\n\n---\n\n## Optional training-dataset export\n\nCaptionForge can also create a separate paired training dataset.\n\nWhen enabled, you can choose:\n\n- maximum exported image size\n- dimension divisor\n- image format\n- JPEG quality\n- which caption style to pair with the image\n\nThe exported image is resized while preserving its aspect ratio, and the selected caption is written beside it for training use.\n\nLONG, SHORT, and TAGGY remain available in the CaptionForge records even if only one caption style is selected for the training pair.\n\n---\n\n## A note about speed\n\nThis is not a lightweight one-model captioner.\n\nCaptionForge deliberately uses several models because the goal is **better captions, not the fewest possible inference calls**.\n\nModel loading can be a significant part of runtime, especially on the first use of each model and when large models must be swapped in and out of memory.\n\nIf you only want a quick single caption, the individual Joy, Qwen, and Ollama nodes can also be used by themselves.\n\n---\n\n## If you are not sure what to change\n\nStart with the defaults.\n\nThe current settings were tested as a balanced configuration for caption quality, reliability, and runtime.\n\nMost controls have tooltips if you want to experiment later.\n\nThe safest place to begin is simply:\n\n**pick your image or folder, pick your output location, and press Queue.**"
-      ],
-      "widgets_values_named": {
-        "text": "# CaptionForge\n\nCaptionForge helps you prepare **high-quality, accurate image captions for LoRA training** by combining several captioning models and then checking their work.\n\nInstead of asking one model to describe your image and trusting the result, CaptionForge lets several models contribute what they notice, combines those observations into a stronger draft, and then uses a vision-language model to look at the original image again and correct the caption before it is saved.\n\n## What this workflow does\n\nYour image moves through four stages:\n\n### 1. Multiple models describe the image\n\nJoy, Qwen, and Ollama can each create independent captions.\n\nThey are treated as **witnesses**, not as final answers. Different models often notice different things, and they sometimes make mistakes.\n\nThe default setup uses:\n\n- **2 Joy captions**\n- **1 Qwen caption**\n- **1 Ollama caption** per connected Ollama witness node\n\nYou can change those counts in the Pipeline Planner.\n\n### 2. The captions are combined\n\nA text LLM reads the witness captions and builds one detailed draft.\n\nIts job is to preserve useful information from all of them without assuming that any single witness is always right.\n\n### 3. The draft is checked against the actual image\n\nA vision-language model looks at the original picture and the combined draft together.\n\nIt removes unsupported details, corrects visible mistakes, and produces the final validated natural-language caption.\n\nThis becomes the **LONG** caption.\n\n### 4. Training-friendly versions are created\n\nA final text LLM takes the validated LONG caption and creates two additional versions:\n\n- **SHORT** — concise natural-language semantic compression, typically around 100 words\n- **TAGGY** — a compact comma-separated caption\n\nSHORT is not a chopped-off version of LONG. It is an AI-generated compression that tries to preserve the most useful training details from the whole validated caption.\n\n---\n\n## Which caption should I use?\n\nA good rule of thumb:\n\n- **SHORT** → good starting point for FLUX-family LoRA training\n- **TAGGY** → good starting point for SD-style tag-based training\n- **LONG** → maximum detail, review, auditing, or experimentation\n\nCaptionForge saves all three, so you can decide later without recaptioning the dataset.\n\n---\n\n## The main nodes\n\n### Pipeline Planner\n\nThis is the control center for the full workflow.\n\nUse it to choose:\n\n- image or folder input\n- output location and run name\n- witness run counts\n- seeds\n- LoRA trigger word and persistent caption anchor\n- forbidden phrases and replacement pairs\n- Distiller model, prompt, and sampling settings\n- Validator model, prompts, and sampling settings\n- Formatter model, prompt, and sampling settings\n- audit options\n- optional training-dataset export settings\n\nIn the full workflow, **the Planner is the boss**.\n\nPlanner-owned values take precedence over matching controls in downstream nodes.\n\n### Joy / Qwen / Ollama Caption\n\nThese are the Pass A witness nodes.\n\nThey each describe the image independently and feed their captions forward as evidence.\n\nThey can also be used on their own without the full CaptionForge pipeline.\n\n### Template Options\n\nThis gives the witness models shared guidance about the kind of visual information that is useful for LoRA training.\n\n### CaptionForge Orchestrator\n\nThis is the downstream orchestration node.\n\nIt:\n\n- combines the witness captions\n- validates the result against the image\n- creates LONG, SHORT, and TAGGY outputs\n- writes final caption and audit records\n- optionally exports paired training images and captions\n\nThe Orchestrator can also be used on its own. In standalone mode, it controls the Distiller, Validator, Formatter, and cleanup settings locally.\n\nWhen the Orchestrator is connected to the Pipeline Planner, the Planner settings take precedence.\n\nThe Orchestrator also exposes **LONG**, **SHORT**, and **TAGGY** as direct outputs for display, inspection, or downstream use.\n\n---\n\n## Cleanup rules\n\nCaptionForge supports:\n\n- **forbidden phrases** — words or phrases that must not remain in the final captions\n- **replacement pairs** — boundary-safe `old=>new` substitutions\n\nIn the full workflow, these are owned by the Pipeline Planner and propagated through the pipeline.\n\nThe rules are enforced on the final LONG, SHORT, and TAGGY captions so later models cannot silently reintroduce wording that was removed or replaced earlier.\n\nMatching is boundary-safe. For example, a rule for:\n\n`old`\n\ndoes not alter words such as:\n\n`bold`\n\n`holding`\n\n`gold`\n\n---\n\n## Running the full workflow\n\n1. Choose a single image or an image folder in the **Pipeline Planner**.\n2. Choose an output folder and run name.\n3. For a first run, leave the default witness counts at:\n   - Joy: 2\n   - Qwen: 1\n   - Ollama: 1 per connected Ollama witness node\n4. Leave the Distiller, Validator, and Formatter settings at their defaults unless you have a reason to experiment.\n5. Queue the workflow.\n\nCaptionForge will create the witness captions, build and validate the final caption, generate LONG/SHORT/TAGGY versions, and store the run and audit data in the configured output.\n\n### Single-image input\n\nThe optional IMAGE connection is intended for **quick single-image workflows**.\n\nFor multiple images, especially images with different dimensions or aspect ratios, use **Input - image path** and point CaptionForge to a folder.\n\nOrdinary ComfyUI IMAGE batchers may resize or crop mixed-aspect images to a common tensor size before CaptionForge receives them.\n\nCaptionForge 1.0.2 does not support heterogeneous IMAGE lists; native heterogeneous image-list handling is deferred to future/v2 work.\n\n---\n\n## Output files\n\nFor each successfully processed image, CaptionForge can write:\n\n`*_long.txt`\n\n`*_short.txt`\n\n`*_taggy.txt`\n\n`A_RAW_CAPTIONS.jsonl` is the authoritative Pass A witness ledger.\n\nThe run working directory also contains structured JSON/JSONL records for the Distiller, Validator, Formatter, final outputs, configuration, and enabled audit data.\n\nIf prompt or raw-response auditing is enabled, additional diagnostic files are saved for inspection.\n\n---\n\n## Optional training-dataset export\n\nCaptionForge can also create a separate paired training dataset.\n\nWhen enabled, you can choose:\n\n- maximum exported image size\n- dimension divisor\n- image format\n- JPEG quality\n- which caption style to pair with the image\n\nThe exported image is resized while preserving its aspect ratio, and the selected caption is written beside it for training use.\n\nLONG, SHORT, and TAGGY remain available in the CaptionForge records even if only one caption style is selected for the training pair.\n\n---\n\n## A note about speed\n\nThis is not a lightweight one-model captioner.\n\nCaptionForge deliberately uses several models because the goal is **better captions, not the fewest possible inference calls**.\n\nModel loading can be a significant part of runtime, especially on the first use of each model and when large models must be swapped in and out of memory.\n\nIf you only want a quick single caption, the individual Joy, Qwen, and Ollama nodes can also be used by themselves.\n\n---\n\n## If you are not sure what to change\n\nStart with the defaults.\n\nThe current settings were tested as a balanced configuration for caption quality, reliability, and runtime.\n\nMost controls have tooltips if you want to experiment later.\n\nThe safest place to begin is simply:\n\n**pick your image or folder, pick your output location, and press Queue.**"
-      },
-      "color": "#322",
-      "bgcolor": "#533"
-    },
-    {
-      "id": 156,
-      "type": "DisplayAny",
-      "pos": [
-        576,
-        644
-      ],
-      "size": [
-        304,
-        388
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "input",
-          "type": "*",
-          "link": 353
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui_essentials",
-        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
-        "Node name for S&R": "DisplayAny"
-      },
-      "widgets_values": [
-        "raw value",
-        "A stylized, digitally rendered fairy floats mid-air against a night sky filled with stars and a full moon, her body angled with legs crossed at the ankles and arms extended outward to the sides. She has long, wavy blonde hair framing a face with soft features, arched eyebrows, and a soft smile. Her skin is smooth and fair, with toned thighs visible. She wears a strapless, metallic green bodice paired with a short, layered skirt made of leaf-like shapes. Large, translucent, bioluminescent wings with glowing yellow patterns extend from her back, glowing brightly against the deep blue starry sky. Behind her, a fantastical night scene features a multi-turreted castle with multiple spires perched on a rocky outcrop to the left, illuminated by warm lanterns. Dark green trees frame the right side, and a starry sky with soft clouds fills the upper portion. The lighting is dramatic, with strong backlighting from the moon and wings creating a rim light around her silhouette, while ambient glow highlights the castle, foliage, and illuminated elements. The scene includes a river flowing past rocks and a bridge with lit lamps. The image has a polished, fantasy-themed illustration style with vibrant colors, high contrast, and an ethereal glow."
-      ],
-      "widgets_values_named": {
-        "mode": "raw value",
-        "displaytext": "A stylized, digitally rendered fairy floats mid-air against a night sky filled with stars and a full moon, her body angled with legs crossed at the ankles and arms extended outward to the sides. She has long, wavy blonde hair framing a face with soft features, arched eyebrows, and a soft smile. Her skin is smooth and fair, with toned thighs visible. She wears a strapless, metallic green bodice paired with a short, layered skirt made of leaf-like shapes. Large, translucent, bioluminescent wings with glowing yellow patterns extend from her back, glowing brightly against the deep blue starry sky. Behind her, a fantastical night scene features a multi-turreted castle with multiple spires perched on a rocky outcrop to the left, illuminated by warm lanterns. Dark green trees frame the right side, and a starry sky with soft clouds fills the upper portion. The lighting is dramatic, with strong backlighting from the moon and wings creating a rim light around her silhouette, while ambient glow highlights the castle, foliage, and illuminated elements. The scene includes a river flowing past rocks and a bridge with lit lamps. The image has a polished, fantasy-themed illustration style with vibrant colors, high contrast, and an ethereal glow."
-      }
-    },
-    {
-      "id": 157,
-      "type": "DisplayAny",
-      "pos": [
-        576,
-        1084
-      ],
-      "size": [
-        304,
-        196
-      ],
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "input",
-          "type": "*",
-          "link": 354
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui_essentials",
-        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
-        "Node name for S&R": "DisplayAny"
-      },
-      "widgets_values": [
-        "raw value",
-        "A fairy with long, wavy blonde hair and a soft smile floats mid-air, her body angled with legs crossed and arms extended. She wears a strapless, metallic green bodice and a short, layered skirt of leaf-like shapes, with large, bioluminescent wings glowing yellow. The scene features a night sky with stars and a full moon, a multi-turreted castle on a rocky outcrop, dark green trees, and a river with a bridge. The lighting is dramatic, with strong backlighting and an ethereal glow."
-      ],
-      "widgets_values_named": {
-        "mode": "raw value",
-        "displaytext": "A fairy with long, wavy blonde hair and a soft smile floats mid-air, her body angled with legs crossed and arms extended. She wears a strapless, metallic green bodice and a short, layered skirt of leaf-like shapes, with large, bioluminescent wings glowing yellow. The scene features a night sky with stars and a full moon, a multi-turreted castle on a rocky outcrop, dark green trees, and a river with a bridge. The lighting is dramatic, with strong backlighting and an ethereal glow."
-      }
-    },
-    {
-      "id": 158,
-      "type": "DisplayAny",
-      "pos": [
-        576,
-        1332
-      ],
-      "size": [
-        304,
-        172
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "input",
-          "type": "*",
-          "link": 355
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui_essentials",
-        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
-        "Node name for S&R": "DisplayAny"
-      },
-      "widgets_values": [
-        "raw value",
-        "fairy, long wavy blonde hair, soft smile, mid-air, legs crossed, arms extended, strapless metallic green bodice, short layered skirt, leaf-like shapes, large bioluminescent wings, glowing yellow patterns, night sky, stars, full moon, multi-turreted castle, rocky outcrop, dark green trees, river, bridge, dramatic lighting, strong backlighting, ethereal glow"
-      ],
-      "widgets_values_named": {
-        "mode": "raw value",
-        "displaytext": "fairy, long wavy blonde hair, soft smile, mid-air, legs crossed, arms extended, strapless metallic green bodice, short layered skirt, leaf-like shapes, large bioluminescent wings, glowing yellow patterns, night sky, stars, full moon, multi-turreted castle, rocky outcrop, dark green trees, river, bridge, dramatic lighting, strong backlighting, ethereal glow"
-      }
     }
   ],
   "links": [
@@ -1365,10 +1359,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.3906836964689029,
+      "scale": 0.5200000000001102,
       "offset": [
-        3346.0754543854223,
-        -284.0880188366375
+        2671.176127165896,
+        -474.76053132053505
       ]
     },
     "frontendVersion": "1.49.6"

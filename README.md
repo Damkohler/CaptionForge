@@ -49,7 +49,7 @@ For installation dependencies and Joy Balanced (8-bit) warning handling, see
 Canonical workflow files:
 
 - [`CaptionForge_FullWorkflow_Rel_v1.0.2.json`](assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.json) — editable ComfyUI workflow
-- [`CaptionForge_FullWorkflow_Rel_API_v1.0.2.json`](assets/workflows/CaptionForge_FullWorkflow_Rel_API_v1.0.2.json) — API-format workflow
+- [`CaptionForge_FullWorkflow_API_Rel_v1.0.2.json`](assets/workflows/CaptionForge_FullWorkflow_API_Rel_v1.0.2.json) — API-format workflow
 - [`CaptionForge_FullWorkflow_Rel_v1.0.2.png`](assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.png) — workflow PNG with embedded metadata
 
 Click the workflow image above to view it at full size.
@@ -491,3 +491,4 @@ For large LoRA datasets, the goal is to improve the bulk quality and auditabilit
 CaptionForge is released under the **MIT License**.
 
 See [`LICENSE`](LICENSE) for details.
+

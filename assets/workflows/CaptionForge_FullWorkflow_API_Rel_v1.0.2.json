@@ -364,7 +364,6 @@
   "156": {
     "inputs": {
       "mode": "raw value",
-      "displaytext": "A stylized, digitally rendered fairy floats mid-air against a night sky filled with stars and a full moon, her body angled with legs crossed at the ankles and arms extended outward to the sides. She has long, wavy blonde hair framing a face with soft features, arched eyebrows, and a soft smile. Her skin is smooth and fair, with toned thighs visible. She wears a strapless, metallic green bodice paired with a short, layered skirt made of leaf-like shapes. Large, translucent, bioluminescent wings with glowing yellow patterns extend from her back, glowing brightly against the deep blue starry sky. Behind her, a fantastical night scene features a multi-turreted castle with multiple spires perched on a rocky outcrop to the left, illuminated by warm lanterns. Dark green trees frame the right side, and a starry sky with soft clouds fills the upper portion. The lighting is dramatic, with strong backlighting from the moon and wings creating a rim light around her silhouette, while ambient glow highlights the castle, foliage, and illuminated elements. The scene includes a river flowing past rocks and a bridge with lit lamps. The image has a polished, fantasy-themed illustration style with vibrant colors, high contrast, and an ethereal glow.",
       "input": [
         "147",
         0
@@ -378,7 +377,6 @@
   "157": {
     "inputs": {
       "mode": "raw value",
-      "displaytext": "A fairy with long, wavy blonde hair and a soft smile floats mid-air, her body angled with legs crossed and arms extended. She wears a strapless, metallic green bodice and a short, layered skirt of leaf-like shapes, with large, bioluminescent wings glowing yellow. The scene features a night sky with stars and a full moon, a multi-turreted castle on a rocky outcrop, dark green trees, and a river with a bridge. The lighting is dramatic, with strong backlighting and an ethereal glow.",
       "input": [
         "147",
         1
@@ -392,7 +390,6 @@
   "158": {
     "inputs": {
       "mode": "raw value",
-      "displaytext": "fairy, long wavy blonde hair, soft smile, mid-air, legs crossed, arms extended, strapless metallic green bodice, short layered skirt, leaf-like shapes, large bioluminescent wings, glowing yellow patterns, night sky, stars, full moon, multi-turreted castle, rocky outcrop, dark green trees, river, bridge, dramatic lighting, strong backlighting, ethereal glow",
       "input": [
         "147",
         2

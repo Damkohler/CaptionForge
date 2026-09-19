@@ -289,7 +289,7 @@ class DatasetExportTests(unittest.TestCase):
     def test_canonical_workflows_serialize_dataset_widgets(self):
         directory = ROOT / "assets" / "workflows"
         ui = json.loads((directory / "CaptionForge_FullWorkflow_Rel_v1.0.2.json").read_text(encoding="utf-8"))
-        api = json.loads((directory / "CaptionForge_FullWorkflow_Rel_API_v1.0.2.json").read_text(encoding="utf-8"))
+        api = json.loads((directory / "CaptionForge_FullWorkflow_API_Rel_v1.0.2.json").read_text(encoding="utf-8"))
         for name, cls in (("JLC_CaptionForge", orchestrator.JLC_CaptionForge),
                           ("JLC_CaptionForge_Pipeline_Planner", planner.JLC_CaptionForge_Pipeline_Planner)):
             node = next(item for item in ui["nodes"] if item["type"] == name)
@@ -302,3 +302,4 @@ class DatasetExportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
