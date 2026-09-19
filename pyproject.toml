@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "captionforge"
-version = "1.0.1"
+version = "1.0.2"
 description = "Local, auditable ComfyUI captioning for LoRA datasets: multi-witness evidence, text-LLM synthesis, image-aware VLM validation, and LONG/SHORT/TAGGY exports."
 readme = "README.md"
 requires-python = ">=3.10,<3.13"

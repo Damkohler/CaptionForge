@@ -46,8 +46,8 @@ ollama = importlib.import_module("CaptionForge.nodes.caption_nodes.jlc_captionfo
 
 
 class ReleaseMetadataTests(unittest.TestCase):
-    def test_current_release_versions_are_1_0_1(self) -> None:
-        self.assertEqual(version_module.CAPTIONFORGE_VERSION, "1.0.1")
+    def test_current_release_versions_are_1_0_2(self) -> None:
+        self.assertEqual(version_module.CAPTIONFORGE_VERSION, "1.0.2")
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         match = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
         self.assertIsNotNone(match)

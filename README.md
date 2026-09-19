@@ -11,7 +11,7 @@
 <p align="center">
   <img alt="ComfyUI" src="https://img.shields.io/badge/ComfyUI-Custom%20Nodes-blue">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-blue">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.2-blue">
 </p>
 
 ---
@@ -28,7 +28,7 @@ The core idea is simple: a single image captioner can be useful, but it should n
 
 CaptionForge also writes structured JSONL audit records so intermediate evidence, prompts, model settings, and final outputs can be inspected instead of treated as a black box.
 
-> **Current release: CaptionForge 1.0.1.**
+> **Current release: CaptionForge 1.0.2.**
 > The A/B/C/D semantic pipeline, Planner/Orchestrator authority model, seed contract, and production defaults are frozen for this release.
 
 ---
@@ -232,6 +232,8 @@ It coordinates:
 
 In the full workflow, **the Planner is authoritative**.
 
+The Planner now owns `forbidden_phrases` and `replace_pairs` for the full workflow. Joy, Qwen, Ollama Caption, and the Orchestrator retain their corresponding standalone inputs; when a Planner is connected, its values take precedence.
+
 ### CaptionForge Joy Caption
 
 Python/Hugging Face JoyCaption-family Pass A witness.
@@ -279,6 +281,8 @@ status
 In standalone mode, Orchestrator-local B/C/D settings are authoritative.
 
 When connected to the Pipeline Planner, Planner settings take precedence.
+
+Cleanup uses boundary-safe whole-word and phrase matching, so a rule such as `old` does not alter `bold`, `holding`, or `gold`. The effective rules are enforced through final LONG, SHORT, and TAGGY generation so downstream models cannot silently reintroduce forbidden or superseded wording.
 
 ---
 
