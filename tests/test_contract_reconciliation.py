@@ -377,10 +377,33 @@ class PlannerContractTests(unittest.TestCase):
 
 
 class WorkflowAssetContractTests(unittest.TestCase):
+    UI_WORKFLOW = ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_Rel_v1.0.2.json"
+    API_WORKFLOW = ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_Rel_API_v1.0.2.json"
+    PNG_WORKFLOW = ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_Rel_v1.0.2.png"
+
+    def test_canonical_workflow_uses_one_optional_image_source_without_batcher(self) -> None:
+        ui = json.loads(self.UI_WORKFLOW.read_text(encoding="utf-8"))
+        api = json.loads(self.API_WORKFLOW.read_text(encoding="utf-8"))
+        png = _embedded_png_workflow(self.PNG_WORKFLOW)
+        self.assertEqual(png, ui)
+        for name, artifact in (("ui", ui), ("api", api), ("png", png)):
+            serialized = json.dumps(artifact)
+            with self.subTest(artifact=name):
+                self.assertNotIn("ImageBatchMulti", serialized)
+                nodes = artifact["nodes"] if "nodes" in artifact else artifact.values()
+                node_types = [node.get("type", node.get("class_type")) for node in nodes]
+                self.assertEqual(node_types.count("JLC_LoadAndResizeImage"), 1)
+        note = next(node for node in ui["nodes"] if node["type"] == "MarkdownNote")
+        text = note["widgets_values_named"]["text"]
+        self.assertIn("quick single-image workflows", text)
+        self.assertIn("Input - image path", text)
+        self.assertIn("does not support heterogeneous IMAGE lists", text)
+        self.assertIn("future/v2 work", text)
+
     def test_planner_downstream_controls_match_ui_api_and_png_workflows(self) -> None:
-        ui = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.json").read_text(encoding="utf-8"))
-        api = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_API.json").read_text(encoding="utf-8"))
-        png = _embedded_png_workflow(ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.png")
+        ui = json.loads(self.UI_WORKFLOW.read_text(encoding="utf-8"))
+        api = json.loads(self.API_WORKFLOW.read_text(encoding="utf-8"))
+        png = _embedded_png_workflow(self.PNG_WORKFLOW)
 
         prompt_defaults = {
             "Distiller - prompt": capstone.DEFAULT_FAT_DRAFT_INSTRUCTIONS,
@@ -388,9 +411,8 @@ class WorkflowAssetContractTests(unittest.TestCase):
             "Validator - prompt": capstone.DEFAULT_VALIDATOR_INSTRUCTIONS,
             "Formatter - prompt": capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS,
         }
-        required_names = list(
-            planner_node.JLC_CaptionForge_Pipeline_Planner.INPUT_TYPES()["required"]
-        )
+        input_types = planner_node.JLC_CaptionForge_Pipeline_Planner.INPUT_TYPES()
+        required_names = list(input_types["required"])
         ui_planner = next(
             node for node in ui["nodes"]
             if node["type"] == "JLC_CaptionForge_Pipeline_Planner"
@@ -399,7 +421,12 @@ class WorkflowAssetContractTests(unittest.TestCase):
             node for node in api.values()
             if node["class_type"] == "JLC_CaptionForge_Pipeline_Planner"
         )
-        for name in required_names:
+        widget_names = required_names + [
+            name for name in input_types.get("optional", {})
+            if name in ui_planner["widgets_values_named"]
+        ]
+        self.assertEqual(list(ui_planner["widgets_values_named"]), widget_names)
+        for name in widget_names:
             self.assertEqual(api_planner["inputs"][name], ui_planner["widgets_values_named"][name])
 
         for workflow in (ui, png):
@@ -407,8 +434,8 @@ class WorkflowAssetContractTests(unittest.TestCase):
                 node for node in workflow["nodes"]
                 if node["type"] == "JLC_CaptionForge_Pipeline_Planner"
             )
-            self.assertEqual(len(node["widgets_values"]), len(required_names))
-            for index, name in enumerate(required_names):
+            self.assertEqual(len(node["widgets_values"]), len(widget_names))
+            for index, name in enumerate(widget_names):
                 self.assertEqual(node["widgets_values"][index], node["widgets_values_named"][name])
             for name, value in prompt_defaults.items():
                 self.assertEqual(node["widgets_values_named"][name], value)
@@ -417,9 +444,9 @@ class WorkflowAssetContractTests(unittest.TestCase):
             self.assertIn("TAGGY:", formatter_prompt)
 
     def test_formatter_prompt_matches_ui_api_and_png_workflows(self) -> None:
-        ui = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.json").read_text(encoding="utf-8"))
-        api = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_API.json").read_text(encoding="utf-8"))
-        png = _embedded_png_workflow(ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.png")
+        ui = json.loads(self.UI_WORKFLOW.read_text(encoding="utf-8"))
+        api = json.loads(self.API_WORKFLOW.read_text(encoding="utf-8"))
+        png = _embedded_png_workflow(self.PNG_WORKFLOW)
 
         expected = capstone.DEFAULT_TAGGY_FORMATTER_INSTRUCTIONS
         api_capstone = next(
@@ -432,10 +459,10 @@ class WorkflowAssetContractTests(unittest.TestCase):
             node = next(node for node in workflow["nodes"] if node["type"] == "JLC_CaptionForge")
             self.assertEqual(node["widgets_values_named"]["Formatter - prompt"], expected)
 
-    def test_canonical_nodes_match_source_defaults_and_current_widget_order(self) -> None:
-        ui = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.json").read_text(encoding="utf-8"))
-        api = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_API.json").read_text(encoding="utf-8"))
-        png = _embedded_png_workflow(ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.png")
+    def test_canonical_nodes_match_stable_defaults_and_current_widget_order(self) -> None:
+        ui = json.loads(self.UI_WORKFLOW.read_text(encoding="utf-8"))
+        api = json.loads(self.API_WORKFLOW.read_text(encoding="utf-8"))
+        png = _embedded_png_workflow(self.PNG_WORKFLOW)
         self.assertEqual(png, ui)
 
         contracts = (
@@ -445,7 +472,6 @@ class WorkflowAssetContractTests(unittest.TestCase):
                 (
                     "Caption - Joy runs/image",
                     "Caption - Qwen runs/image",
-                    "Caption - Ollama runs/image",
                     "Ollama - URL",
                     "Ollama - keep loaded",
                     "Ollama - request timeout seconds",
@@ -455,9 +481,6 @@ class WorkflowAssetContractTests(unittest.TestCase):
                     "Distiller - seed",
                     "Distiller - max caption chars for LLM",
                     "Distiller - num predict",
-                    "Distiller - temperature",
-                    "Distiller - top p",
-                    "Distiller - top k",
                     "Distiller - write prompt JSONL",
                     "Distiller - preserve raw response",
                     "Validator - model",
@@ -476,9 +499,6 @@ class WorkflowAssetContractTests(unittest.TestCase):
                     "Formatter - prompt",
                     "Formatter - seed",
                     "Formatter - num predict",
-                    "Formatter - temperature",
-                    "Formatter - top p",
-                    "Formatter - top k",
                     "Formatter - write prompt JSONL",
                     "Formatter - preserve raw response",
                 ),
@@ -520,10 +540,15 @@ class WorkflowAssetContractTests(unittest.TestCase):
             ),
         )
         for class_type, node_class, default_names in contracts:
-            required = node_class.INPUT_TYPES()["required"]
-            names = list(required)
+            input_types = node_class.INPUT_TYPES()
+            required = input_types["required"]
             ui_node = next(node for node in ui["nodes"] if node["type"] == class_type)
             api_node = next(node for node in api.values() if node["class_type"] == class_type)
+            names = list(required) + [
+                name for name in input_types.get("optional", {})
+                if name in ui_node["widgets_values_named"]
+            ]
+            self.assertEqual(list(ui_node["widgets_values_named"]), names)
             self.assertEqual(len(ui_node["widgets_values"]), len(names))
             for index, name in enumerate(names):
                 with self.subTest(class_type=class_type, index=index, control=name):
@@ -543,9 +568,9 @@ class WorkflowAssetContractTests(unittest.TestCase):
                     )
 
     def test_canonical_workflows_have_only_public_safe_paths(self) -> None:
-        ui = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.json").read_text(encoding="utf-8"))
-        api = json.loads((ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow_API.json").read_text(encoding="utf-8"))
-        png = _embedded_png_workflow(ROOT / "assets" / "workflows" / "CaptionForge_FullWorkflow.png")
+        ui = json.loads(self.UI_WORKFLOW.read_text(encoding="utf-8"))
+        api = json.loads(self.API_WORKFLOW.read_text(encoding="utf-8"))
+        png = _embedded_png_workflow(self.PNG_WORKFLOW)
         for name, artifact in (("ui", ui), ("api", api), ("png", png)):
             serialized = json.dumps(artifact).lower()
             with self.subTest(artifact=name):

@@ -1,0 +1,1377 @@
+{
+  "id": "c9438a78-a99b-40c4-adaf-9202eb0215b9",
+  "revision": 0,
+  "last_node_id": 158,
+  "last_link_id": 355,
+  "nodes": [
+    {
+      "id": 51,
+      "type": "JLC_CaptionForgeJoy",
+      "pos": [
+        -1224,
+        644
+      ],
+      "size": [
+        336,
+        692
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 341
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 332
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 122
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            104
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            110
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            159
+          ]
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_fearnworksnodes",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeJoy",
+        "aux_id": "Damkohler/CaptionForge"
+      },
+      "widgets_values": [
+        "llama-joycaption-beta-one-hf-llava",
+        "Balanced (8-bit)",
+        true,
+        true,
+        "JLC LoRA Literal",
+        "any",
+        false,
+        "default_literal",
+        "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "",
+        384,
+        0.75,
+        0.9,
+        50,
+        1,
+        1024,
+        "",
+        "",
+        false
+      ],
+      "widgets_values_named": {
+        "model": "llama-joycaption-beta-one-hf-llava",
+        "memory_mode": "Balanced (8-bit)",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "JLC LoRA Literal",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "default_literal",
+        "system_prompt": "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "custom_prompt": "",
+        "max_new_tokens": 384,
+        "temperature": 0.75,
+        "top_p": 0.9,
+        "top_k": 50,
+        "repetition_penalty": 1,
+        "max_size": 1024,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
+    },
+    {
+      "id": 52,
+      "type": "JLC_CaptionForgeQwen",
+      "pos": [
+        -876,
+        644
+      ],
+      "size": [
+        336,
+        692
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 104
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 110
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 159
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            205
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            206
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            207
+          ]
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_fearnworksnodes",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeQwen",
+        "aux_id": "Damkohler/CaptionForge"
+      },
+      "widgets_values": [
+        "Qwen2.5-VL-7B-NSFW-Caption-V3-abliterated",
+        "Balanced (8-bit)",
+        true,
+        true,
+        "LoRA Literal",
+        "any",
+        false,
+        "default_literal",
+        "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "",
+        384,
+        0.75,
+        0.9,
+        50,
+        1.08,
+        1024,
+        "",
+        "",
+        false
+      ],
+      "widgets_values_named": {
+        "model": "Qwen2.5-VL-7B-NSFW-Caption-V3-abliterated",
+        "qwen_quantization": "Balanced (8-bit)",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "LoRA Literal",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "default_literal",
+        "system_prompt": "You are a helpful image-captioning assistant. Describe only what is visible in the image. Do not invent unseen context.",
+        "custom_prompt": "",
+        "max_new_tokens": 384,
+        "temperature": 0.75,
+        "top_p": 0.9,
+        "top_k": 50,
+        "repetition_penalty": 1.08,
+        "max_size": 1024,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
+    },
+    {
+      "id": 90,
+      "type": "JLC_CaptionForgeOllamaCaption",
+      "pos": [
+        -180,
+        644
+      ],
+      "size": [
+        332,
+        740
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 210
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 211
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 345
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            333
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            334
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": []
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_fearnworksnodes",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeOllamaCaption",
+        "aux_id": "Damkohler/CaptionForge"
+      },
+      "widgets_values": [
+        "custom",
+        "huihui_ai/qwen3.6-abliterated:35b",
+        "http://127.0.0.1:11434",
+        true,
+        true,
+        "Descriptive",
+        "any",
+        false,
+        "female_character_lora",
+        "You are a multimodal image captioning engine for female character NSFW LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone NSFW caption. Use sexual explicit language without euphemisms. When clearly visible, describe anatomy or actions in explicit terms, using words like pussy, blowjob, masturbating, dildo, fingering, spread, pubic hair, shaved pussy, horny, big breasts, anal, or similar. Do not moralize. No censorship.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits, preserving NSFW content and explicit language: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        6000,
+        0.9,
+        0.6,
+        80,
+        1.03,
+        1024,
+        1800,
+        "",
+        "",
+        false
+      ],
+      "widgets_values_named": {
+        "model": "custom",
+        "custom_model_tag": "huihui_ai/qwen3.6-abliterated:35b",
+        "ollama_url": "http://127.0.0.1:11434",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "Descriptive",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "female_character_lora",
+        "system_prompt": "You are a multimodal image captioning engine for female character NSFW LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone NSFW caption. Use sexual explicit language without euphemisms. When clearly visible, describe anatomy or actions in explicit terms, using words like pussy, blowjob, masturbating, dildo, fingering, spread, pubic hair, shaved pussy, horny, big breasts, anal, or similar. Do not moralize. No censorship.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "custom_prompt": "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits, preserving NSFW content and explicit language: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        "max_new_tokens": 6000,
+        "temperature": 0.9,
+        "top_p": 0.6,
+        "top_k": 80,
+        "repetition_penalty": 1.03,
+        "max_size": 1024,
+        "request_timeout_seconds": 1800,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
+    },
+    {
+      "id": 56,
+      "type": "JLC_CaptionForgeOllamaCaption",
+      "pos": [
+        -528,
+        644
+      ],
+      "size": [
+        332,
+        740
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 205
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 206
+        },
+        {
+          "name": "template_options",
+          "shape": 7,
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "link": 207
+        },
+        {
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_out",
+          "type": "IMAGE",
+          "links": [
+            210
+          ]
+        },
+        {
+          "name": "pipeline_plan_out",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            211
+          ]
+        },
+        {
+          "name": "template_options_out",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            345
+          ]
+        },
+        {
+          "name": "caption",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "resolved_prompt",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_fearnworksnodes",
+        "ver": "4d5cb6a020bd5f4fb9347f6e5f8967a77e77b1d0",
+        "Node name for S&R": "JLC_CaptionForgeOllamaCaption",
+        "aux_id": "Damkohler/CaptionForge"
+      },
+      "widgets_values": [
+        "custom",
+        "starnodes/qwen3.8-vl-27b-promptrefiner-abliterated",
+        "http://127.0.0.1:11434",
+        true,
+        true,
+        "Descriptive",
+        "any",
+        false,
+        "female_character_lora",
+        "You are a multimodal image captioning engine for female character NSFW LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone NSFW caption. Use sexual explicit language without euphemisms. When clearly visible, describe anatomy or actions in explicit terms, using words like pussy, blowjob, masturbating, dildo, fingering, spread, pubic hair, shaved pussy, horny, big breasts, anal, or similar. Do not moralize. No censorship.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits, preserving NSFW content and explicit language: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        6000,
+        0.9,
+        0.6,
+        80,
+        1.03,
+        1024,
+        1800,
+        "",
+        "",
+        false
+      ],
+      "widgets_values_named": {
+        "model": "custom",
+        "custom_model_tag": "starnodes/qwen3.8-vl-27b-promptrefiner-abliterated",
+        "ollama_url": "http://127.0.0.1:11434",
+        "keep_loaded": true,
+        "caption_template_mode": true,
+        "caption_type": "Descriptive",
+        "caption_length": "any",
+        "custom_prompt_mode": false,
+        "prompt_preset": "female_character_lora",
+        "system_prompt": "You are a multimodal image captioning engine for female character NSFW LoRA dataset preparation.\n\nYour job is to inspect the image and write one strong standalone NSFW caption. Use sexual explicit language without euphemisms. When clearly visible, describe anatomy or actions in explicit terms, using words like pussy, blowjob, masturbating, dildo, fingering, spread, pubic hair, shaved pussy, horny, big breasts, anal, or similar. Do not moralize. No censorship.\n\nRules:\n- Describe only visible image content.\n- Output exactly one paragraph and nothing else.\n- Do not output analysis, reasoning, notes, bullet points, labels, or a thinking trace.\n- Do not roleplay, address the user, ask follow-up questions, or include safety disclaimers.\n- If a detail is uncertain, omit it rather than hedge.\n- Use direct dataset-caption language, not chatty commentary.",
+        "custom_prompt": "Write one clean caption for a female character LoRA dataset.\n\nCaption priorities:\n- Be specific rather than generic.\n- Prioritize female-character-LoRA-relevant visual traits, preserving NSFW content and explicit language: subject type, pose, facial structure, expression, hair color and hairstyle, eye color, makeup color as distinct from eye color, lip shape and fullness, skin appearance, neck length, shoulder line, bust/chest shape, waist definition, hip width, body proportions, silhouette, legs, clothing construction, accessories, dominant colors, lighting, background, framing, and visual style.\n- Include visible anatomy and figure information when clear and relevant. Do not omit body-shape or facial-structure details merely because they are sensual, revealing, or anatomy-related.\n- If the image presents glamour, sensuality, revealing clothing, lingerie, swimwear, cleavage, underboob, sideboob, bare midriff, exposed hips, thighs, or other sexualized styling, describe that directly and matter-of-factly when visible.\n- Use strong, open dataset-caption language rather than timid euphemisms, but do not turn the caption into roleplay, commentary, or erotic prose.\n- Do not invent nudity, explicit acts, hidden anatomy, or hidden clothing details.\n- Do not force photo, render, doll, anime, realistic, or stylized language unless supported by the image.\n- Avoid meta phrases like \"this image shows\" or \"the picture depicts.\"\n- One paragraph only.\n\nFinal caption:",
+        "max_new_tokens": 6000,
+        "temperature": 0.9,
+        "top_p": 0.6,
+        "top_k": 80,
+        "repetition_penalty": 1.03,
+        "max_size": 1024,
+        "request_timeout_seconds": 1800,
+        "forbidden_phrases": "",
+        "replace_pairs": "",
+        "download_probe_only": false
+      }
+    },
+    {
+      "id": 55,
+      "type": "JLC_CaptionForgeExtraOptions",
+      "pos": [
+        -1580,
+        724
+      ],
+      "size": [
+        344,
+        824
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "template_options",
+          "type": "CAPTIONFORGE_EXTRA_OPTIONS",
+          "links": [
+            122
+          ]
+        },
+        {
+          "name": "template_options_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_fearnworksnodes",
+        "ver": "ad9f3213066b34f2005e654bcd272cd42732b3ac",
+        "Node name for S&R": "JLC_CaptionForgeExtraOptions",
+        "aux_id": "Damkohler/CaptionForge"
+      },
+      "widgets_values": [
+        "",
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true
+      ],
+      "widgets_values_named": {
+        "name_input__replacement_for_name": "",
+        "option_01__character_name_required": false,
+        "option_02__literal_visible_details_only": true,
+        "option_03__no_roleplay_or_dialogue": true,
+        "option_04__no_ambiguous_wording": true,
+        "option_05__avoid_meta_lead_ins": true,
+        "option_06__describe_facial_features": true,
+        "option_07__eye_color_vs_makeup": true,
+        "option_08__describe_makeup_separately": true,
+        "option_09__describe_expression": true,
+        "option_10__hair_color_and_style": true,
+        "option_11__skin_tone_and_texture": true,
+        "option_12__body_shape_and_proportions": true,
+        "option_13__visible_anatomy_and_coverage": true,
+        "option_14__stylized_material_traits": true,
+        "option_15__clothing_pieces_clearly": true,
+        "option_16__clothing_materials_textures": true,
+        "option_17__precise_colors": false,
+        "option_18__accessories_and_jewelry": false,
+        "option_19__pose_and_stance": true,
+        "option_20__hands_and_arms": true,
+        "option_21__framing_shot_distance": true,
+        "option_22__viewing_angle": true,
+        "option_23__background_and_setting": true,
+        "option_24__lighting": false,
+        "option_25__image_style_medium": true,
+        "option_26__watermark_only_if_present": false,
+        "option_27__visible_text_if_relevant": true,
+        "option_28__sfw_suggestive_nsfw_rating": false,
+        "option_29__neutral_sensual_details": true,
+        "option_30__vulgar_wording_allowed": true,
+        "option_31__no_polite_euphemisms": true
+      }
+    },
+    {
+      "id": 147,
+      "type": "JLC_CaptionForge",
+      "pos": [
+        164,
+        644
+      ],
+      "size": [
+        400,
+        1520
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "Input - single image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 333
+        },
+        {
+          "name": "pipeline_plan",
+          "shape": 7,
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "link": 334
+        },
+        {
+          "name": "Distiller seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "name": "Validator seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "name": "Formatter seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "long_captions",
+          "type": "STRING",
+          "links": [
+            353
+          ]
+        },
+        {
+          "name": "short_captions",
+          "type": "STRING",
+          "links": [
+            354
+          ]
+        },
+        {
+          "name": "taggy_captions",
+          "type": "STRING",
+          "links": [
+            355
+          ]
+        },
+        {
+          "name": "final_records",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "captionforge",
+        "ver": "9d5b131b088d3a06da252099ba8ed0b30b856b84",
+        "Node name for S&R": "JLC_CaptionForge"
+      },
+      "widgets_values": [
+        "",
+        "",
+        "joy,qwen,ollama",
+        5,
+        20,
+        "",
+        "captionforge_run",
+        true,
+        "http://127.0.0.1:11434",
+        true,
+        1800,
+        "",
+        "",
+        "",
+        "",
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        1536,
+        3096,
+        0.24,
+        0.9,
+        60,
+        "gemma4:26b",
+        "",
+        "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        2112,
+        1024,
+        0,
+        0.92,
+        80,
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption, typically around 100 words, that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nAim for roughly 100 words. Keep it concise, but allow modest variation when needed to preserve important information and finish the caption naturally. Do not cut off a sentence merely to satisfy a word-count target.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
+        3200,
+        0.12,
+        0.88,
+        50,
+        false,
+        false,
+        "natural",
+        true,
+        true,
+        false,
+        "",
+        0,
+        16,
+        "PNG",
+        95,
+        "short"
+      ],
+      "widgets_values_named": {
+        "Input - captions JSONL": "",
+        "Input - image path": "",
+        "Input - include caption families": "joy,qwen,ollama",
+        "Input - max captions per family": 5,
+        "Input - max total captions": 20,
+        "Output - folder": "",
+        "Output - run name": "captionforge_run",
+        "Output - overwrite outputs": true,
+        "Ollama - URL": "http://127.0.0.1:11434",
+        "Ollama - keep loaded": true,
+        "Ollama - request timeout seconds": 1800,
+        "LoRA - trigger word": "",
+        "LoRA - user caption anchor": "",
+        "Cleanup - forbidden phrases": "",
+        "Cleanup - replace pairs": "",
+        "Fat Draft - model": "mistral-small:24b",
+        "Fat Draft - custom Ollama model": "",
+        "Fat Draft - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        "Fat Draft - max caption chars": 1536,
+        "Fat Draft - max new tokens": 3096,
+        "Fat Draft - temperature": 0.24,
+        "Fat Draft - top p": 0.9,
+        "Fat Draft - top k": 60,
+        "Validator - model": "gemma4:26b",
+        "Validator - custom Ollama model": "",
+        "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        "Validator - max new tokens": 2112,
+        "Validator - max image size": 1024,
+        "Validator - temperature": 0,
+        "Validator - top p": 0.92,
+        "Validator - top k": 80,
+        "Formatter - model": "mistral-small:24b",
+        "Formatter - custom Ollama model": "",
+        "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption, typically around 100 words, that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nAim for roughly 100 words. Keep it concise, but allow modest variation when needed to preserve important information and finish the caption naturally. Do not cut off a sentence merely to satisfy a word-count target.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
+        "Formatter - max new tokens": 3200,
+        "Formatter - temperature": 0.12,
+        "Formatter - top p": 0.88,
+        "Formatter - top k": 50,
+        "Audit - write prompt JSONL": false,
+        "Audit - preserve raw responses": false,
+        "Final - TXT export format": "natural",
+        "Final - write TXT sidecars": true,
+        "Final - write JSONL": true,
+        "Dataset - export image and caption": false,
+        "Dataset - output folder": "",
+        "Dataset - max image size": 0,
+        "Dataset - dimension divisor": 16,
+        "Dataset - image format": "PNG",
+        "Dataset - JPEG quality": 95,
+        "Dataset - caption": "short"
+      }
+    },
+    {
+      "id": 151,
+      "type": "JLC_LoadAndResizeImage",
+      "pos": [
+        -2436,
+        644
+      ],
+      "size": [
+        432,
+        888
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            352
+          ]
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "latent",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "jlc-comfyui-nodes",
+        "ver": "c0aa6331aa4234c4dab7e117cdd55560419d5506",
+        "Node name for S&R": "JLC_LoadAndResizeImage"
+      },
+      "widgets_values": [
+        "jlc_CaptionForge.jpg",
+        "scale longer dimension",
+        1,
+        1536,
+        1024,
+        1024,
+        1024,
+        1,
+        "area",
+        16,
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "jlc_CaptionForge.jpg",
+        "resize_by": "scale longer dimension",
+        "multiplier": 1,
+        "longer_size": 1536,
+        "shorter_size": 1024,
+        "width": 1024,
+        "height": 1024,
+        "megapixels": 1,
+        "scale_method": "area",
+        "divisible_by": 16,
+        "upload": "image"
+      },
+      "color": "#332922",
+      "bgcolor": "#593930"
+    },
+    {
+      "id": 148,
+      "type": "JLC_CaptionForge_Pipeline_Planner",
+      "pos": [
+        -1988,
+        644
+      ],
+      "size": [
+        400,
+        1820
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "Input - single image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 352
+        }
+      ],
+      "outputs": [
+        {
+          "name": "single_image",
+          "type": "IMAGE",
+          "links": [
+            341
+          ]
+        },
+        {
+          "name": "pipeline_plan",
+          "type": "CAPTIONFORGE_PIPELINE_PLAN",
+          "links": [
+            332
+          ]
+        },
+        {
+          "name": "pipeline_plan_json",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "captionforge",
+        "ver": "9d5b131b088d3a06da252099ba8ed0b30b856b84",
+        "Node name for S&R": "JLC_CaptionForge_Pipeline_Planner"
+      },
+      "widgets_values": [
+        true,
+        "",
+        false,
+        "*",
+        "",
+        "captionforge_run",
+        true,
+        "http://127.0.0.1:11434",
+        true,
+        1800,
+        "Fairy",
+        "",
+        "",
+        "",
+        "2",
+        "1",
+        "2",
+        1,
+        "increment",
+        "0.75,0.85,0.95",
+        "0.60",
+        "80",
+        1024,
+        4096,
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        -1,
+        1536,
+        3096,
+        0.35,
+        0.92,
+        80,
+        false,
+        false,
+        "gemma4:26b",
+        "",
+        "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        -1,
+        2112,
+        0,
+        0.92,
+        80,
+        false,
+        false,
+        "mistral-small:24b",
+        "",
+        "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption, typically around 100 words, that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nAim for roughly 100 words. Keep it concise, but allow modest variation when needed to preserve important information and finish the caption naturally. Do not cut off a sentence merely to satisfy a word-count target.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
+        -1,
+        3200,
+        0,
+        0.9,
+        60,
+        false,
+        false,
+        true,
+        true,
+        true,
+        "",
+        1536,
+        16,
+        "PNG",
+        95,
+        "short"
+      ],
+      "widgets_values_named": {
+        "Planner - enabled": true,
+        "Input - image path": "",
+        "Input - recursive": false,
+        "Input - filename glob": "*",
+        "Output - folder": "",
+        "Output - run name": "captionforge_run",
+        "Output - overwrite outputs": true,
+        "Ollama - URL": "http://127.0.0.1:11434",
+        "Ollama - keep loaded": true,
+        "Ollama - request timeout seconds": 1800,
+        "LoRA - trigger word": "Fairy",
+        "LoRA - user caption anchor": "",
+        "Cleanup - forbidden phrases": "",
+        "Cleanup - replace pairs": "",
+        "Caption - Joy runs/image": "2",
+        "Caption - Qwen runs/image": "1",
+        "Caption - Ollama runs/image": "2",
+        "Caption - base seed": 1,
+        "Caption - seed mode": "increment",
+        "Caption - temperature schedule": "0.75,0.85,0.95",
+        "Caption - top p schedule": "0.60",
+        "Caption - top k schedule": "80",
+        "Caption - max image size": 1024,
+        "Caption - max new tokens": 4096,
+        "Distiller - model": "mistral-small:24b",
+        "Distiller - custom Ollama model": "",
+        "Distiller - prompt": "/no_think\n\nYou are a detail-preserving caption merger for LoRA dataset preparation.\n\nYou receive multiple captions of the same image. You do NOT see the image.\n\nTask:\nMerge all non-contradictory caption details into one deliberately over-complete draft caption.\n\nRules:\n- Do not validate against the image.\n- Do not decide that details are false just because they appear once.\n- Do not summarize aggressively.\n- Preserve concrete details from all captions.\n- Split contradictions by choosing cautious wording or listing the alternative only when needed.\n- Prefer specific visual language over generic language.\n- Keep visible body, clothing, material, accessory, color, pose, lighting, style, and framing details.\n- Preserve doll-like, glossy/plastic-like, material, garment-construction, body-shape, and facial-feature details when present.\n- Use neutral dataset-caption language, including visible sensual styling or revealing clothing when present.\n- Do not add details absent from the captions.\n- Treat subject names or trigger-like identity tokens as optional identity labels. Preserve them only when they appear consistently in the captions; do not let them replace visible description.\n- Output only one paragraph, no notes, no JSON.",
+        "Distiller - seed": -1,
+        "Distiller - max caption chars for LLM": 1536,
+        "Distiller - num predict": 3096,
+        "Distiller - temperature": 0.35,
+        "Distiller - top p": 0.92,
+        "Distiller - top k": 80,
+        "Distiller - write prompt JSONL": false,
+        "Distiller - preserve raw response": false,
+        "Validator - model": "gemma4:26b",
+        "Validator - custom Ollama model": "",
+        "Validator - system prompt": "/no_think\nYou are a direct image validation engine. Inspect the image and answer only with the requested caption.",
+        "Validator - prompt": "/no_think\n\nLook at the image and validate this draft caption.\n\nTask:\nReturn a corrected caption paragraph that keeps only image-supported details.\n\nRules:\n- Output only the corrected caption.\n- One paragraph.\n- No reasoning, no notes, no JSON.\n- Keep all true visible details from the draft.\n- Delete unsupported details.\n- Correct small visible errors.\n- Do not add new details unless needed to correct an error already present.\n- Preserve useful LoRA details: subject, face, hair, eyes, makeup, lips, skin texture, pose, body shape, outfit, accessories, materials, colors, lighting, background, framing, and visual style.\n- Visible sensual styling, revealing clothing, cleavage, thighs, bare skin, swimwear, lingerie, or body-shape details may be described neutrally when present.\n- Do not invent hidden anatomy, unseen clothing, explicit acts, or details contradicted by the image.",
+        "Validator - seed": -1,
+        "Validator - num predict": 2112,
+        "Validator - temperature": 0,
+        "Validator - top p": 0.92,
+        "Validator - top k": 80,
+        "Validator - write prompt JSONL": false,
+        "Validator - preserve raw VLM response": false,
+        "Formatter - model": "mistral-small:24b",
+        "Formatter - custom Ollama model": "",
+        "Formatter - prompt": "/no_think\n\nYou are a LoRA caption format converter. The validated paragraph is your only source of truth.\n\nOutput exactly two labeled lines:\n\nSHORT: <a concise natural-language caption, typically around 100 words, that preserves all LoRA-useful validated details>\n\nTAGGY: <one compact comma-separated caption>\n\nSHORT must preserve the image's distinctive training identity across the whole source:\n1. subject, defining face/hair/body traits, and every major outfit piece/material;\n2. pose/action and key accessories or unusual visible details;\n3. setting, lighting, framing, and visual medium/style.\n\nOmit a category only when absent. Use only source details; never add, infer, euphemize, or correct. Compress wording, not category coverage. Do not copy only the source opening.\n\nAim for roughly 100 words. Keep it concise, but allow modest variation when needed to preserve important information and finish the caption naturally. Do not cut off a sentence merely to satisfy a word-count target.\n\nTAGGY must preserve all concrete LoRA-useful source details as compact comma-separated phrases.\n\nNo markdown, reasoning, notes, or other labels.",
+        "Formatter - seed": -1,
+        "Formatter - num predict": 3200,
+        "Formatter - temperature": 0,
+        "Formatter - top p": 0.9,
+        "Formatter - top k": 60,
+        "Formatter - write prompt JSONL": false,
+        "Formatter - preserve raw response": false,
+        "Final - write TXT sidecars": true,
+        "Final - write JSONL": true,
+        "Dataset - export image and caption": true,
+        "Dataset - output folder": "",
+        "Dataset - max image size": 1536,
+        "Dataset - dimension divisor": 16,
+        "Dataset - image format": "PNG",
+        "Dataset - JPEG quality": 95,
+        "Dataset - caption": "short"
+      }
+    },
+    {
+      "id": 87,
+      "type": "MarkdownNote",
+      "pos": [
+        -3012,
+        648
+      ],
+      "size": [
+        564,
+        1536
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "README First!",
+      "properties": {},
+      "widgets_values": [
+        "# CaptionForge\n\nCaptionForge helps you prepare **high-quality, accurate image captions for LoRA training** by combining several captioning models and then checking their work.\n\nInstead of asking one model to describe your image and trusting the result, CaptionForge lets several models contribute what they notice, combines those observations into a stronger draft, and then uses a vision-language model to look at the original image again and correct the caption before it is saved.\n\n## What this workflow does\n\nYour image moves through four stages:\n\n### 1. Multiple models describe the image\n\nJoy, Qwen, and Ollama can each create independent captions.\n\nThey are treated as **witnesses**, not as final answers. Different models often notice different things, and they sometimes make mistakes.\n\nThe default setup uses:\n\n- **2 Joy captions**\n- **1 Qwen caption**\n- **1 Ollama caption** per connected Ollama witness node\n\nYou can change those counts in the Pipeline Planner.\n\n### 2. The captions are combined\n\nA text LLM reads the witness captions and builds one detailed draft.\n\nIts job is to preserve useful information from all of them without assuming that any single witness is always right.\n\n### 3. The draft is checked against the actual image\n\nA vision-language model looks at the original picture and the combined draft together.\n\nIt removes unsupported details, corrects visible mistakes, and produces the final validated natural-language caption.\n\nThis becomes the **LONG** caption.\n\n### 4. Training-friendly versions are created\n\nA final text LLM takes the validated LONG caption and creates two additional versions:\n\n- **SHORT** — concise natural-language semantic compression, typically around 100 words\n- **TAGGY** — a compact comma-separated caption\n\nSHORT is not a chopped-off version of LONG. It is an AI-generated compression that tries to preserve the most useful training details from the whole validated caption.\n\n---\n\n## Which caption should I use?\n\nA good rule of thumb:\n\n- **SHORT** → good starting point for FLUX-family LoRA training\n- **TAGGY** → good starting point for SD-style tag-based training\n- **LONG** → maximum detail, review, auditing, or experimentation\n\nCaptionForge saves all three, so you can decide later without recaptioning the dataset.\n\n---\n\n## The main nodes\n\n### Pipeline Planner\n\nThis is the control center for the full workflow.\n\nUse it to choose:\n\n- image or folder input\n- output location and run name\n- witness run counts\n- seeds\n- LoRA trigger word and persistent caption anchor\n- forbidden phrases and replacement pairs\n- Distiller model, prompt, and sampling settings\n- Validator model, prompts, and sampling settings\n- Formatter model, prompt, and sampling settings\n- audit options\n- optional training-dataset export settings\n\nIn the full workflow, **the Planner is the boss**.\n\nPlanner-owned values take precedence over matching controls in downstream nodes.\n\n### Joy / Qwen / Ollama Caption\n\nThese are the Pass A witness nodes.\n\nThey each describe the image independently and feed their captions forward as evidence.\n\nThey can also be used on their own without the full CaptionForge pipeline.\n\n### Template Options\n\nThis gives the witness models shared guidance about the kind of visual information that is useful for LoRA training.\n\n### CaptionForge Orchestrator\n\nThis is the downstream orchestration node.\n\nIt:\n\n- combines the witness captions\n- validates the result against the image\n- creates LONG, SHORT, and TAGGY outputs\n- writes final caption and audit records\n- optionally exports paired training images and captions\n\nThe Orchestrator can also be used on its own. In standalone mode, it controls the Distiller, Validator, Formatter, and cleanup settings locally.\n\nWhen the Orchestrator is connected to the Pipeline Planner, the Planner settings take precedence.\n\nThe Orchestrator also exposes **LONG**, **SHORT**, and **TAGGY** as direct outputs for display, inspection, or downstream use.\n\n---\n\n## Cleanup rules\n\nCaptionForge supports:\n\n- **forbidden phrases** — words or phrases that must not remain in the final captions\n- **replacement pairs** — boundary-safe `old=>new` substitutions\n\nIn the full workflow, these are owned by the Pipeline Planner and propagated through the pipeline.\n\nThe rules are enforced on the final LONG, SHORT, and TAGGY captions so later models cannot silently reintroduce wording that was removed or replaced earlier.\n\nMatching is boundary-safe. For example, a rule for:\n\n`old`\n\ndoes not alter words such as:\n\n`bold`\n\n`holding`\n\n`gold`\n\n---\n\n## Running the full workflow\n\n1. Choose a single image or an image folder in the **Pipeline Planner**.\n2. Choose an output folder and run name.\n3. For a first run, leave the default witness counts at:\n   - Joy: 2\n   - Qwen: 1\n   - Ollama: 1 per connected Ollama witness node\n4. Leave the Distiller, Validator, and Formatter settings at their defaults unless you have a reason to experiment.\n5. Queue the workflow.\n\nCaptionForge will create the witness captions, build and validate the final caption, generate LONG/SHORT/TAGGY versions, and store the run and audit data in the configured output.\n\n### Single-image input\n\nThe optional IMAGE connection is intended for **quick single-image workflows**.\n\nFor multiple images, especially images with different dimensions or aspect ratios, use **Input - image path** and point CaptionForge to a folder.\n\nOrdinary ComfyUI IMAGE batchers may resize or crop mixed-aspect images to a common tensor size before CaptionForge receives them.\n\nCaptionForge 1.0.2 does not support heterogeneous IMAGE lists; native heterogeneous image-list handling is deferred to future/v2 work.\n\n---\n\n## Output files\n\nFor each successfully processed image, CaptionForge can write:\n\n`*_long.txt`\n\n`*_short.txt`\n\n`*_taggy.txt`\n\n`A_RAW_CAPTIONS.jsonl` is the authoritative Pass A witness ledger.\n\nThe run working directory also contains structured JSON/JSONL records for the Distiller, Validator, Formatter, final outputs, configuration, and enabled audit data.\n\nIf prompt or raw-response auditing is enabled, additional diagnostic files are saved for inspection.\n\n---\n\n## Optional training-dataset export\n\nCaptionForge can also create a separate paired training dataset.\n\nWhen enabled, you can choose:\n\n- maximum exported image size\n- dimension divisor\n- image format\n- JPEG quality\n- which caption style to pair with the image\n\nThe exported image is resized while preserving its aspect ratio, and the selected caption is written beside it for training use.\n\nLONG, SHORT, and TAGGY remain available in the CaptionForge records even if only one caption style is selected for the training pair.\n\n---\n\n## A note about speed\n\nThis is not a lightweight one-model captioner.\n\nCaptionForge deliberately uses several models because the goal is **better captions, not the fewest possible inference calls**.\n\nModel loading can be a significant part of runtime, especially on the first use of each model and when large models must be swapped in and out of memory.\n\nIf you only want a quick single caption, the individual Joy, Qwen, and Ollama nodes can also be used by themselves.\n\n---\n\n## If you are not sure what to change\n\nStart with the defaults.\n\nThe current settings were tested as a balanced configuration for caption quality, reliability, and runtime.\n\nMost controls have tooltips if you want to experiment later.\n\nThe safest place to begin is simply:\n\n**pick your image or folder, pick your output location, and press Queue.**"
+      ],
+      "widgets_values_named": {
+        "text": "# CaptionForge\n\nCaptionForge helps you prepare **high-quality, accurate image captions for LoRA training** by combining several captioning models and then checking their work.\n\nInstead of asking one model to describe your image and trusting the result, CaptionForge lets several models contribute what they notice, combines those observations into a stronger draft, and then uses a vision-language model to look at the original image again and correct the caption before it is saved.\n\n## What this workflow does\n\nYour image moves through four stages:\n\n### 1. Multiple models describe the image\n\nJoy, Qwen, and Ollama can each create independent captions.\n\nThey are treated as **witnesses**, not as final answers. Different models often notice different things, and they sometimes make mistakes.\n\nThe default setup uses:\n\n- **2 Joy captions**\n- **1 Qwen caption**\n- **1 Ollama caption** per connected Ollama witness node\n\nYou can change those counts in the Pipeline Planner.\n\n### 2. The captions are combined\n\nA text LLM reads the witness captions and builds one detailed draft.\n\nIts job is to preserve useful information from all of them without assuming that any single witness is always right.\n\n### 3. The draft is checked against the actual image\n\nA vision-language model looks at the original picture and the combined draft together.\n\nIt removes unsupported details, corrects visible mistakes, and produces the final validated natural-language caption.\n\nThis becomes the **LONG** caption.\n\n### 4. Training-friendly versions are created\n\nA final text LLM takes the validated LONG caption and creates two additional versions:\n\n- **SHORT** — concise natural-language semantic compression, typically around 100 words\n- **TAGGY** — a compact comma-separated caption\n\nSHORT is not a chopped-off version of LONG. It is an AI-generated compression that tries to preserve the most useful training details from the whole validated caption.\n\n---\n\n## Which caption should I use?\n\nA good rule of thumb:\n\n- **SHORT** → good starting point for FLUX-family LoRA training\n- **TAGGY** → good starting point for SD-style tag-based training\n- **LONG** → maximum detail, review, auditing, or experimentation\n\nCaptionForge saves all three, so you can decide later without recaptioning the dataset.\n\n---\n\n## The main nodes\n\n### Pipeline Planner\n\nThis is the control center for the full workflow.\n\nUse it to choose:\n\n- image or folder input\n- output location and run name\n- witness run counts\n- seeds\n- LoRA trigger word and persistent caption anchor\n- forbidden phrases and replacement pairs\n- Distiller model, prompt, and sampling settings\n- Validator model, prompts, and sampling settings\n- Formatter model, prompt, and sampling settings\n- audit options\n- optional training-dataset export settings\n\nIn the full workflow, **the Planner is the boss**.\n\nPlanner-owned values take precedence over matching controls in downstream nodes.\n\n### Joy / Qwen / Ollama Caption\n\nThese are the Pass A witness nodes.\n\nThey each describe the image independently and feed their captions forward as evidence.\n\nThey can also be used on their own without the full CaptionForge pipeline.\n\n### Template Options\n\nThis gives the witness models shared guidance about the kind of visual information that is useful for LoRA training.\n\n### CaptionForge Orchestrator\n\nThis is the downstream orchestration node.\n\nIt:\n\n- combines the witness captions\n- validates the result against the image\n- creates LONG, SHORT, and TAGGY outputs\n- writes final caption and audit records\n- optionally exports paired training images and captions\n\nThe Orchestrator can also be used on its own. In standalone mode, it controls the Distiller, Validator, Formatter, and cleanup settings locally.\n\nWhen the Orchestrator is connected to the Pipeline Planner, the Planner settings take precedence.\n\nThe Orchestrator also exposes **LONG**, **SHORT**, and **TAGGY** as direct outputs for display, inspection, or downstream use.\n\n---\n\n## Cleanup rules\n\nCaptionForge supports:\n\n- **forbidden phrases** — words or phrases that must not remain in the final captions\n- **replacement pairs** — boundary-safe `old=>new` substitutions\n\nIn the full workflow, these are owned by the Pipeline Planner and propagated through the pipeline.\n\nThe rules are enforced on the final LONG, SHORT, and TAGGY captions so later models cannot silently reintroduce wording that was removed or replaced earlier.\n\nMatching is boundary-safe. For example, a rule for:\n\n`old`\n\ndoes not alter words such as:\n\n`bold`\n\n`holding`\n\n`gold`\n\n---\n\n## Running the full workflow\n\n1. Choose a single image or an image folder in the **Pipeline Planner**.\n2. Choose an output folder and run name.\n3. For a first run, leave the default witness counts at:\n   - Joy: 2\n   - Qwen: 1\n   - Ollama: 1 per connected Ollama witness node\n4. Leave the Distiller, Validator, and Formatter settings at their defaults unless you have a reason to experiment.\n5. Queue the workflow.\n\nCaptionForge will create the witness captions, build and validate the final caption, generate LONG/SHORT/TAGGY versions, and store the run and audit data in the configured output.\n\n### Single-image input\n\nThe optional IMAGE connection is intended for **quick single-image workflows**.\n\nFor multiple images, especially images with different dimensions or aspect ratios, use **Input - image path** and point CaptionForge to a folder.\n\nOrdinary ComfyUI IMAGE batchers may resize or crop mixed-aspect images to a common tensor size before CaptionForge receives them.\n\nCaptionForge 1.0.2 does not support heterogeneous IMAGE lists; native heterogeneous image-list handling is deferred to future/v2 work.\n\n---\n\n## Output files\n\nFor each successfully processed image, CaptionForge can write:\n\n`*_long.txt`\n\n`*_short.txt`\n\n`*_taggy.txt`\n\n`A_RAW_CAPTIONS.jsonl` is the authoritative Pass A witness ledger.\n\nThe run working directory also contains structured JSON/JSONL records for the Distiller, Validator, Formatter, final outputs, configuration, and enabled audit data.\n\nIf prompt or raw-response auditing is enabled, additional diagnostic files are saved for inspection.\n\n---\n\n## Optional training-dataset export\n\nCaptionForge can also create a separate paired training dataset.\n\nWhen enabled, you can choose:\n\n- maximum exported image size\n- dimension divisor\n- image format\n- JPEG quality\n- which caption style to pair with the image\n\nThe exported image is resized while preserving its aspect ratio, and the selected caption is written beside it for training use.\n\nLONG, SHORT, and TAGGY remain available in the CaptionForge records even if only one caption style is selected for the training pair.\n\n---\n\n## A note about speed\n\nThis is not a lightweight one-model captioner.\n\nCaptionForge deliberately uses several models because the goal is **better captions, not the fewest possible inference calls**.\n\nModel loading can be a significant part of runtime, especially on the first use of each model and when large models must be swapped in and out of memory.\n\nIf you only want a quick single caption, the individual Joy, Qwen, and Ollama nodes can also be used by themselves.\n\n---\n\n## If you are not sure what to change\n\nStart with the defaults.\n\nThe current settings were tested as a balanced configuration for caption quality, reliability, and runtime.\n\nMost controls have tooltips if you want to experiment later.\n\nThe safest place to begin is simply:\n\n**pick your image or folder, pick your output location, and press Queue.**"
+      },
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 156,
+      "type": "DisplayAny",
+      "pos": [
+        576,
+        644
+      ],
+      "size": [
+        304,
+        388
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 353
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny"
+      },
+      "widgets_values": [
+        "raw value",
+        "A stylized, digitally rendered fairy floats mid-air against a night sky filled with stars and a full moon, her body angled with legs crossed at the ankles and arms extended outward to the sides. She has long, wavy blonde hair framing a face with soft features, arched eyebrows, and a soft smile. Her skin is smooth and fair, with toned thighs visible. She wears a strapless, metallic green bodice paired with a short, layered skirt made of leaf-like shapes. Large, translucent, bioluminescent wings with glowing yellow patterns extend from her back, glowing brightly against the deep blue starry sky. Behind her, a fantastical night scene features a multi-turreted castle with multiple spires perched on a rocky outcrop to the left, illuminated by warm lanterns. Dark green trees frame the right side, and a starry sky with soft clouds fills the upper portion. The lighting is dramatic, with strong backlighting from the moon and wings creating a rim light around her silhouette, while ambient glow highlights the castle, foliage, and illuminated elements. The scene includes a river flowing past rocks and a bridge with lit lamps. The image has a polished, fantasy-themed illustration style with vibrant colors, high contrast, and an ethereal glow."
+      ],
+      "widgets_values_named": {
+        "mode": "raw value",
+        "displaytext": "A stylized, digitally rendered fairy floats mid-air against a night sky filled with stars and a full moon, her body angled with legs crossed at the ankles and arms extended outward to the sides. She has long, wavy blonde hair framing a face with soft features, arched eyebrows, and a soft smile. Her skin is smooth and fair, with toned thighs visible. She wears a strapless, metallic green bodice paired with a short, layered skirt made of leaf-like shapes. Large, translucent, bioluminescent wings with glowing yellow patterns extend from her back, glowing brightly against the deep blue starry sky. Behind her, a fantastical night scene features a multi-turreted castle with multiple spires perched on a rocky outcrop to the left, illuminated by warm lanterns. Dark green trees frame the right side, and a starry sky with soft clouds fills the upper portion. The lighting is dramatic, with strong backlighting from the moon and wings creating a rim light around her silhouette, while ambient glow highlights the castle, foliage, and illuminated elements. The scene includes a river flowing past rocks and a bridge with lit lamps. The image has a polished, fantasy-themed illustration style with vibrant colors, high contrast, and an ethereal glow."
+      }
+    },
+    {
+      "id": 157,
+      "type": "DisplayAny",
+      "pos": [
+        576,
+        1084
+      ],
+      "size": [
+        304,
+        196
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 354
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny"
+      },
+      "widgets_values": [
+        "raw value",
+        "A fairy with long, wavy blonde hair and a soft smile floats mid-air, her body angled with legs crossed and arms extended. She wears a strapless, metallic green bodice and a short, layered skirt of leaf-like shapes, with large, bioluminescent wings glowing yellow. The scene features a night sky with stars and a full moon, a multi-turreted castle on a rocky outcrop, dark green trees, and a river with a bridge. The lighting is dramatic, with strong backlighting and an ethereal glow."
+      ],
+      "widgets_values_named": {
+        "mode": "raw value",
+        "displaytext": "A fairy with long, wavy blonde hair and a soft smile floats mid-air, her body angled with legs crossed and arms extended. She wears a strapless, metallic green bodice and a short, layered skirt of leaf-like shapes, with large, bioluminescent wings glowing yellow. The scene features a night sky with stars and a full moon, a multi-turreted castle on a rocky outcrop, dark green trees, and a river with a bridge. The lighting is dramatic, with strong backlighting and an ethereal glow."
+      }
+    },
+    {
+      "id": 158,
+      "type": "DisplayAny",
+      "pos": [
+        576,
+        1332
+      ],
+      "size": [
+        304,
+        172
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 355
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "DisplayAny"
+      },
+      "widgets_values": [
+        "raw value",
+        "fairy, long wavy blonde hair, soft smile, mid-air, legs crossed, arms extended, strapless metallic green bodice, short layered skirt, leaf-like shapes, large bioluminescent wings, glowing yellow patterns, night sky, stars, full moon, multi-turreted castle, rocky outcrop, dark green trees, river, bridge, dramatic lighting, strong backlighting, ethereal glow"
+      ],
+      "widgets_values_named": {
+        "mode": "raw value",
+        "displaytext": "fairy, long wavy blonde hair, soft smile, mid-air, legs crossed, arms extended, strapless metallic green bodice, short layered skirt, leaf-like shapes, large bioluminescent wings, glowing yellow patterns, night sky, stars, full moon, multi-turreted castle, rocky outcrop, dark green trees, river, bridge, dramatic lighting, strong backlighting, ethereal glow"
+      }
+    }
+  ],
+  "links": [
+    [
+      104,
+      51,
+      0,
+      52,
+      0,
+      "IMAGE"
+    ],
+    [
+      110,
+      51,
+      1,
+      52,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      122,
+      55,
+      0,
+      51,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      159,
+      51,
+      2,
+      52,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      205,
+      52,
+      0,
+      56,
+      0,
+      "IMAGE"
+    ],
+    [
+      206,
+      52,
+      1,
+      56,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      207,
+      52,
+      2,
+      56,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      210,
+      56,
+      0,
+      90,
+      0,
+      "IMAGE"
+    ],
+    [
+      211,
+      56,
+      1,
+      90,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      332,
+      148,
+      1,
+      51,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      333,
+      90,
+      0,
+      147,
+      0,
+      "IMAGE"
+    ],
+    [
+      334,
+      90,
+      1,
+      147,
+      1,
+      "CAPTIONFORGE_PIPELINE_PLAN"
+    ],
+    [
+      341,
+      148,
+      0,
+      51,
+      0,
+      "IMAGE"
+    ],
+    [
+      345,
+      56,
+      2,
+      90,
+      2,
+      "CAPTIONFORGE_EXTRA_OPTIONS"
+    ],
+    [
+      352,
+      151,
+      0,
+      148,
+      0,
+      "IMAGE"
+    ],
+    [
+      353,
+      147,
+      0,
+      156,
+      0,
+      "STRING"
+    ],
+    [
+      354,
+      147,
+      1,
+      157,
+      0,
+      "STRING"
+    ],
+    [
+      355,
+      147,
+      2,
+      158,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.3906836964689029,
+      "offset": [
+        3346.0754543854223,
+        -284.0880188366375
+      ]
+    },
+    "frontendVersion": "1.49.6"
+  },
+  "version": 0.4
+}

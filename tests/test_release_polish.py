@@ -59,6 +59,23 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertEqual(config["_meta"]["version"], version_module.CAPTIONFORGE_VERSION)
         self.assertEqual(capstone.CAPTIONFORGE_NODE_VERSION, version_module.CAPTIONFORGE_VERSION)
 
+    def test_anchor_tooltips_describe_frozen_1_x_behavior(self) -> None:
+        expected = (
+            "Optional persistent caption/training anchor. In CaptionForge 1.x, a non-empty "
+            "anchor is preserved in the final caption variants rather than treated as image "
+            "evidence that the Validator may remove."
+        )
+        self.assertEqual(
+            planner.JLC_CaptionForge_Pipeline_Planner.INPUT_TYPES()["required"]
+            ["LoRA - user caption anchor"][1]["tooltip"],
+            expected,
+        )
+        self.assertEqual(
+            capstone.JLC_CaptionForge.INPUT_TYPES()["required"]
+            ["LoRA - user caption anchor"][1]["tooltip"],
+            expected,
+        )
+
     def test_package_discovery_is_explicit_and_production_only(self) -> None:
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.assertNotIn("[tool.setuptools.packages.find]", pyproject)

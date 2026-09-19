@@ -39,8 +39,8 @@ For installation dependencies and Joy Balanced (8-bit) warning handling, see
 [Joy 8-bit and clean installation](docs/joy-8bit-installation.md).
 
 <p align="center">
-  <a href="assets/workflows/CaptionForge_FullWorkflow.png">
-    <img src="assets/workflows/CaptionForge_FullWorkflow.png"
+  <a href="assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.png">
+    <img src="assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.png"
          alt="CaptionForge Full Workflow"
          width="100%">
   </a>
@@ -48,9 +48,9 @@ For installation dependencies and Joy Balanced (8-bit) warning handling, see
 
 Canonical workflow files:
 
-- [`CaptionForge_FullWorkflow.json`](assets/workflows/CaptionForge_FullWorkflow.json) — editable ComfyUI workflow
-- [`CaptionForge_FullWorkflow_API.json`](assets/workflows/CaptionForge_FullWorkflow_API.json) — API-format workflow
-- [`CaptionForge_FullWorkflow.png`](assets/workflows/CaptionForge_FullWorkflow.png) — workflow PNG with embedded metadata
+- [`CaptionForge_FullWorkflow_Rel_v1.0.2.json`](assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.json) — editable ComfyUI workflow
+- [`CaptionForge_FullWorkflow_Rel_API_v1.0.2.json`](assets/workflows/CaptionForge_FullWorkflow_Rel_API_v1.0.2.json) — API-format workflow
+- [`CaptionForge_FullWorkflow_Rel_v1.0.2.png`](assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.png) — workflow PNG with embedded metadata
 
 Click the workflow image above to view it at full size.
 
@@ -437,7 +437,7 @@ Use explicit seeds when reproducibility is required.
 
 ## Running the full workflow
 
-1. Load [`CaptionForge_FullWorkflow.json`](assets/workflows/CaptionForge_FullWorkflow.json).
+1. Load [`CaptionForge_FullWorkflow_Rel_v1.0.2.json`](assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.json).
 2. Select an image or dataset folder in the **Pipeline Planner**.
 3. Select the output folder and run name.
 4. Start with the recommended witness counts:
@@ -448,6 +448,8 @@ Use explicit seeds when reproducibility is required.
 6. Queue the workflow.
 
 CaptionForge will produce the final caption sidecars and preserve the run's structured audit trail.
+
+The optional IMAGE socket is intended for a quick single-image workflow. For multiple images, use **Input - image path** with a folder. CaptionForge 1.0.2 does not claim heterogeneous mixed-aspect IMAGE-list support: generic ComfyUI IMAGE batchers may resize or crop images to a common tensor shape before CaptionForge receives them. Native heterogeneous image-list handling is deferred to future/v2 work.
 
 ---
 

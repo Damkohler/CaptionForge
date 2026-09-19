@@ -22,7 +22,7 @@ JLC CaptionForge Pipeline Planner — ComfyUI Node Wrapper
             • optional IMAGE passthrough for quick single-image workflows
             • shared input path, recursion, and filename-glob routing
             • output folder and run-name policy
-            • LoRA trigger word and persistent semantic caption anchor routing
+            • LoRA trigger word and persistent caption/training anchor routing
             • raw-caption run counts for Joy, Qwen, and generic Ollama Caption nodes
             • caption seed, sampling, image-size, and token policy
             • Distiller model/settings selection
@@ -716,9 +716,9 @@ class JLC_CaptionForge_Pipeline_Planner:
                         "default": "",
                         "multiline": False,
                         "tooltip": (
-                            "Optional persistent semantic caption anchor supplied by the user, for example "
-                            "'doll-like quasi-3D render'. CaptionForge encourages compatible anchor content "
-                            "to persist through refinement and final caption generation."
+                            "Optional persistent caption/training anchor. In CaptionForge 1.x, a non-empty "
+                            "anchor is preserved in the final caption variants rather than treated as image "
+                            "evidence that the Validator may remove."
                         ),
                     },
                 ),

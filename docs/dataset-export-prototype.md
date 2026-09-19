@@ -1,17 +1,16 @@
 # Dataset export prototype
 
-This opt-in prototype extends the existing Pipeline Planner and Orchestrator.
-The v1.0.1 release tag and canonical release workflows remain unchanged.
+This opt-in export mode extends the existing Pipeline Planner and Orchestrator.
 
 ## Try it
 
 1. Reload your user-managed ComfyUI instance at port **8189** to load the Python changes.
-2. Load `assets/workflows/CaptionForge_DatasetExport_Prototype.json`, or add fresh
+2. Load `assets/workflows/CaptionForge_FullWorkflow_Rel_v1.0.2.json`, or add fresh
    Planner and Orchestrator nodes to an existing workflow.
 3. Set the Planner input path and output folder. The prototype follows a
    **1536-pixel** caption/Validator maximum, with no enlargement.
 4. Enable **Dataset - export image and caption** on the Planner. The supplied
-   prototype workflow already enables this; ordinary node defaults leave it off.
+   canonical workflow exposes this control; ordinary node defaults leave it off.
 5. Choose the divisor, image format, and training caption. Queue a small dataset.
 
 When connected, the Planner owns **every** Dataset setting, including disabled,

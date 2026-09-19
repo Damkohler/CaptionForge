@@ -1698,7 +1698,7 @@ class JLC_CaptionForge:
                     {"default": 1800, "min": 10, "max": 7200, "step": 10, "tooltip": "HTTP patience for Ollama calls. This does not affect caption quality."},
                 ),
                 "LoRA - trigger word": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional LoRA trigger token or phrase preserved in final captions as training metadata."}),
-                "LoRA - user caption anchor": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional phrase you want preserved when it remains compatible with the image, such as a character or rendering-style anchor."}),
+                "LoRA - user caption anchor": ("STRING", {"default": "", "multiline": False, "tooltip": "Optional persistent caption/training anchor. In CaptionForge 1.x, a non-empty anchor is preserved in the final caption variants rather than treated as image evidence that the Validator may remove."}),
                 "Cleanup - forbidden phrases": ("STRING", {"default": "", "multiline": True, "tooltip": "Standalone forbidden words/phrases, one per line. Planner values override this when connected."}),
                 "Cleanup - replace pairs": ("STRING", {"default": "", "multiline": True, "tooltip": "Standalone boundary-safe old=>new replacements, one per line. Planner values override this when connected."}),
                 "Fat Draft - model": (DISTILLER_MODEL_CHOICES, {"default": DEFAULT_DISTILLER_MODEL, "tooltip": "Concrete Ollama text-model tag for Pass B. Choose custom to enter another installed tag below."}),
