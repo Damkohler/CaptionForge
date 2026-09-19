@@ -157,6 +157,7 @@ from .captionforge_model_cache import (
     unload_after_run,
 )
 from .captionforge_joy_warnings import quantized_inference_warnings
+from .captionforge_cleanup import remove_forbidden_phrases as _remove_forbidden_phrases_boundary_safe
 
 
 # -------------------------------------------------------------------------
@@ -808,14 +809,7 @@ def remove_forbidden_phrases(caption: str, forbidden_phrases: list[str]) -> str:
     if not forbidden_phrases:
         return caption
 
-    result = caption
-
-    for phrase in forbidden_phrases:
-        phrase = phrase.strip()
-        if not phrase:
-            continue
-        result = re.sub(re.escape(phrase), "", result, flags=re.IGNORECASE)
-
+    result = _remove_forbidden_phrases_boundary_safe(caption, forbidden_phrases)
     result = re.sub(r"\s+,", ",", result)
     result = re.sub(r",\s*,+", ",", result)
     result = re.sub(r"\s+", " ", result)
