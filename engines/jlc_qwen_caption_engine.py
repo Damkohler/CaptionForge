@@ -170,7 +170,10 @@ from .captionforge_model_cache import (
     unload_after_run,
 )
 from .captionforge_joy_warnings import quantized_inference_warnings
-from .captionforge_cleanup import remove_forbidden_phrases as _remove_forbidden_phrases_boundary_safe
+from .captionforge_cleanup import (
+    remove_forbidden_phrases as _remove_forbidden_phrases_boundary_safe,
+    replace_phrases as _replace_phrases_boundary_safe,
+)
 
 try:
     from .captionforge_caption_prompt_kit import (
@@ -337,7 +340,7 @@ class CleanupConfig:
     forbidden_phrases: list[str] = field(default_factory=list)
     replacement_rules: list[tuple[str, str]] = field(default_factory=list)
     replace_case_insensitive: bool = True
-    replace_whole_words_only: bool = False
+    replace_whole_words_only: bool = True
     strip_boilerplate_prefixes: bool = True
     strip_trailing_period: bool = True
 
@@ -798,13 +801,15 @@ def apply_replacements(
         if not old:
             continue
 
-        flags = re.IGNORECASE if case_insensitive else 0
-        pattern = re.escape(old)
-
         if whole_words_only:
-            pattern = r"\b" + pattern + r"\b"
-
-        result = re.sub(pattern, new, result, flags=flags)
+            result = _replace_phrases_boundary_safe(
+                result,
+                [(old, new)],
+                case_insensitive=case_insensitive,
+            )
+        else:
+            flags = re.IGNORECASE if case_insensitive else 0
+            result = re.sub(re.escape(old), new, result, flags=flags)
 
     return result
 
