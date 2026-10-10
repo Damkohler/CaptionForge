@@ -109,10 +109,10 @@ class CaptionAssemblyTests(unittest.TestCase):
     def test_slot_mode_appended_and_socket_names_unchanged(self):
         spec = light.CaptionForgeCaptionAssemble.INPUT_TYPES()
         required = list(spec["required"])
-        self.assertEqual(required[-1], "slot_mode")
-        self.assertLess(required.index("manual_10"), required.index("slot_mode"))
-        self.assertEqual(spec["required"]["slot_mode"][1]["default"], "first_n")
-        self.assertEqual(list(spec["optional"]), [f"text_{i}" for i in range(1, 11)])
+        optional = list(spec["optional"])
+        self.assertEqual(required[-1], "manual_10")
+        self.assertEqual(optional, [f"text_{i}" for i in range(1, 11)] + ["slot_mode"])
+        self.assertEqual(spec["optional"]["slot_mode"][1]["default"], "first_n")
         self.assertEqual(light.CaptionForgeCaptionAssemble.RETURN_NAMES, ("image", "caption"))
 
     def test_all_nonempty_with_no_content_is_empty_string(self):
