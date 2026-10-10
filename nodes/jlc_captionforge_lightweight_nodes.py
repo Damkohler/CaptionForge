@@ -417,15 +417,17 @@ class CaptionForgeTargetedVLMQuery:
         return (image, *answers)
 
 class CaptionForgeCaptionAssemble:
-    """Order manual and connected text chunks with per-section enable switches."""
+    """Deterministically compose structured and prose captions from ordered sections."""
 
     CATEGORY = "CaptionForge/Lightweight"
     FUNCTION = "assemble"
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("image", "caption")
+    # Preserve the original two output indices. New prose output is appended.
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "caption", "prose_caption")
     DESCRIPTION = (
-        "Assemble sections using first-N or all-nonempty slots. Connected STRING inputs "
-        "override manual text when nonempty; disabled and empty sections are skipped. "
+        "Compose manual and optional incoming STRING text for each section, "
+        "then produce both a structured caption and deterministic prose. "
+        "A single-line manual heading ending in ':' is omitted from prose. "
         "IMAGE passes through unchanged."
     )
 
@@ -440,38 +442,64 @@ class CaptionForgeCaptionAssemble:
             ),
             "join_mode": (
                 ["space", "newline", "double_newline", "comma_space", "custom"],
-                {"default": "space", "tooltip": "Separator between nonempty enabled sections."},
+                {"default": "space",
+                 "tooltip": "Structured caption: separator BETWEEN completed sections (existing widget)."},
             ),
             "custom_delimiter": (
-                "STRING", {"default": " ", "tooltip": "Used when join_mode is custom."},
+                "STRING", {"default": " ", "tooltip": "Used for structured caption when join_mode is custom."},
             ),
         }
         optional = {}
         for i in range(1, MAX_SLOTS + 1):
             required[f"enabled_{i}"] = (
-                "BOOLEAN", {"default": True, "tooltip": f"Include section {i} in caption."}
+                "BOOLEAN", {"default": True, "tooltip": f"Include section {i} in the two captions."}
             )
             required[f"manual_{i}"] = (
                 "STRING",
                 {"default": "", "multiline": True,
-                 "tooltip": f"Manual section {i}; used when its STRING input is absent or empty."},
+                 "tooltip": (
+                     f"Manual text for section {i}; composed with text_{i} when present. "
+                     "A single-line heading ending ':' is omitted from prose."
+                 )},
             )
             optional[f"text_{i}"] = (
-                "STRING", {"tooltip": f"Optional upstream section {i}; overrides manual text if nonempty."}
+                "STRING",
+                {"tooltip": f"Incoming text for section {i}; combined with manual_{i}, not overriding it."},
             )
 
-        # Append after optional text_1...text_10, which ComfyUI also stores
-        # as widgets when unconnected. Putting this in 'required' would shift
-        # those persisted widget values in existing saved workflows.
+        # Do not insert new controls above any existing widgets: ComfyUI
+        # serializes widget values positionally, including unconnected optional
+        # STRING inputs, so append everything after the existing slot_mode.
         optional["slot_mode"] = (
             list(SLOT_MODES),
             {"default": "first_n",
-             "tooltip": "first_n: sections 1 through slot_count. all_nonempty: all ten slots, using enabled nonblank sections in original order."},
+             "tooltip": "first_n: sections 1 through slot_count. all_nonempty: all ten slots, keeping enabled nonblank sections."},
+        )
+        optional["composition_mode"] = (
+            ["manual_then_input", "input_then_manual"],
+            {"default": "manual_then_input",
+             "tooltip": "Order for manual and incoming text WITHIN each section. Neither overrides the other."},
+        )
+        optional["section_join_mode"] = (
+            ["space", "newline", "double_newline"],
+            {"default": "newline",
+             "tooltip": "Separator WITHIN a section when both manual and incoming text are present."},
+        )
+        optional["prose_join_mode"] = (
+            ["space", "newline", "double_newline", "comma_space"],
+            {"default": "space",
+             "tooltip": "Separator BETWEEN sections in prose_caption, independent of structured join_mode."},
+        )
+        optional["omit_headings_in_prose"] = (
+            "BOOLEAN",
+            {"default": True,
+             "tooltip": "Omit single-line manual headings ending in ':' from prose_caption. They remain in caption."},
         )
         return {"required": required, "optional": optional}
 
     @staticmethod
     def _delimiter(join_mode: str, custom_delimiter: str) -> str:
+        """Resolve the original join_mode and the two new global separators."""
         return {
             "space": " ",
             "newline": "\n",
@@ -480,20 +508,72 @@ class CaptionForgeCaptionAssemble:
             "custom": str(custom_delimiter),
         }[join_mode]
 
-    def assemble(self, image, slot_count, join_mode, custom_delimiter, slot_mode="first_n", **sections):
-        parts = []
-        for i in _slot_indices(slot_mode, slot_count):
+    @staticmethod
+    def _is_heading(manual: str) -> bool:
+        """A heading is exactly one nonempty trimmed line ending in a colon.
+
+        Multi-line paragraphs are prose even if the final character is ':'.
+        No other punctuation or arbitrary text is removed.
+        """
+        return bool(manual and manual.endswith(":") and "\n" not in manual and "\r" not in manual)
+
+    @staticmethod
+    def _compose(manual: str, incoming: str, mode: str, separator: str) -> str:
+        if mode == "manual_then_input":
+            items = (manual, incoming)
+        elif mode == "input_then_manual":
+            items = (incoming, manual)
+        else:
+            raise ValueError(f"Unknown composition_mode: {mode!r}.")
+        return separator.join(item for item in items if item)
+
+    def assemble(
+        self,
+        image,
+        slot_count,
+        join_mode,
+        custom_delimiter,
+        slot_mode="first_n",
+        composition_mode="manual_then_input",
+        section_join_mode="newline",
+        prose_join_mode="space",
+        omit_headings_in_prose=True,
+        **sections,
+    ):
+        # Validate global controls even when all sections happen to be empty.
+        within = self._delimiter(section_join_mode, "")
+        outline_separator = self._delimiter(join_mode, custom_delimiter)
+        prose_separator = self._delimiter(prose_join_mode, "")
+        indices = _slot_indices(slot_mode, slot_count)
+        if composition_mode not in ("manual_then_input", "input_then_manual"):
+            raise ValueError(f"Unknown composition_mode: {composition_mode!r}.")
+
+        structured_parts = []
+        prose_parts = []
+        for i in indices:
             if not sections.get(f"enabled_{i}", True):
                 continue
-            upstream = sections.get(f"text_{i}")
-            manual = sections.get(f"manual_{i}", "")
-            upstream = "" if upstream is None else str(upstream).strip()
+            manual = sections.get(f"manual_{i}")
+            incoming = sections.get(f"text_{i}")
             manual = "" if manual is None else str(manual).strip()
-            chosen = upstream if upstream else manual
-            if chosen:
-                parts.append(chosen)
-        return (image, self._delimiter(join_mode, custom_delimiter).join(parts))
+            incoming = "" if incoming is None else str(incoming).strip()
+            if not manual and not incoming:
+                continue
 
+            structured_parts.append(self._compose(manual, incoming, composition_mode, within))
+            prose_manual = (
+                "" if omit_headings_in_prose and self._is_heading(manual)
+                else manual
+            )
+            prose_text = self._compose(prose_manual, incoming, composition_mode, within)
+            if prose_text:
+                prose_parts.append(prose_text)
+
+        return (
+            image,
+            outline_separator.join(structured_parts),
+            prose_separator.join(prose_parts),
+        )
 
 NODE_CLASS_MAPPINGS = {
     "CaptionForgeTargetedVLMQuery": CaptionForgeTargetedVLMQuery,
