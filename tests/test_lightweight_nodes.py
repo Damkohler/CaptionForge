@@ -67,6 +67,62 @@ class CaptionAssemblyTests(unittest.TestCase):
                             for side in spec.values() for v in side.values()))
 
 
+    def test_all_nonempty_assembles_distant_sections_in_order(self):
+        image = object()
+        node = light.CaptionForgeCaptionAssemble()
+        result = node.assemble(
+            image, 1, "newline", "",
+            slot_mode="all_nonempty",
+            manual_1="Character: JessJenn.",
+            manual_2="   ",
+            manual_5="Fallback pose.",
+            text_5="Hands behind head.",
+            manual_6="Fallback outfit.",
+            text_6="Black crop top.",
+            enabled_7=False,
+            manual_7="This should be excluded.",
+            manual_9="Photorealistic.",
+            manual_10="",
+        )
+        self.assertIs(result[0], image)
+        self.assertEqual(
+            result[1],
+            "Character: JessJenn.\nHands behind head.\nBlack crop top.\nPhotorealistic.",
+        )
+
+    def test_all_nonempty_empty_connected_input_uses_manual_fallback(self):
+        node = light.CaptionForgeCaptionAssemble()
+        result = node.assemble(
+            None, 1, "space", "", slot_mode="all_nonempty",
+            manual_4="standing", text_4="  ", manual_8="outside",
+        )
+        self.assertEqual(result[1], "standing outside")
+
+    def test_first_n_still_excludes_later_sections(self):
+        node = light.CaptionForgeCaptionAssemble()
+        result = node.assemble(
+            None, 2, "space", "", slot_mode="first_n",
+            manual_1="first", manual_3="third", text_10="last",
+        )
+        self.assertEqual(result[1], "first")
+
+    def test_slot_mode_appended_and_socket_names_unchanged(self):
+        spec = light.CaptionForgeCaptionAssemble.INPUT_TYPES()
+        required = list(spec["required"])
+        self.assertEqual(required[-1], "slot_mode")
+        self.assertLess(required.index("manual_10"), required.index("slot_mode"))
+        self.assertEqual(spec["required"]["slot_mode"][1]["default"], "first_n")
+        self.assertEqual(list(spec["optional"]), [f"text_{i}" for i in range(1, 11)])
+        self.assertEqual(light.CaptionForgeCaptionAssemble.RETURN_NAMES, ("image", "caption"))
+
+    def test_all_nonempty_with_no_content_is_empty_string(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            object(), 1, "custom", "++", slot_mode="all_nonempty",
+        )
+        self.assertEqual(result[1], "")
+
+
+
 class TargetedQueryTests(unittest.TestCase):
     def setUp(self):
         with light._SUCCESS_CACHE_LOCK:
@@ -237,6 +293,71 @@ class TargetedQueryTests(unittest.TestCase):
                              "", 0.5, 128, 1024, 30, seed=11, question_1="Color?")
         self.assertEqual((one[1], two[1]), ("red", "blue"))
         self.assertEqual(ask.call_count, 2)
+
+
+    def test_all_nonempty_honors_sparse_questions_and_fixed_answer_pins(self):
+        image = object()
+        with mock.patch.object(light, "_encode_image", return_value="img") as encoder, mock.patch.object(
+            light, "_ask_ollama", side_effect=["pose", "outfit", "background"]
+        ) as ask:
+            output = light.CaptionForgeTargetedVLMQuery().query(
+                image, 1, "gemma4:26b", "", "http://127.0.0.1:11434",
+                "", 0.2, 128, 1024, 30, slot_mode="all_nonempty",
+                question_1="  ", question_2="", question_5="Pose?",
+                question_6="Outfit?", question_7="Background?",
+            )
+        self.assertIs(output[0], image)
+        self.assertEqual(len(output), 11)
+        self.assertEqual(output[1:5], ("", "", "", ""))
+        self.assertEqual(output[5:8], ("pose", "outfit", "background"))
+        self.assertEqual(output[8:], ("", "", ""))
+        self.assertEqual([c.kwargs["question"] for c in ask.call_args_list],
+                         ["Pose?", "Outfit?", "Background?"])
+        encoder.assert_called_once_with(image, 1024)
+
+    def test_first_n_ignores_nonempty_question_above_limit(self):
+        with mock.patch.object(light, "_encode_image") as encoder:
+            output = light.CaptionForgeTargetedVLMQuery().query(
+                object(), 4, "gemma4:26b", "", "http://127.0.0.1:11434",
+                "", 0.2, 128, 1024, 30, slot_mode="first_n",
+                question_5="Pose?",
+            )
+        self.assertEqual(output[1:], ("",) * 10)
+        encoder.assert_not_called()
+
+    def test_all_nonempty_blank_questions_do_not_load_image(self):
+        with mock.patch.object(light, "_encode_image") as encoder:
+            output = light.CaptionForgeTargetedVLMQuery().query(
+                object(), 1, "gemma4:26b", "", "http://127.0.0.1:11434",
+                "", 0.2, 128, 1024, 30, slot_mode="all_nonempty",
+                question_5="   ", question_10="",
+            )
+        self.assertEqual(output[1:], ("",) * 10)
+        encoder.assert_not_called()
+
+    def test_query_slot_mode_appended_without_reindexing_questions(self):
+        spec = light.CaptionForgeTargetedVLMQuery.INPUT_TYPES()["required"]
+        self.assertEqual(list(spec)[-1], "slot_mode")
+        self.assertLess(list(spec).index("force_regenerate"), list(spec).index("slot_mode"))
+        self.assertEqual(spec["slot_mode"][1]["default"], "first_n")
+        self.assertEqual(light.CaptionForgeTargetedVLMQuery.RETURN_NAMES[5], "answer_5")
+        self.assertEqual(light.CaptionForgeTargetedVLMQuery.RETURN_NAMES[10], "answer_10")
+
+    def test_invalid_slot_mode_fails_closed_before_network_work(self):
+        for node in (light.CaptionForgeCaptionAssemble(), light.CaptionForgeTargetedVLMQuery()):
+            with self.subTest(node=node.__class__.__name__):
+                with self.assertRaisesRegex(ValueError, "Unknown slot_mode"):
+                    if isinstance(node, light.CaptionForgeCaptionAssemble):
+                        node.assemble(None, 1, "space", "", slot_mode="does-not-exist")
+                    else:
+                        with mock.patch.object(light, "_encode_image") as encoder:
+                            node.query(
+                                object(), 1, "gemma4:26b", "", "http://127.0.0.1:11434",
+                                "", 0.2, 128, 1024, 30,
+                                slot_mode="does-not-exist", question_5="Pose?",
+                            )
+                            encoder.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
