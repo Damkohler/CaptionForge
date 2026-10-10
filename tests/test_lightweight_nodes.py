@@ -26,7 +26,7 @@ light = importlib.import_module("CaptionForge.nodes.jlc_captionforge_lightweight
 
 
 class CaptionAssemblyTests(unittest.TestCase):
-    def test_overrides_fallback_disables_and_orders(self):
+    def test_manual_and_input_combine_without_overriding(self):
         image = object()
         node = light.CaptionForgeCaptionAssemble()
         result = node.assemble(
@@ -39,9 +39,11 @@ class CaptionAssemblyTests(unittest.TestCase):
             manual_4="a red jacket.",
             text_4="   ",
             manual_5="Bright light.",
+            section_join_mode="space",
         )
         self.assertIs(result[0], image)
-        self.assertEqual(result[1], "A portrait of a woman a red jacket. Bright light.")
+        self.assertEqual(result[1], "A portrait of a person a woman a red jacket. Bright light.")
+        self.assertEqual(result[2], result[1])
 
     def test_disabled_and_inactive_sections_skip(self):
         node = light.CaptionForgeCaptionAssemble()
@@ -75,10 +77,11 @@ class CaptionAssemblyTests(unittest.TestCase):
             slot_mode="all_nonempty",
             manual_1="Character: JessJenn.",
             manual_2="   ",
-            manual_5="Fallback pose.",
+            manual_5="Pose:",
             text_5="Hands behind head.",
-            manual_6="Fallback outfit.",
+            manual_6="Outfit:",
             text_6="Black crop top.",
+            section_join_mode="double_newline",
             enabled_7=False,
             manual_7="This should be excluded.",
             manual_9="Photorealistic.",
@@ -87,7 +90,12 @@ class CaptionAssemblyTests(unittest.TestCase):
         self.assertIs(result[0], image)
         self.assertEqual(
             result[1],
-            "Character: JessJenn.\nHands behind head.\nBlack crop top.\nPhotorealistic.",
+            "Character: JessJenn.\nPose:\n\nHands behind head.\n"
+            "Outfit:\n\nBlack crop top.\nPhotorealistic.",
+        )
+        self.assertEqual(
+            result[2],
+            "Character: JessJenn. Hands behind head. Black crop top. Photorealistic.",
         )
 
     def test_all_nonempty_empty_connected_input_uses_manual_fallback(self):
@@ -111,15 +119,156 @@ class CaptionAssemblyTests(unittest.TestCase):
         required = list(spec["required"])
         optional = list(spec["optional"])
         self.assertEqual(required[-1], "manual_10")
-        self.assertEqual(optional, [f"text_{i}" for i in range(1, 11)] + ["slot_mode"])
+        self.assertEqual(
+            optional,
+            [f"text_{i}" for i in range(1, 11)]
+            + ["slot_mode", "composition_mode", "section_join_mode",
+               "prose_join_mode", "omit_headings_in_prose"],
+        )
         self.assertEqual(spec["optional"]["slot_mode"][1]["default"], "first_n")
-        self.assertEqual(light.CaptionForgeCaptionAssemble.RETURN_NAMES, ("image", "caption"))
+        self.assertEqual(spec["optional"]["composition_mode"][1]["default"], "manual_then_input")
+        self.assertEqual(light.CaptionForgeCaptionAssemble.RETURN_NAMES,
+                         ("image", "caption", "prose_caption"))
+        self.assertEqual(light.CaptionForgeCaptionAssemble.RETURN_TYPES,
+                         ("IMAGE", "STRING", "STRING"))
 
     def test_all_nonempty_with_no_content_is_empty_string(self):
         result = light.CaptionForgeCaptionAssemble().assemble(
             object(), 1, "custom", "++", slot_mode="all_nonempty",
         )
         self.assertEqual(result[1], "")
+        self.assertEqual(result[2], "")
+
+
+    def test_outline_heading_and_prose_omission_with_manual_then_input(self):
+        image = object()
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            image, 3, "double_newline", "",
+            manual_1="A musician wearing black.",
+            manual_2="The Pose:", text_2="Hands are raised.",
+            manual_3="The Outfit & Accessories:", text_3="A Nirvana shirt and necklace.",
+            section_join_mode="newline",
+        )
+        self.assertIs(result[0], image)
+        self.assertEqual(
+            result[1],
+            "A musician wearing black.\n\n"
+            "The Pose:\nHands are raised.\n\n"
+            "The Outfit & Accessories:\nA Nirvana shirt and necklace.",
+        )
+        self.assertEqual(
+            result[2],
+            "A musician wearing black. Hands are raised. A Nirvana shirt and necklace.",
+        )
+
+    def test_input_then_manual_allows_qualifiers_in_both_outputs(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 1, "space", "",
+            composition_mode="input_then_manual",
+            section_join_mode="space",
+            text_1="She wears a black jacket.",
+            manual_1="It has silver studs.",
+        )
+        self.assertEqual(result[1], "She wears a black jacket. It has silver studs.")
+        self.assertEqual(result[2], result[1])
+
+    def test_linefeed_controls_are_independent(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 2, "double_newline", "",
+            section_join_mode="newline",
+            prose_join_mode="newline",
+            manual_1="Pose:", text_1="Arms raised.",
+            manual_2="Clothes:", text_2="Black crop top.",
+        )
+        self.assertEqual(result[1], "Pose:\nArms raised.\n\nClothes:\nBlack crop top.")
+        self.assertEqual(result[2], "Arms raised.\nBlack crop top.")
+
+    def test_section_separator_is_applied_in_input_then_manual_mode(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 1, "newline", "",
+            composition_mode="input_then_manual",
+            section_join_mode="double_newline",
+            text_1="The subject is standing.", manual_1="With one foot forward.",
+        )
+        expected = "The subject is standing.\n\nWith one foot forward."
+        self.assertEqual(result[1], expected)
+        self.assertEqual(result[2], expected)
+
+    def test_input_only_and_manual_only_sections_keep_contents(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 3, "space", "", manual_1="An urban scene.",
+            text_2="At night.", manual_3="Graffiti on the wall.",
+        )
+        self.assertEqual(result[1], "An urban scene. At night. Graffiti on the wall.")
+        self.assertEqual(result[2], result[1])
+
+    def test_unanswered_heading_is_kept_in_outline_but_skipped_in_prose(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 2, "newline", "",
+            manual_1="A character.", manual_2="Pose:", text_2="   ",
+        )
+        self.assertEqual(result[1], "A character.\nPose:")
+        self.assertEqual(result[2], "A character.")
+
+    def test_multiline_manual_text_is_not_a_standalone_heading(self):
+        manual = "Notes:\nThe scene is dark:"
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 2, "double_newline", "",
+            manual_1=manual, manual_2="A note: not a heading.",
+        )
+        self.assertEqual(result[2], f"{manual} A note: not a heading.")
+        self.assertIn(manual, result[1])
+
+    def test_colon_headings_are_trimmed_and_omitted_from_prose(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 2, "space", "",
+            manual_1="  The Setting:  ", text_1="Concrete walls.",
+            manual_2="Outfit: black shirt.", text_2="Jeans.",
+            section_join_mode="space",
+        )
+        self.assertEqual(result[1], "The Setting: Concrete walls. Outfit: black shirt. Jeans.")
+        self.assertEqual(result[2], "Concrete walls. Outfit: black shirt. Jeans.")
+
+    def test_omit_headings_switch_false_retains_headings_in_prose(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 1, "space", "",
+            manual_1="Pose:", text_1="Seated.",
+            omit_headings_in_prose=False,
+            section_join_mode="newline",
+        )
+        self.assertEqual(result[2], "Pose:\nSeated.")
+        self.assertEqual(result[1], result[2])
+
+    def test_disabled_slots_omitted_from_both_outputs(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 2, "space", "",
+            manual_1="Pose:", text_1="Standing.", enabled_1=False,
+            manual_2="Outfit:", text_2="Blue shirt.",
+        )
+        self.assertEqual(result[1], "Outfit:\nBlue shirt.")
+        self.assertEqual(result[2], "Blue shirt.")
+
+    def test_custom_outline_delimiter_does_not_override_prose_join(self):
+        result = light.CaptionForgeCaptionAssemble().assemble(
+            None, 2, "custom", " ++ ",
+            manual_1="First.", manual_2="Second.",
+            prose_join_mode="double_newline",
+        )
+        self.assertEqual(result[1], "First. ++ Second.")
+        self.assertEqual(result[2], "First.\n\nSecond.")
+
+    def test_invalid_composition_mode_rejected_even_for_empty_sections(self):
+        with self.assertRaisesRegex(ValueError, "Unknown composition_mode"):
+            light.CaptionForgeCaptionAssemble().assemble(
+                None, 1, "space", "", composition_mode="swap",
+            )
+
+    def test_no_ollama_called_by_assembler(self):
+        with mock.patch.object(light, "_ask_ollama", side_effect=AssertionError("unexpected call")):
+            result = light.CaptionForgeCaptionAssemble().assemble(
+                None, 1, "space", "", text_1="Visual detail.",
+            )
+        self.assertEqual(result[2], "Visual detail.")
 
 
 
