@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import importlib
+import io
+import json
+import math
 import sys
 import types
 import unittest
@@ -65,6 +68,10 @@ class CaptionAssemblyTests(unittest.TestCase):
 
 
 class TargetedQueryTests(unittest.TestCase):
+    def setUp(self):
+        with light._SUCCESS_CACHE_LOCK:
+            light._SUCCESS_CACHE.clear()
+
     def test_answer_alignment_and_single_encoding(self):
         image = object()
         node = light.CaptionForgeTargetedVLMQuery()
@@ -103,9 +110,132 @@ class TargetedQueryTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "question 1 failed"):
                 light.CaptionForgeTargetedVLMQuery().query(
                     object(), 1, "gemma4:26b", "", "http://127.0.0.1:11434",
-                    "", 0.2, 100, 1024, 30, question_1="Clothing?"
+                    "", 0.2, 100, 1024, 30,
+                    retry_count=0, error_policy="stop_on_error",
+                    question_1="Clothing?"
                 )
 
+
+    def test_comfy_force_regenerate_cache_invalidation(self):
+        self.assertIsNone(light.CaptionForgeTargetedVLMQuery.IS_CHANGED(force_regenerate=False))
+        self.assertTrue(math.isnan(light.CaptionForgeTargetedVLMQuery.IS_CHANGED(force_regenerate=True)))
+
+    def test_seed_controls_appended_after_old_question_widgets(self):
+        spec = light.CaptionForgeTargetedVLMQuery.INPUT_TYPES()["required"]
+        fields = list(spec)
+        self.assertLess(fields.index("question_10"), fields.index("seed"))
+        self.assertEqual(spec["seed"][1]["default"], -1)
+        self.assertTrue(spec["seed"][1]["control_after_generate"])
+        self.assertIn("force_regenerate", fields)
+
+    def test_ollama_payload_default_and_explicit_seed_thinking(self):
+        def call(**extra):
+            result = json.dumps({
+                "message": {"content": "blue jeans"},
+                "done_reason": "stop",
+                "eval_count": 12,
+            }).encode("utf-8")
+            with mock.patch.object(light.urllib.request, "urlopen", return_value=io.BytesIO(result)) as open_url:
+                answer = light._ask_ollama(
+                    url="http://127.0.0.1:11434", model="gemma4:26b",
+                    question="Outfit?", system_prompt="", image_base64="img",
+                    temperature=0.3, max_new_tokens=512, timeout_seconds=30,
+                    **extra,
+                )
+                request = open_url.call_args.args[0]
+                return answer, json.loads(request.data)
+
+        answer, payload = call()
+        self.assertEqual(answer, "blue jeans")
+        self.assertNotIn("seed", payload["options"])
+        self.assertNotIn("think", payload)
+        answer, payload = call(seed=42, thinking_mode="disabled")
+        self.assertEqual(payload["options"]["seed"], 42)
+        self.assertIs(payload["think"], False)
+
+    def test_empty_reply_reports_metadata_not_thinking_text(self):
+        result = json.dumps({
+            "message": {"content": "", "thinking": "HIDDEN_NOT_A_CAPTION"},
+            "done_reason": "length", "eval_count": 512,
+        }).encode("utf-8")
+        with mock.patch.object(light.urllib.request, "urlopen", return_value=io.BytesIO(result)):
+            with self.assertRaises(light.OllamaEmptyAnswerError) as err:
+                light._ask_ollama(
+                    url="http://127.0.0.1:11434", model="gemma4:26b",
+                    question="Pose?", system_prompt="", image_base64="img",
+                    temperature=0.2, max_new_tokens=512, timeout_seconds=30,
+                )
+        self.assertIn("done_reason='length'", str(err.exception))
+        self.assertIn("eval_count=512", str(err.exception))
+        self.assertIn("thinking_chars=", str(err.exception))
+        self.assertNotIn("HIDDEN_NOT_A_CAPTION", str(err.exception))
+
+    def test_retries_only_empty_question_with_incremented_seed_and_token_budget(self):
+        failed = light.OllamaEmptyAnswerError("empty")
+        with mock.patch.object(light, "_encode_image", return_value="fake"), mock.patch.object(
+            light, "_ask_ollama", side_effect=["blue outfit", failed, "hands raised"]
+        ) as ask:
+            output = light.CaptionForgeTargetedVLMQuery().query(
+                object(), 2, "gemma4:26b", "", "http://127.0.0.1:11434",
+                "", 0.2, 128, 1024, 30, seed=42, retry_count=1,
+                question_1="Clothes?", question_2="Pose?",
+            )
+        self.assertEqual(output[1:3], ("blue outfit", "hands raised"))
+        self.assertEqual(ask.call_count, 3)
+        self.assertEqual([c.kwargs["seed"] for c in ask.call_args_list], [42, 42, 43])
+        self.assertEqual([c.kwargs["max_new_tokens"] for c in ask.call_args_list], [128, 128, 256])
+
+    def test_skip_failed_and_insert_unknown_do_not_abort(self):
+        for policy, expected in (("skip_failed", ""), ("insert_unknown", "unknown")):
+            with self.subTest(policy=policy):
+                with mock.patch.object(light, "_encode_image", return_value="fake"), mock.patch.object(
+                    light, "_ask_ollama",
+                    side_effect=[
+                        light.OllamaEmptyAnswerError("empty attempt 1"),
+                        light.OllamaEmptyAnswerError("empty attempt 2"),
+                        "pose okay",
+                    ],
+                ) as ask:
+                    output = light.CaptionForgeTargetedVLMQuery().query(
+                        object(), 2, "gemma4:26b", "", "http://127.0.0.1:11434",
+                        "", 0.2, 128, 1024, 30,
+                        retry_count=1, error_policy=policy,
+                        question_1="Eyes?", question_2="Pose?",
+                    )
+                self.assertEqual(output[1], expected)
+                self.assertEqual(output[2], "pose okay")
+                self.assertEqual(ask.call_count, 3)
+
+    def test_success_cache_preserves_completed_questions_and_regenerate_bypasses(self):
+        node = light.CaptionForgeTargetedVLMQuery()
+        def run(count, **changes):
+            return node.query(
+                object(), count, "gemma4:26b", "", "http://127.0.0.1:11434",
+                "", 0.2, 128, 1024, 30,
+                question_1="Outfit?", question_2="Pose?", **changes,
+            )
+        with mock.patch.object(light, "_encode_image", return_value="fake"), mock.patch.object(
+            light, "_ask_ollama", side_effect=["outfit", "pose", "outfit new"]
+        ) as ask:
+            first = run(1)
+            second = run(2)
+            third = run(1, force_regenerate=True)
+        self.assertEqual(first[1], "outfit")
+        self.assertEqual(second[1:3], ("outfit", "pose"))
+        self.assertEqual(third[1], "outfit new")
+        self.assertEqual(ask.call_count, 3)
+
+    def test_explicit_seed_change_causes_new_query(self):
+        node = light.CaptionForgeTargetedVLMQuery()
+        with mock.patch.object(light, "_encode_image", return_value="fake"), mock.patch.object(
+            light, "_ask_ollama", side_effect=["red", "blue"]
+        ) as ask:
+            one = node.query(object(), 1, "gemma4:26b", "", "http://127.0.0.1:11434",
+                             "", 0.5, 128, 1024, 30, seed=10, question_1="Color?")
+            two = node.query(object(), 1, "gemma4:26b", "", "http://127.0.0.1:11434",
+                             "", 0.5, 128, 1024, 30, seed=11, question_1="Color?")
+        self.assertEqual((one[1], two[1]), ("red", "blue"))
+        self.assertEqual(ask.call_count, 2)
 
 if __name__ == "__main__":
     unittest.main()
