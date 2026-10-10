@@ -19,6 +19,7 @@ from threading import RLock
 from .captionforge_ollama_model_dropdowns import CUSTOM_VALUE, load_ollama_model_dropdowns
 
 MAX_SLOTS = 10
+SLOT_MODES = ("first_n", "all_nonempty")
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
 MAX_SEED = 2_147_483_647
 MAX_RETRY_TOKENS = 8192
@@ -32,6 +33,15 @@ _SUCCESS_CACHE_LOCK = RLock()
 
 class OllamaEmptyAnswerError(RuntimeError):
     """A complete HTTP response did not contain a final text answer."""
+
+
+def _slot_indices(slot_mode: str, slot_count: int) -> range:
+    """Return stable slot numbers without compacting or reindexing sockets."""
+    if slot_mode not in SLOT_MODES:
+        raise ValueError(f"Unknown slot_mode: {slot_mode!r}. Expected one of {SLOT_MODES}.")
+    if slot_mode == "all_nonempty":
+        return range(1, MAX_SLOTS + 1)
+    return range(1, min(MAX_SLOTS, max(0, int(slot_count))) + 1)
 
 
 def _cache_get(key: tuple) -> str | None:
@@ -157,7 +167,7 @@ class CaptionForgeTargetedVLMQuery:
     RETURN_TYPES = ("IMAGE",) + ("STRING",) * MAX_SLOTS
     RETURN_NAMES = ("image",) + tuple(f"answer_{i}" for i in range(1, MAX_SLOTS + 1))
     DESCRIPTION = (
-        "Ask 1-10 independent questions of an Ollama vision model, returning "
+        "Ask filled image-grounded questions using first-N or all-nonempty slots, returning "
         "separate answers and the unchanged input image. Uses CaptionForge's "
         "existing Ollama model dropdown configuration."
     )
@@ -176,7 +186,7 @@ class CaptionForgeTargetedVLMQuery:
             "slot_count": (
                 "INT",
                 {"default": 3, "min": 1, "max": MAX_SLOTS, "step": 1,
-                 "tooltip": "Only the first N questions are evaluated. Output pins retain fixed identities."},
+                 "tooltip": "In first_n mode, examine questions 1 through N. Ignored by all_nonempty mode. Pins retain their numbers."},
             ),
             "model": (
                 models["caption_models"],
@@ -273,6 +283,11 @@ class CaptionForgeTargetedVLMQuery:
                 {"default": False,
                  "tooltip": "When true, bypass ComfyUI's node cache and the per-question answer cache on every queue run."},
             ),
+            "slot_mode": (
+                list(SLOT_MODES),
+                {"default": "first_n",
+                 "tooltip": "first_n: slots 1 through slot_count. all_nonempty: all ten slots, skipping blank questions. Answers never shift pins."},
+            ),
         })
         return {"required": required}
 
@@ -296,6 +311,7 @@ class CaptionForgeTargetedVLMQuery:
         diagnostics="errors",
         cache_successful_answers=True,
         force_regenerate=False,
+        slot_mode="first_n",
         **questions,
     ):
         selected_model = (
@@ -322,7 +338,7 @@ class CaptionForgeTargetedVLMQuery:
         answers = [""] * MAX_SLOTS
         active = [
             (i, str(questions.get(f"question_{i}", "") or "").strip())
-            for i in range(1, min(MAX_SLOTS, int(slot_count)) + 1)
+            for i in _slot_indices(slot_mode, slot_count)
         ]
         active = [(i, question) for i, question in active if question]
         if not active:
@@ -408,7 +424,7 @@ class CaptionForgeCaptionAssemble:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("image", "caption")
     DESCRIPTION = (
-        "Assemble up to ten ordered caption sections. Connected STRING inputs "
+        "Assemble sections using first-N or all-nonempty slots. Connected STRING inputs "
         "override manual text when nonempty; disabled and empty sections are skipped. "
         "IMAGE passes through unchanged."
     )
@@ -420,7 +436,7 @@ class CaptionForgeCaptionAssemble:
             "slot_count": (
                 "INT",
                 {"default": 5, "min": 1, "max": MAX_SLOTS, "step": 1,
-                 "tooltip": "Number of ordered sections to consider (1-10)."},
+                 "tooltip": "In first_n mode, examine sections 1 through N. Ignored by all_nonempty mode."},
             ),
             "join_mode": (
                 ["space", "newline", "double_newline", "comma_space", "custom"],
@@ -443,6 +459,13 @@ class CaptionForgeCaptionAssemble:
             optional[f"text_{i}"] = (
                 "STRING", {"tooltip": f"Optional upstream section {i}; overrides manual text if nonempty."}
             )
+
+        # Append, don't insert: ComfyUI persists positional widget values.
+        required["slot_mode"] = (
+            list(SLOT_MODES),
+            {"default": "first_n",
+             "tooltip": "first_n: sections 1 through slot_count. all_nonempty: all ten slots, using enabled nonblank sections in original order."},
+        )
         return {"required": required, "optional": optional}
 
     @staticmethod
@@ -455,9 +478,9 @@ class CaptionForgeCaptionAssemble:
             "custom": str(custom_delimiter),
         }[join_mode]
 
-    def assemble(self, image, slot_count, join_mode, custom_delimiter, **sections):
+    def assemble(self, image, slot_count, join_mode, custom_delimiter, slot_mode="first_n", **sections):
         parts = []
-        for i in range(1, min(MAX_SLOTS, int(slot_count)) + 1):
+        for i in _slot_indices(slot_mode, slot_count):
             if not sections.get(f"enabled_{i}", True):
                 continue
             upstream = sections.get(f"text_{i}")
