@@ -460,8 +460,10 @@ class CaptionForgeCaptionAssemble:
                 "STRING", {"tooltip": f"Optional upstream section {i}; overrides manual text if nonempty."}
             )
 
-        # Append, don't insert: ComfyUI persists positional widget values.
-        required["slot_mode"] = (
+        # Append after optional text_1...text_10, which ComfyUI also stores
+        # as widgets when unconnected. Putting this in 'required' would shift
+        # those persisted widget values in existing saved workflows.
+        optional["slot_mode"] = (
             list(SLOT_MODES),
             {"default": "first_n",
              "tooltip": "first_n: sections 1 through slot_count. all_nonempty: all ten slots, using enabled nonblank sections in original order."},
