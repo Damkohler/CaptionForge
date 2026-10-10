@@ -6,12 +6,42 @@ CaptionForge A–D pipeline. Both pass the original `IMAGE` tensor through.
 ## Targeted VLM Query
 
 Ask 1–10 separate image-grounded questions through an existing Ollama VLM,
-with stable `answer_1` … `answer_10` pins. Slots beyond `slot_count` and
-blank questions return empty strings. Each active question is an independent
-Ollama `/api/chat` request; no chat history is shared.
+with stable `answer_1` … `answer_10` pins. Each active question is an
+independent Ollama `/api/chat` request; no chat history is shared.
+The two modes for selecting slots are explained below.
 
 The node reuses `config/captionforge_ollama_models.json`, including the
 `custom` model-tag escape hatch.
+
+### Slot selection (both lightweight nodes)
+
+`slot_mode` offers two explicit options:
+
+- `first_n` (**default; existing behavior**): only consider slots numbered
+  1 through `slot_count`. Whitespace-only questions or sections are skipped,
+  but content above the slot-count limit is ignored.
+- `all_nonempty`: check all ten numbered slots regardless of `slot_count`.
+  Targeted VLM Query asks only the nonblank questions. Caption Assemble
+  includes only enabled, nonblank resolved sections. The `slot_count`
+  widget is ignored in this mode.
+
+**Numbers and wiring never change.** Question 5 always produces `answer_5`,
+even if questions 1–4 are empty; Caption Assemble `text_5` corresponds to
+section 5. Blank answer pins still return `""`, not shifted answers.
+Sections remain ordered by slot number, not by connection order.
+
+For example, to build a fixed character description followed by
+image-specific pose/outfit/background details:
+
+1. Put fixed character paragraphs in Caption Assemble sections 1–3.
+2. Put VLM questions in Targeted VLM Query slots 5, 6, and 7, leaving 1–4 blank.
+3. Connect `answer_5` → `text_5`, `answer_6` → `text_6`, and
+   `answer_7` → `text_7`; optionally add headings as other manual sections.
+4. Select `all_nonempty` on **both** nodes. Neither slot count needs adjusting.
+
+The new `slot_mode` widgets were **appended at the bottom of each existing
+widget sequence** to avoid shifting serialized fields in saved workflows.
+They default to `first_n` so existing workflows retain their semantics.
 
 ### Seed and recovery settings
 
@@ -43,16 +73,17 @@ a manual fallback or skip the section entirely.
 ### Why the new widgets are at the bottom
 
 Existing saved ComfyUI workflows serialize widget values in order. New
-settings are appended **after** the existing ten question widgets to avoid
-shifting old saved values. Existing answer pin types/names/positions remain
-unchanged.
+settings, including `slot_mode`, are appended **after** the existing
+ten question widgets to avoid shifting old saved values. Existing answer
+pin types/names/positions remain unchanged.
 
 ## Caption Assemble
 
 One section per numbered slot. With `enabled_N=true`, use connected
 `text_N` if nonblank; otherwise use `manual_N`. Disabled or empty
-sections are skipped. `slot_count` controls section inclusion; join modes
-are space, newline, double newline, comma-space, or custom delimiter.
+sections are skipped. In `first_n`, `slot_count` limits inclusion; in
+`all_nonempty`, all ten sections are examined. Join modes are space,
+newline, double newline, comma-space, or custom delimiter.
 
 Connect upstream answers to the optional `text_N` pins, not to `manual_N`,
 so the manual widgets remain available for alternate text.
@@ -67,8 +98,8 @@ python -m unittest discover -s tests -p "test_lightweight_nodes.py" -v
 
 Then restart the ComfyUI **server**, run several questions against
 `gemma4:26b`, and test: fixed/unseeded seeds; explicit thinking modes;
-empty-answer recovery; `skip_failed`; `force_regenerate`; and the
-caption assembly order. The tests mock Ollama; real Ollama behavior and
+empty-answer recovery; `skip_failed`; `force_regenerate`; both slot
+modes with sparse/blank questions; and caption assembly ordering. The tests mock Ollama; real Ollama behavior and
 ComfyUI frontend widget handling require separate local validation.
 
 No automatic model download or release-version change is performed.
