@@ -200,6 +200,7 @@ class TargetedQueryTests(unittest.TestCase):
                         object(), 2, "gemma4:26b", "", "http://127.0.0.1:11434",
                         "", 0.2, 128, 1024, 30,
                         retry_count=1, error_policy=policy,
+                        cache_successful_answers=False,
                         question_1="Eyes?", question_2="Pose?",
                     )
                 self.assertEqual(output[1], expected)
