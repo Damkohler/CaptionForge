@@ -77,16 +77,98 @@ settings, including `slot_mode`, are appended **after** the existing
 ten question widgets to avoid shifting old saved values. Existing answer
 pin types/names/positions remain unchanged.
 
-## Caption Assemble
+## Caption Assemble — dual outputs and deterministic composition
 
-One section per numbered slot. With `enabled_N=true`, use connected
-`text_N` if nonblank; otherwise use `manual_N`. Disabled or empty
-sections are skipped. In `first_n`, `slot_count` limits inclusion; in
-`all_nonempty`, all ten sections are examined. Join modes are space,
-newline, double newline, comma-space, or custom delimiter.
+Caption Assemble combines each enabled section's **manual** and **incoming**
+text instead of treating the incoming STRING as an override. The original
+`image` (unchanged) and `caption` output positions remain 0 and 1.
+The new output at position 2 is `prose_caption`.
 
-Connect upstream answers to the optional `text_N` pins, not to `manual_N`,
-so the manual widgets remain available for alternate text.
+- `caption`: structured/outline caption, retaining manual section headings.
+- `prose_caption`: text in the same section order, with optional omission of
+  heading-only manual text. It is **deterministic**, not LLM-edited prose.
+  Sentence grammar, repetitions, and semantics are not rewritten.
+
+Connect Ollama `answer_N` to **`text_N`** in Caption Assemble, and type
+headings, transitions, fixed character descriptions, or qualifiers into the
+corresponding **`manual_N`** widgets. Neither overwrites the other.
+Leaving either blank is valid. Sections with neither input nor manual text
+are skipped, and disabled sections are omitted from both outputs.
+
+The new global controls are appended after the existing `slot_mode` widget.
+There are no new per-section controls.
+
+| Control | Default | Meaning |
+|---|---|---|
+| `composition_mode` | `manual_then_input` | Arrange manual text before incoming text, or choose `input_then_manual` for qualifying phrases after it |
+| `section_join_mode` | `newline` | Space, newline, or double newline **between** manual and incoming text when both are present; applies to both outputs |
+| `join_mode` | `space` | Existing separator **between completed structured sections**: space, newline, double newline, comma-space or custom |
+| `custom_delimiter` | one space | Used by existing structured `join_mode=custom` |
+| `prose_join_mode` | `space` | Independent space, newline, double newline or comma-space **between prose sections** |
+| `omit_headings_in_prose` | `true` | A single trimmed line of manual text ending in `:` is retained in `caption` but omitted from `prose_caption` |
+
+### Colon heading convention
+
+Only a **standalone, one-line manual field ending in a colon** is treated
+as an outline heading, e.g. `The Pose:`. A manual paragraph such as
+`Her outfit includes: ...` or a multi-line block ending in `:` is
+preserved in both outputs. Text coming from the external `text_N` input
+is never interpreted as a heading.
+
+Example sections (both `slot_mode=all_nonempty` and
+`composition_mode=manual_then_input`):
+
+| Slot | Manual | External text |
+|---|---|---|
+| 1 | `A portrait of a guitarist.` | *(empty)* |
+| 5 | `The Pose:` | `She holds both hands behind her head.` |
+| 6 | `Outfit & Accessories:` | `She wears a black crop top.` |
+| 7 | `The Setting:` | `A graffiti-covered urban alley.` |
+
+With `section_join_mode=newline`, `join_mode=double_newline`,
+and `prose_join_mode=space`:
+
+`caption`:
+
+```text
+A portrait of a guitarist.
+
+The Pose:
+She holds both hands behind her head.
+
+Outfit & Accessories:
+She wears a black crop top.
+
+The Setting:
+A graffiti-covered urban alley.
+```
+
+`prose_caption`:
+
+```text
+A portrait of a guitarist. She holds both hands behind her head. She wears a black crop top. A graffiti-covered urban alley.
+```
+
+The prose output is intentionally mechanical. Use complete sentences or
+fragments that naturally connect; the assembler does not infer linking words.
+
+If the VLM returns an empty answer while `manual_N` contains only a
+colon-terminated heading, that heading remains visible in the **structured**
+output but is omitted from **prose**. This follows the existing choice to
+preserve manual text independently of VLM success.
+
+### Compatibility
+
+The `IMAGE` and original structured `caption` pins keep their original
+identities and positions; `prose_caption` is appended. The existing
+widget and socket order is unchanged. The new global widgets appear at the
+bottom of the node. **Intentional behavior change:** older workflows that
+relied on a nonempty `text_N` replacing `manual_N` will now combine both
+pieces. To recover an input-only section, simply clear its `manual_N`.
+
+`first_n` and `all_nonempty`, the per-section enable/disable controls,
+and the image passthrough work as before. No Ollama request or other model
+is called from Caption Assemble.
 
 ## Test and release checklist
 
@@ -99,7 +181,8 @@ python -m unittest discover -s tests -p "test_lightweight_nodes.py" -v
 Then restart the ComfyUI **server**, run several questions against
 `gemma4:26b`, and test: fixed/unseeded seeds; explicit thinking modes;
 empty-answer recovery; `skip_failed`; `force_regenerate`; both slot
-modes with sparse/blank questions; and caption assembly ordering. The tests mock Ollama; real Ollama behavior and
-ComfyUI frontend widget handling require separate local validation.
+modes with sparse/blank questions; and both composition orders, heading omission, independent section/prose line
+breaks, and caption assembly ordering. The tests mock Ollama; real Ollama
+behavior and ComfyUI frontend widget handling require separate local validation.
 
 No automatic model download or release-version change is performed.
