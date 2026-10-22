@@ -184,6 +184,7 @@ MANIFEST = {
 import base64
 import io
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -200,6 +201,7 @@ from PIL import Image
 import folder_paths
 
 from ...engines.captionforge_pipeline_planner_engine import expand_captionforge_runs
+from ...engines.captionforge_pass_a_resume import read_pass_a_jsonl, ollama_operation_key, successful_caption
 from ...engines.captionforge_cleanup import resolve_cleanup_settings
 from ...engines.captionforge_source_identity import file_source_identity, optional_image_identity
 from ...engines.captionforge_dataset_export import is_dataset_export
@@ -367,6 +369,7 @@ class OllamaCaptionRecord:
     image_key: str = ""
     backend: str = "ollama"
     status: str = "ok"
+    resume_cleanup: dict[str, Any] | None = None
 
 
 _MODEL_DROPDOWNS = load_ollama_model_dropdowns(__file__)
@@ -1057,6 +1060,41 @@ def _append_jsonl_records(path: Path, records: list[OllamaCaptionRecord]) -> Non
     with path.open("a", encoding="utf-8") as f:
         for record in records:
             f.write(json.dumps(asdict(record), ensure_ascii=False) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
+def _resume_enabled(pipeline_plan) -> bool:
+    cfg = _normalize_pipeline_plan(pipeline_plan)
+    for section in ("shared", "output", "final"):
+        settings = cfg.get(section)
+        if isinstance(settings, dict) and "overwrite_outputs" in settings:
+            value = settings["overwrite_outputs"]
+            return value is False or value == 0 or str(value).strip().lower() in {"false", "no", "off", "0"}
+    return False
+
+
+def _matching_completion(records, cleanup):
+    for record in reversed(records):
+        if not successful_caption(record):
+            continue
+        if record.get("resume_cleanup") is not None:
+            if record["resume_cleanup"] != cleanup:
+                continue
+        else:
+            raw_caption = record.get("raw_caption")
+            if not isinstance(raw_caption, str) or not raw_caption.strip():
+                continue
+            # v1.0.2 did not persist cleanup settings. Verify their visible effect.
+            caption, status = _clean_caption(
+                raw_caption, trigger_word=cleanup["trigger_word"],
+                forbidden_phrases=cleanup["forbidden_phrases"],
+                replacement_rules=cleanup["replacement_rules"],
+            )
+            if status != "ok" or caption != record["caption"]:
+                continue
+        return record
+    return None
 
 
 def _write_run_config_json(path: Path, data: dict[str, Any]) -> None:
@@ -1484,6 +1522,7 @@ class JLC_CaptionForgeOllamaCaption:
         timeout = float(request_timeout_seconds)
 
         run_plan_connected = bool(pipeline_plan)
+        resume = run_plan_connected and _resume_enabled(pipeline_plan)
         use_caption_template = _use_template_mode(caption_template_mode, custom_prompt_mode)
         effective_extra_options, effective_person_name, _ = _resolve_template_options(template_options)
 
@@ -1517,14 +1556,17 @@ class JLC_CaptionForgeOllamaCaption:
             print(status)
             return (image, pipeline_plan, template_options, status, resolved_prompt)
 
-        _evict_python_models_before_ollama_if_needed("JLC CaptionForge Ollama Caption")
+        if not resume or download_probe_only:
+            _evict_python_models_before_ollama_if_needed("JLC CaptionForge Ollama Caption")
 
         if download_probe_only:
             result = _probe_ollama_model(ollama_url, model_tag, timeout=min(timeout, 60.0))
             return (image, pipeline_plan, template_options, result, resolved_prompt)
 
-        _ensure_ollama_model(ollama_url, model_tag, timeout=timeout)
-        _persist_caption_model_if_possible(model_tag)
+        model_ready = not resume
+        if model_ready:
+            _ensure_ollama_model(ollama_url, model_tag, timeout=timeout)
+            _persist_caption_model_if_possible(model_tag)
 
         if not run_plan:
             # Defensive fallback for standalone mode if expand_captionforge_runs ever changes behavior.
@@ -1569,6 +1611,7 @@ class JLC_CaptionForgeOllamaCaption:
 
         output_dir: Path | None = None
         jsonl_path: Path | None = None
+        completed: dict[tuple, list[dict[str, Any]]] = {}
         if run_plan_connected:
             planned_caption_jsonl_path = _planned_caption_jsonl_path(pipeline_plan)
             output_dir = (
@@ -1578,6 +1621,12 @@ class JLC_CaptionForgeOllamaCaption:
             )
             output_dir.mkdir(parents=True, exist_ok=True)
             jsonl_path = planned_caption_jsonl_path or (output_dir / DEFAULT_JSONL_FILENAME)
+
+            if resume:
+                for record in read_pass_a_jsonl(jsonl_path, repair_tail=True):
+                    key = ollama_operation_key(record)
+                    if key is not None and successful_caption(record):
+                        completed.setdefault(key, []).append(record)
 
             _write_run_config_json(
                 output_dir / f"jlc_captionforge_ollama_caption_run_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
@@ -1597,9 +1646,35 @@ class JLC_CaptionForgeOllamaCaption:
                 ),
             )
 
-        all_records: list[OllamaCaptionRecord] = []
+        captions: list[str] = []
         def process_one(source_name: str, image_key: str, pil: Image.Image):
+            nonlocal model_ready
             for run in run_plan:
+                cleanup = {
+                    "trigger_word": getattr(run, "trigger_word", ""),
+                    "forbidden_phrases": forbidden,
+                    "replacement_rules": [list(rule) for rule in replacements],
+                }
+                record = OllamaCaptionRecord(
+                    image=source_name, image_key=image_key, caption="", raw_caption="",
+                    model_name=model_tag, model_path=model_tag, prompt=prompt,
+                    system_prompt=system_prompt, seed=run.seed,
+                    temperature=float(run.temperature), top_p=float(run.top_p), top_k=int(run.top_k),
+                    repetition_penalty=float(repetition_penalty), max_new_tokens=int(run.max_new_tokens),
+                    max_size=int(run.max_size), ensemble_run_index=int(run.ensemble_run_index),
+                    resume_cleanup=cleanup if run_plan_connected else None,
+                )
+                key = ollama_operation_key(asdict(record))
+                existing = _matching_completion(completed.get(key, []), cleanup) if resume else None
+                if existing is not None:
+                    captions.append(existing["caption"])
+                    print(f"[CaptionForge] Resumed {image_key} Ollama {model_tag} run {run.ensemble_run_index}: already complete.", flush=True)
+                    continue
+                if not model_ready:
+                    _evict_python_models_before_ollama_if_needed("JLC CaptionForge Ollama Caption")
+                    _ensure_ollama_model(ollama_url, model_tag, timeout=timeout)
+                    _persist_caption_model_if_possible(model_tag)
+                    model_ready = True
                 t0 = time.perf_counter()
                 raw_caption = _ollama_generate_caption(
                     ollama_url=ollama_url,
@@ -1627,30 +1702,12 @@ class JLC_CaptionForgeOllamaCaption:
                     replacement_rules=replacements,
                 )
 
-                record = OllamaCaptionRecord(
-                    image=source_name,
-                    caption=final_caption,
-                    raw_caption=raw_caption,
-                    model_name=model_tag,
-                    model_path=model_tag,
-                    prompt=prompt,
-                    system_prompt=system_prompt,
-                    seed=run.seed,
-                    temperature=float(run.temperature),
-                    top_p=float(run.top_p),
-                    top_k=int(run.top_k),
-                    repetition_penalty=float(repetition_penalty),
-                    max_new_tokens=int(run.max_new_tokens),
-                    max_size=int(run.max_size),
-                    timestamp=datetime.now().isoformat(timespec="seconds"),
-                    captionforge_pass="A",
-                    model_family="ollama",
-                    ensemble_run_index=int(run.ensemble_run_index),
-                    image_key=image_key,
-                    backend="ollama",
-                    status=status,
-                )
-                all_records.append(record)
+                record.caption = final_caption
+                record.raw_caption = raw_caption
+                record.timestamp = datetime.now().isoformat(timespec="seconds")
+                record.status = status
+                if status == "ok" and final_caption:
+                    captions.append(final_caption)
 
                 if run_plan_connected and jsonl_path is not None and output_dir is not None:
                     _append_jsonl_records(jsonl_path, [record])
@@ -1667,7 +1724,7 @@ class JLC_CaptionForgeOllamaCaption:
 
         # Ollama model residency is requested through keep_alive on generation calls;
         # Ollama's server/runtime policy ultimately decides residency.
-        caption_string = "\n\n".join(r.caption for r in all_records if r.status == "ok" and r.caption)
+        caption_string = "\n\n".join(captions)
         return (image, pipeline_plan, template_options, caption_string, resolved_prompt)
 
 

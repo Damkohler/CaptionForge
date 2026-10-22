@@ -159,6 +159,7 @@ from ..engines.captionforge_pipeline_planner_engine import (
     MAX_SEED_32,
     build_captionforge_pipeline_plan,
 )
+from ..engines.captionforge_pass_a_resume import read_pass_a_jsonl
 
 CAPTION_RUNS = ["Disabled", "1", "2", "3", "4", "5"]
 SEED_MODES = ["fixed", "increment", "decrement", "random"]
@@ -524,7 +525,7 @@ def _reset_pass_a_jsonl_for_overwrite(plan: dict[str, Any], *, overwrite_outputs
     upstream of every caption witness. Resetting here avoids making any individual
     witness responsible for knowing whether it is "first" in the graph.
     """
-    if not overwrite_outputs or not isinstance(plan, dict):
+    if not isinstance(plan, dict):
         return
 
     paths = plan.get("paths")
@@ -544,6 +545,11 @@ def _reset_pass_a_jsonl_for_overwrite(plan: dict[str, Any], *, overwrite_outputs
             seen.add(marker)
 
     if not planned_paths:
+        return
+
+    if not overwrite_outputs:
+        for path in planned_paths:
+            read_pass_a_jsonl(path, repair_tail=True)
         return
 
     removed: list[str] = []

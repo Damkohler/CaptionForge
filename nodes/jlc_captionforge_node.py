@@ -161,6 +161,7 @@ from ..engines.captionforge_prompt_defaults import (
     DEFAULT_VALIDATOR_SYSTEM_PROMPT,
 )
 from ..engines.captionforge_source_identity import optional_image_filename
+from ..engines.captionforge_pass_a_resume import read_pass_a_jsonl, deduplicate_ollama_completions
 from ..engines.captionforge_dataset_export import (
     dataset_export_inputs,
     dataset_root,
@@ -1040,7 +1041,7 @@ def _select_caption_records(
     per_family_counts: dict[str, int] = {}
     selected: list[dict[str, Any]] = []
 
-    for record in records:
+    for record in deduplicate_ollama_completions(records):
         status = str(record.get("status") or "ok").strip().lower()
         if status not in {"", "ok", "prompt_only"}:
             continue
@@ -2079,7 +2080,7 @@ class JLC_CaptionForge:
         if export["enabled"]:
             prepare_dataset_root(training_root, image_root)
 
-        records = _read_jsonl(caption_path)
+        records = read_pass_a_jsonl(caption_path)
         grouped = _group_records_by_image(records)
         include_families = str(kwargs.get("Input - include caption families", "joy,qwen,ollama") or "joy,qwen,ollama")
         max_per_family = _coerce_int(kwargs.get("Input - max captions per family", 5), 5, 0, 50)
